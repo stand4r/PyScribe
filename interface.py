@@ -29,8 +29,26 @@ class CodeTextEdit(QtWidgets.QTextEdit):
             cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
             self.setTextCursor(cursor)
             return
+        if event.text() == "'":
+            self.insertPlainText("''")
+            cursor = self.textCursor()
+            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
+            self.setTextCursor(cursor)
+            return
         if event.text() == "(":
             self.insertPlainText("()")
+            cursor = self.textCursor()
+            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
+            self.setTextCursor(cursor)
+            return
+        if event.text() == "[":
+            self.insertPlainText("[]")
+            cursor = self.textCursor()
+            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
+            self.setTextCursor(cursor)
+            return
+        if event.text() == "{":
+            self.insertPlainText("{}")
             cursor = self.textCursor()
             cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
             self.setTextCursor(cursor)
@@ -42,6 +60,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1500, 850)
+        MainWindow.setStyleSheet("#MainWindow{background-color: #121212;}") 
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -59,11 +78,13 @@ class Ui_MainWindow(object):
         self.TreeFiles.setEnabled(True)
         self.TreeFiles.setMaximumSize(QtCore.QSize(220, 16777215))
         self.TreeFiles.setObjectName("TreeFiles")
+        self.TreeFiles.setStyleSheet("#TreeFiles{background-color:#002137; border-radius:10px}")
         self.horizontalLayout.addWidget(self.TreeFiles)
         self.CodeText = CodeTextEdit(self.centralwidget)
         self.CodeText.setMinimumSize(QtCore.QSize(850, 0))
         self.CodeText.setMaximumSize(QtCore.QSize(850, 16777215))
         self.CodeText.setObjectName("CodeText")
+        self.CodeText.setStyleSheet("#CodeText{background-color:#332f2c; border-radius:10px; color: #ffffff; padding: 10px}")
         self.horizontalLayout.addWidget(self.CodeText)
         self.ResultText = ReadOnlyTextEdit(self.centralwidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
@@ -74,6 +95,8 @@ class Ui_MainWindow(object):
         self.ResultText.setMinimumSize(QtCore.QSize(3, 0))
         self.ResultText.setMaximumSize(QtCore.QSize(500, 16777215))
         self.ResultText.setObjectName("ResultText")
+        self.ResultText.setStyleSheet("#ResultText{background-color:#332f2c; border-radius:10px; color:#fbfbfb; \
+            font: 12pt 'Times New Roman'; padding: 15px}")
         self.horizontalLayout.addWidget(self.ResultText)
         self.verticalLayout.addLayout(self.horizontalLayout)
         self.frame_2 = QtWidgets.QFrame(self.centralwidget)
@@ -87,9 +110,11 @@ class Ui_MainWindow(object):
         self.menubar.setObjectName("menubar")
         self.menuFile = QtWidgets.QMenu(self.menubar)
         self.menuFile.setObjectName("menuFile")
+        self.menuFile.setStyleSheet("#menuFile{background-color: #332f2c; color: #ffffff}")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
+        self.statusbar.setStyleSheet("#statusbar{background-color:#332f2c; color: #ffffff}")
         MainWindow.setStatusBar(self.statusbar)
         self.actionOpen = QtWidgets.QAction(MainWindow)
         self.actionOpen.setObjectName("actionOpen")
@@ -120,7 +145,7 @@ class Ui_MainWindow(object):
 "p, li { white-space: pre-wrap; }\n"
 "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:7.8pt; font-weight:400; font-style:normal;\">\n"
 "<p style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p></body></html>"))
-        self.menuFile.setTitle(_translate("MainWindow", "File"))
+        self.menuFile.setTitle(_translate("MainWindow", "File   "))
         self.actionOpen.setText(_translate("MainWindow", "Open             Shift+F5"))
         self.actionSave.setText(_translate("MainWindow", "Save             Ctrl+S"))
         self.actionRun.setText(_translate("MainWindow", "Run              Ctrl+Shift+X"))
