@@ -7,6 +7,12 @@ class CodeTextEdit(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFont(QFont("Times", 12))
+        self.filename = ""
+        self.fullfilepath = ""
+        self.language = ""
+        
+    def addText(self, text):
+        self.insertPlainText(text)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_QuoteDbl:
