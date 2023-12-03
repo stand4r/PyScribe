@@ -1,3 +1,5 @@
+# -*- coding: cp1251 -*-
+
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtGui import QIcon
 from subprocess import PIPE, Popen
@@ -5,24 +7,23 @@ from os import path
 from QCodeEditor import CodeTextEdit
 from basicInterface import Ui_MainWindow
 from QReadOnlyTextEditor import QReadOnlyTextEdit
-from QNewFileDialog import FileSaveWindow
 
 
 
 files = []
 fileNames = []
-languages = {"py": "Python",
-             "c": "C",
-             "cpp": "C++",
-             "js": "JavaScript",
-             "xml": "XML",
-             "kt": "Kotlin",
-             "rss": "RSS",
-             "rb": "Ruby",
-             "html": "HTML",
-             "htm": "HTML",
-             "xhtml": "HTML",
-             "css": "CSS"
+languages = {"py": "python",
+             "c": "c",
+             "cpp": "cpp",
+             "js": "javascript",
+             "xml": "xml",
+             "kt": "kotlin",
+             "rss": "rss",
+             "rb": "ruby",
+             "html": "html",
+             "htm": "html",
+             "xhtml": "html",
+             "css": "css"
              }
 
 
@@ -99,9 +100,10 @@ class UiMainWindow(Ui_MainWindow):
         self.CodeEdit.setFont(font)
         self.CodeEdit.setStyleSheet("background-color:#0A1F32;\n"
 "color: #ffffff;\n"
-"padding: 12px; padding-bottom: 100px;")
+"padding: 12px; padding-bottom: 100px;padding-left: 20px;padding-right:20px")
         self.CodeEdit.setObjectName("CodeEdit")
-        self.CodeEdit.addText("".join(text))
+        txt = "".join(text)
+        self.CodeEdit.addText(txt.encode('cp1251').decode('cp866'))
         self.ResultText = QReadOnlyTextEdit(self.tab)
         self.ResultText.setGeometry(QtCore.QRect(939, -10, 601, 757))
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
