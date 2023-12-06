@@ -1,5 +1,6 @@
 # -*- coding: cp1251 -*-
 
+from fileinput import filename
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtGui import QIcon
 from subprocess import PIPE, Popen
@@ -7,11 +8,13 @@ from os import path
 from QCodeEditor import CodeTextEdit
 from basicInterface import Ui_MainWindow
 from QReadOnlyTextEditor import QReadOnlyTextEdit
+import json
 
+session = json.load(open(path.dirname(path.abspath(__file__))+"\\session.json", "r"))
+files = session["files"]
+fileNames = session["filenames"]
+index = len(files)
 
-
-files = []
-fileNames = []
 languages = {"py": "python",
              "c": "c",
              "cpp": "cpp",
@@ -46,7 +49,10 @@ class UiMainWindow(Ui_MainWindow):
         self.ResultText.setPlainText("")
         self.ResultText.insertPlainText(f"~> run {self.CodeEdit.filename}\n")
         open(self.CodeEdit.fullfilepath, "w").write(self.CodeEdit.toPlainText())
-        process = Popen([sys.executable, self.CodeEdit.fullfilepath], shell=True, stderr=PIPE, stdout=PIPE, text=True)
+        if self.CodeEdit.language == "python":
+                process = Popen([sys.executable, self.CodeEdit.fullfilepath], shell=True, stderr=PIPE, stdout=PIPE, text=True)
+        elif self.CodeEdit.language == "c":
+                process = Popen(["C:/Users/Dmitr/gcc/bin/gcc.exe", self.CodeEdit.fullfilepath, "-o", self.CodeEdit.fullfilepath.split(".")[0]+".exe", "&", self.CodeEdit.fullfilepath.split(".")[0]+".exe"], shell=True, stderr=PIPE, stdout=PIPE, text=True)
         while True:
             output = process.stdout.readline()
             error = process.stderr.readline()
@@ -62,7 +68,6 @@ class UiMainWindow(Ui_MainWindow):
         fileDialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
         fileDialog.setNameFilter("All files(*.*)")  
         if fileDialog.exec_():
-            files.clear()
             files.append(fileDialog.selectedFiles())
             self.openFilesForTabs()
             
@@ -70,19 +75,22 @@ class UiMainWindow(Ui_MainWindow):
         options = QtWidgets.QFileDialog.Options()
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self.MainWindow, "Save File", "", "All Files (*);", options=options)
         if fileName:
-            files.clear()
-            files.append(fileName)
-            self.openFilesForTabs()
+            self.createFile(fileName)
             
     def actionSaveFile(self):
         open(self.CodeEdit.fullfilepath, "w").write(self.CodeEdit.toPlainText())
             
     def openFilesForTabs(self):
-        fileNames.clear()
         for file in files:
-            fileNames.append(file[0].split("/")[-1])
-            text = open(file[0], "r").readlines()
-            self.createTab(text, file[0])
+            fileNames.append(file[index].split("/")[-1])
+            text = open(file[index], "r").readlines()
+            self.createTab(text, file[index])
+            
+    def createFile(self, file):
+        open(file, "w")
+        text = open(file, "r").readlines()
+        files.append(file)
+        self.createTab(text, file)
 
     def createTab(self, text, fileName):
         self.tab = QtWidgets.QWidget()
@@ -94,7 +102,6 @@ class UiMainWindow(Ui_MainWindow):
         self.CodeEdit.filename = rf"{fileName.split('/')[-1]}"
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.language = languages[fileName.split('/')[-1].split('.')[-1]]
-        print(self.CodeEdit.language)
         font = QtGui.QFont()
         font.setPointSize(12)
         self.CodeEdit.setFont(font)
@@ -122,6 +129,21 @@ class UiMainWindow(Ui_MainWindow):
 "padding: 12px; padding-bottom: 100px; padding-right:100px;")
         self.ResultText.setObjectName("ResultText")
         self.tabWidget.addTab(self.tab, fileName.split('/')[-1])
+        
+    def closeEvent(self, event):
+        print(files)
+        print(fileNames)
+        print(index)
+        reply = QtWidgets.QMessageBox.question\
+        (self, 'Вы нажали на крестик',
+            "Вы уверены, что хотите уйти?",
+             QtWidgets.QMessageBox.Yes,
+             QtWidgets.QMessageBox.No)
+        if reply == QtWidgets.QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore()
+        
 
 
 

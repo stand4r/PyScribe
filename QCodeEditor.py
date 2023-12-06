@@ -1,12 +1,13 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QPlainTextEdit
-from PyQt5.QtGui import QTextCursor, QFont, QPainter
+from PyQt5.QtGui import QTextCursor, QFont, QPainter, QColor, QTextCharFormat
 
 
 class CodeTextEdit(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFont(QFont("Times", 12))
+        #self.highlight_text()
         self.filename = ""
         self.fullfilepath = ""
         self.language = ""
@@ -15,6 +16,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.insertPlainText(text)
 
     def keyPressEvent(self, event):
+        #self.highlight_text()
         if event.key() == Qt.Key_QuoteDbl:
             self.insertPlainText('""')
             cursor = self.textCursor()
@@ -47,6 +49,7 @@ class CodeTextEdit(QPlainTextEdit):
             return
         super().keyPressEvent(event)
         
+        
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self.viewport())
@@ -70,3 +73,13 @@ class CodeTextEdit(QPlainTextEdit):
             top = bottom
             bottom = top + self.blockBoundingRect(block).height()
             block_number += 1
+    
+    def highlight_text(self):
+        for word in ["print", "if", "else"]:
+            cursor = self.document().find(word)
+            fmt = QTextCharFormat()
+            fmt.setForeground(QColor("red"))
+
+            while not cursor.isNull():
+                cursor.mergeCharFormat(fmt)
+                cursor = self.document().find(word, cursor)
