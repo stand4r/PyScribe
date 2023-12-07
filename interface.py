@@ -47,12 +47,12 @@ class UiMainWindow(Ui_MainWindow):
 
     def actionRunCode(self):
         self.ResultText.setPlainText("")
-        self.ResultText.insertPlainText(f"~> run {self.CodeEdit.filename}\n")
-        open(self.CodeEdit.fullfilepath, "w").write(self.CodeEdit.toPlainText())
+        self.ResultText.insertPlainText(f"~> run {self.ResultText.filename}\n")
+        open(self.ResultText.fullfilepath, "w").write(self.CodeEdit.toPlainText())
         if self.CodeEdit.language == "python":
-                process = Popen([sys.executable, self.CodeEdit.fullfilepath], shell=True, stderr=PIPE, stdout=PIPE, text=True)
+                process = Popen([sys.executable, self.ResultText.fullfilepath], shell=True, stderr=PIPE, stdout=PIPE, text=True)
         elif self.CodeEdit.language == "c":
-                process = Popen(["C:/Users/Dmitr/gcc/bin/gcc.exe", self.CodeEdit.fullfilepath, "-o", self.CodeEdit.fullfilepath.split(".")[0]+".exe", "&", self.CodeEdit.fullfilepath.split(".")[0]+".exe"], shell=True, stderr=PIPE, stdout=PIPE, text=True)
+                process = Popen(["C:/Users/Dmitr/gcc/bin/gcc.exe", self.ResultText.fullfilepath, "-o", self.ResultText.fullfilepath.split(".")[0]+".exe", "&", self.ResultText.fullfilepath.split(".")[0]+".exe"], shell=True, stderr=PIPE, stdout=PIPE, text=True)
         while True:
             output = process.stdout.readline()
             error = process.stderr.readline()
@@ -62,35 +62,29 @@ class UiMainWindow(Ui_MainWindow):
                 self.ResultText.insertPlainText(output.encode('cp1251').decode('cp866'))
             if error:
                 self.ResultText.insertPlainText(error.encode('cp1251').decode('cp866'))
+                
+    def actionSaveFile(self):
+        open(self.CodeEdit.fullfilepath, "w").write(self.CodeEdit.toPlainText())
 
     def actionOpenFile(self):
         fileDialog = QtWidgets.QFileDialog()
         fileDialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
         fileDialog.setNameFilter("All files(*.*)")  
         if fileDialog.exec_():
-            files.append(fileDialog.selectedFiles())
-            self.openFilesForTabs()
+            open(fileDialog.selectedFiles()[0], "w")
+            text = open(fileDialog.selectedFiles()[0], "r").readlines()
+            files.append(fileDialog.selectedFiles()[0])
+            self.createTab(text, fileDialog.selectedFiles()[0])
             
     def actionNewFile(self):
         options = QtWidgets.QFileDialog.Options()
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self.MainWindow, "Save File", "", "All Files (*);", options=options)
         if fileName:
-            self.createFile(fileName)
+            open(fileName, "w")
+            text = open(fileName, "r").readlines()
+            files.append(fileName)
+            self.createTab(text, fileName)
             
-    def actionSaveFile(self):
-        open(self.CodeEdit.fullfilepath, "w").write(self.CodeEdit.toPlainText())
-            
-    def openFilesForTabs(self):
-        for file in files:
-            fileNames.append(file[index].split("/")[-1])
-            text = open(file[index], "r").readlines()
-            self.createTab(text, file[index])
-            
-    def createFile(self, file):
-        open(file, "w")
-        text = open(file, "r").readlines()
-        files.append(file)
-        self.createTab(text, file)
 
     def createTab(self, text, fileName):
         self.tab = QtWidgets.QWidget()
@@ -128,6 +122,8 @@ class UiMainWindow(Ui_MainWindow):
 "color: #ffffff;\n"
 "padding: 12px; padding-bottom: 100px; padding-right:100px;")
         self.ResultText.setObjectName("ResultText")
+        self.ResultText.filename = rf"{fileName.split('/')[-1]}"
+        self.ResultText.fullfilepath = rf"{fileName}"
         self.tabWidget.addTab(self.tab, fileName.split('/')[-1])
         
     def closeEvent(self, event):
