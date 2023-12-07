@@ -16,38 +16,22 @@ class CodeTextEdit(QPlainTextEdit):
         self.insertPlainText(text)
 
     def keyPressEvent(self, event):
-        #self.highlight_text()
-        if event.key() == Qt.Key_QuoteDbl:
-            self.insertPlainText('""')
+        if event.text() in  ["'", '"', "(", "{", "["]:
+            if event.text() == '"':
+                self.insertPlainText('""')
+            elif event.text() == "'":
+                self.insertPlainText("''")
+            elif event.text() == "(":
+                self.insertPlainText("()")
+            elif event.text() == "[":
+                self.insertPlainText("[]")
+            elif event.text() == "{":
+                self.insertPlainText("{}")
             cursor = self.textCursor()
             cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
             self.setTextCursor(cursor)
-            return
-        if event.text() == "'":
-            self.insertPlainText("''")
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
-            self.setTextCursor(cursor)
-            return
-        if event.text() == "(":
-            self.insertPlainText("()")
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
-            self.setTextCursor(cursor)
-            return
-        if event.text() == "[":
-            self.insertPlainText("[]")
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
-            self.setTextCursor(cursor)
-            return
-        if event.text() == "{":
-            self.insertPlainText("{}")
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
-            self.setTextCursor(cursor)
-            return
-        super().keyPressEvent(event)
+        else:
+            super().keyPressEvent(event)
         
         
     def paintEvent(self, event):

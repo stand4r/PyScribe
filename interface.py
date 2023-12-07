@@ -9,6 +9,7 @@ from QCodeEditor import CodeTextEdit
 from basicInterface import Ui_MainWindow
 from QReadOnlyTextEditor import QReadOnlyTextEdit
 import json
+from time import perf_counter
 
 session = json.load(open(path.dirname(path.abspath(__file__))+"\\session.json", "r"))
 files = session["files"]
@@ -48,20 +49,36 @@ class UiMainWindow(Ui_MainWindow):
     def actionRunCode(self):
         self.ResultText.setPlainText("")
         self.ResultText.insertPlainText(f"~> run {self.ResultText.filename}\n")
-        open(self.ResultText.fullfilepath, "w").write(self.CodeEdit.toPlainText())
+        
+        with open(self.ResultText.fullfilepath, 'w') as codefile:
+            codefile.write(self.CodeEdit.toPlainText())
+        
         if self.CodeEdit.language == "python":
-                process = Popen([sys.executable, self.ResultText.fullfilepath], shell=True, stderr=PIPE, stdout=PIPE, text=True)
+            command = [sys.executable, self.ResultText.fullfilepath]
         elif self.CodeEdit.language == "c":
-                process = Popen(["C:/Users/Dmitr/gcc/bin/gcc.exe", self.ResultText.fullfilepath, "-o", self.ResultText.fullfilepath.split(".")[0]+".exe", "&", self.ResultText.fullfilepath.split(".")[0]+".exe"], shell=True, stderr=PIPE, stdout=PIPE, text=True)
-        while True:
-            output = process.stdout.readline()
-            error = process.stderr.readline()
-            if output == "" and process.poll() is not None:
-                break
-            if output:
-                self.ResultText.insertPlainText(output.encode('cp1251').decode('cp866'))
-            if error:
-                self.ResultText.insertPlainText(error.encode('cp1251').decode('cp866'))
+            exe_path = self.ResultText.fullfilepath.rsplit(".", 1)[0] + ".exe"
+            command = ["gcc", self.ResultText.fullfilepath, "-o", exe_path]
+            
+            compile_process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
+            stdout, stderr = compile_process.communicate()
+
+            if compile_process.returncode != 0:
+                self.ResultText.insertPlainText(stderr)
+                return
+            else:
+                command = [exe_path]
+        tac = perf_counter()
+        process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
+        tic = perf_counter()
+        try:
+            stdout, stderr = process.communicate()
+            
+            self.ResultText.insertPlainText(stdout)
+            if stderr:
+                self.ResultText.insertPlainText(stderr)
+        except Exception as e:
+            self.ResultText.insertPlainText(f"An error occurred: {str(e)}")
+        self.ResultText.insertPlainText(f"\nCode executed in {tic-tac:0.4f} seconds")
                 
     def actionSaveFile(self):
         open(self.CodeEdit.fullfilepath, "w").write(self.CodeEdit.toPlainText())
@@ -69,21 +86,23 @@ class UiMainWindow(Ui_MainWindow):
     def actionOpenFile(self):
         fileDialog = QtWidgets.QFileDialog()
         fileDialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
-        fileDialog.setNameFilter("All files(*.*)")  
+        fileDialog.setNameFilter("All files(*.*)") 
         if fileDialog.exec_():
-            open(fileDialog.selectedFiles()[0], "w")
-            text = open(fileDialog.selectedFiles()[0], "r").readlines()
-            files.append(fileDialog.selectedFiles()[0])
-            self.createTab(text, fileDialog.selectedFiles()[0])
+            file_path = fileDialog.selectedFiles()[0]
+            with open(file_path, "r") as file:
+                text = file.readlines()
+                files.append(file_path)
+                self.createTab(text, file_path)
             
     def actionNewFile(self):
         options = QtWidgets.QFileDialog.Options()
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self.MainWindow, "Save File", "", "All Files (*);", options=options)
         if fileName:
-            open(fileName, "w")
-            text = open(fileName, "r").readlines()
-            files.append(fileName)
-            self.createTab(text, fileName)
+            with open(fileName, "w") as file:
+                file.write('')
+                with open(fileName, "r") as file_read:
+                    text = file_read.readlines()
+                    self.createTab(text, fileName)
             
 
     def createTab(self, text, fileName):
@@ -104,7 +123,7 @@ class UiMainWindow(Ui_MainWindow):
 "padding: 12px; padding-bottom: 100px;padding-left: 20px;padding-right:20px")
         self.CodeEdit.setObjectName("CodeEdit")
         txt = "".join(text)
-        self.CodeEdit.addText(txt.encode('cp1251').decode('cp866'))
+        self.CodeEdit.addText(txt)
         self.ResultText = QReadOnlyTextEdit(self.tab)
         self.ResultText.setGeometry(QtCore.QRect(939, -10, 601, 757))
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
