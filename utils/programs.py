@@ -10,7 +10,7 @@ def compile_program_c(path: str) -> str:
         raise ValueError(f"Compilation completed with error {compile_process.returncode}")      
     else:
         return exe_path
-    
+     
 def compile_program_cpp(path: str) -> str:
     pass
     

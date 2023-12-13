@@ -109,9 +109,14 @@ class UiMainWindow(Ui_MainWindow):
         font = QtGui.QFont()
         font.setPointSize(12)
         self.CodeEdit.setFont(font)
-        self.CodeEdit.setStyleSheet("background-color:#0A1F32;\n"
-"color: #ffffff;\n"
-"padding: 12px; padding-bottom: 100px;padding-left: 20px;padding-right:20px")
+        self.CodeEdit.setStyleSheet("background-color:#1e1f1e;\n"
+            "color: #ffffff;\n"
+            "padding: 12px;\n"
+            "padding-bottom: 100px;\n"
+            "padding-left: 20px;\n"
+            "padding-right:20px;\n"
+            "letter-spacing:2px;"
+            )
         self.CodeEdit.setObjectName("CodeEdit")
         txt = "".join(text)
         self.CodeEdit.addText(txt)
@@ -128,7 +133,7 @@ class UiMainWindow(Ui_MainWindow):
         font.setFamily("MS Shell Dlg 2")
         font.setPointSize(12)
         self.ResultText.setFont(font)
-        self.ResultText.setStyleSheet("background-color: #0A1F32;\n"
+        self.ResultText.setStyleSheet("background-color: #1e1f1e;\n"
 "color: #ffffff;\n"
 "padding: 12px; padding-bottom: 100px; padding-right:100px;")
         self.ResultText.setObjectName("ResultText")
@@ -150,7 +155,6 @@ class UiMainWindow(Ui_MainWindow):
         else:
             event.ignore()
         
-
 
 
 if __name__ == "__main__":

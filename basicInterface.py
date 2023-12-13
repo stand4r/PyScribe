@@ -14,10 +14,10 @@ class Ui_MainWindow(object):
         MainWindow.setSizePolicy(sizePolicy)
         MainWindow.setMinimumSize(QtCore.QSize(1500, 850))
         MainWindow.setMaximumSize(QtCore.QSize(1500, 850))
-        MainWindow.setStyleSheet("background-color:  #353358;\n"
+        MainWindow.setStyleSheet("background-color:  #191819;\n"
 "color: #ffffff")
         self.centralwidget = QtWidgets.QWidget(MainWindow)
-        self.centralwidget.setStyleSheet("background-color: #353358")
+        self.centralwidget.setStyleSheet("background-color: #191819")
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
         self.verticalLayout.setObjectName("verticalLayout")
@@ -27,7 +27,7 @@ class Ui_MainWindow(object):
         self.frame_2.setObjectName("frame_2")
         self.tabWidget = QtWidgets.QTabWidget(self.frame_2)
         self.tabWidget.setGeometry(QtCore.QRect(9, 12, 1471, 791))
-        self.tabWidget.setStyleSheet("background-color: #0A1F32;\n"
+        self.tabWidget.setStyleSheet("background-color: #1e1f1e;\n"
         "color: #000000\n")
         self.tabWidget.setTabShape(QtWidgets.QTabWidget.Rounded)
         self.tabWidget.setTabsClosable(True)
