@@ -1,17 +1,15 @@
-# -*- coding: cp1251 -*-
-
-from fileinput import filename
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtGui import QIcon
 from subprocess import PIPE, Popen
 from os import path
-from QCodeEditor import CodeTextEdit
+from widgets.QCodeEditor import CodeTextEdit
 from basicInterface import Ui_MainWindow
-from QReadOnlyTextEditor import QReadOnlyTextEdit
-import json
+from widgets.QReadOnlyTextEditor import QReadOnlyTextEdit
+from json import load
 from time import perf_counter
+from utils.programs import *
 
-session = json.load(open(path.dirname(path.abspath(__file__))+"\\session.json", "r"))
+session = load(open(path.dirname(path.abspath(__file__))+"\\session.json", "r"))
 files = session["files"]
 fileNames = session["filenames"]
 index = len(files)
@@ -48,36 +46,29 @@ class UiMainWindow(Ui_MainWindow):
 
     def actionRunCode(self):
         self.ResultText.setPlainText("")
+        if sys.executable:
+            self.ResultText.insertHtml(f"~> <font color=green>found interpreter</font><br>")
+        else:
+            self.ResultText.insertPlainText(f"~> <font color=red>ERROR</font>: gcc not found<br>")
+        
         self.ResultText.insertPlainText(f"~> run {self.ResultText.filename}\n")
         
         with open(self.ResultText.fullfilepath, 'w') as codefile:
             codefile.write(self.CodeEdit.toPlainText())
-        
+                    
         if self.CodeEdit.language == "python":
-            command = [sys.executable, self.ResultText.fullfilepath]
+            command = [sys.executable, '"'+self.CodeEdit.fullfilepath+'"']
         elif self.CodeEdit.language == "c":
-            exe_path = self.ResultText.fullfilepath.rsplit(".", 1)[0] + ".exe"
-            command = ["gcc", self.ResultText.fullfilepath, "-o", exe_path]
+            exe_path = compile_program_c(self.CodeEdit.fullfilepath)
+            command = [f'"{exe_path}"']
+        elif self.CodeEdit.language == "cpp":
+            exe_path = compile_program_cpp(self.CodeEdit.fullfilepath)
+            command = [f'"{exe_path}"']
             
-            compile_process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
-            stdout, stderr = compile_process.communicate()
-
-            if compile_process.returncode != 0:
-                self.ResultText.insertPlainText(stderr)
-                return
-            else:
-                command = [exe_path]
         tac = perf_counter()
-        process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
+        Popen(f'start cmd /k {" ".join(command)}', shell=True)
         tic = perf_counter()
-        try:
-            stdout, stderr = process.communicate()
-            
-            self.ResultText.insertPlainText(stdout)
-            if stderr:
-                self.ResultText.insertPlainText(stderr)
-        except Exception as e:
-            self.ResultText.insertPlainText(f"An error occurred: {str(e)}")
+        
         self.ResultText.insertPlainText(f"\nCode executed in {tic-tac:0.4f} seconds")
                 
     def actionSaveFile(self):
@@ -150,7 +141,7 @@ class UiMainWindow(Ui_MainWindow):
         print(fileNames)
         print(index)
         reply = QtWidgets.QMessageBox.question\
-        (self, 'Вы нажали на крестик',
+        (self.MainWindow, 'Вы нажали на крестик',
             "Вы уверены, что хотите уйти?",
              QtWidgets.QMessageBox.Yes,
              QtWidgets.QMessageBox.No)
@@ -171,4 +162,4 @@ if __name__ == "__main__":
     ui = UiMainWindow()
     ui.setupUiCustom(MainWindow)
     MainWindow.show()
-    sys.exit(app.exec_()) 
+    sys.exit(app.exec_())

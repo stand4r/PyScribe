@@ -1,6 +1,6 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from QCodeEditor import CodeTextEdit
-from QReadOnlyTextEditor import QReadOnlyTextEdit
+from widgets.QCodeEditor import CodeTextEdit
+from widgets.QReadOnlyTextEditor import QReadOnlyTextEdit
 
 
 class Ui_MainWindow(object):
