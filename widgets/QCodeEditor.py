@@ -1,12 +1,16 @@
 from PyQt5.QtCore import Qt, QRegExp
-from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter
+from PyQt5.QtWidgets import QPlainTextEdit
+from PyQt5.QtGui import QTextCursor, QFont, QColor, QTextCharFormat, QSyntaxHighlighter
 
-keywords = ['and', 'assert', 'break', 'class', 'continue', 'def',
+
+keywords = [
+            'and', 'assert', 'break', 'class', 'continue', 'def',
             'del', 'elif', 'else', 'except', 'exec', 'finally',
             'for', 'from', 'global', 'if', 'import', 'in',
             'is', 'lambda', 'not', 'or', 'pass', 'print',
             'raise', 'return', 'try', 'while', 'yield',
-            'None', 'True', 'False', 'self']
+            'None', 'True', 'False', 'self'
+            ]
 
 
 operators = [
@@ -25,9 +29,6 @@ braces = [
             '\{', '\}', '\(', '\)', '\[', '\]',
         ]
 
-
-from PyQt5.QtWidgets import QPlainTextEdit
-from PyQt5.QtGui import QTextCursor, QFont, QColor, QTextCharFormat, QSyntaxHighlighter
 
 class CodeTextEdit(QPlainTextEdit):
     def __init__(self, parent=None):
