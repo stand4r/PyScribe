@@ -1,11 +1,6 @@
 from PyQt5.QtCore import Qt, QRegExp
-<<<<<<< HEAD
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor
 from PyQt5.QtWidgets import QPlainTextEdit
-=======
-from PyQt5.QtWidgets import QPlainTextEdit
-from PyQt5.QtGui import QTextCursor, QFont, QColor, QTextCharFormat, QSyntaxHighlighter
->>>>>>> 014a08377dcc13baeda5b76f4738bb32c8468cf4
 
 
 keywords = [
@@ -14,7 +9,6 @@ keywords = [
             'for', 'from', 'global', 'if', 'import', 'in',
             'is', 'lambda', 'not', 'or', 'pass', 'print',
             'raise', 'return', 'try', 'while', 'yield',
-<<<<<<< HEAD
             'None', 'True', 'False', 'self', "auto", 
             "break", "case", "char", "const", "continue", 
             "default", "do", "double", "else", "enum", "extern", 
@@ -31,11 +25,6 @@ keywords = [
             "switch", "template", "this", "throw", "true", "try", "typedef", "typeid",
             "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t",
             "while"]
-=======
-            'None', 'True', 'False', 'self'
-            ]
-
->>>>>>> 014a08377dcc13baeda5b76f4738bb32c8468cf4
 
 operators = [
             '=',
