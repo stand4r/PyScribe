@@ -1,5 +1,4 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from widgets.QCodeEditor import CodeTextEdit
 from widgets.QReadOnlyTextEditor import QReadOnlyTextEdit
 
 
@@ -7,6 +6,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1500, 850)
+        MainWindow.setStyleSheet("background-color:#1e1f1e;")
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -26,12 +26,17 @@ class Ui_MainWindow(object):
         self.frame_2.setFrameShadow(QtWidgets.QFrame.Raised)
         self.frame_2.setObjectName("frame_2")
         self.tabWidget = QtWidgets.QTabWidget(self.frame_2)
-        self.tabWidget.setGeometry(QtCore.QRect(9, 12, 1471, 791))
+        self.tabWidget.setGeometry(QtCore.QRect(9, 11, 1471, 791))
         self.tabWidget.setStyleSheet("background-color: #1e1f1e;\n"
         "color: #000000\n")
         self.tabWidget.setTabShape(QtWidgets.QTabWidget.Rounded)
         self.tabWidget.setTabsClosable(True)
         self.tabWidget.setObjectName("tabWidget")
+        self.tabWidget.setStyleSheet(
+            "QTabBar::tab {background-color: #1e1f1e; width: 150px; height: 30px; border-width: 1px; padding-right: 20px; font-size: 16px; letter-spacing: 1px; border: 1px solid blue}"
+            "QTabBar::tab:selected {background-color: #1e1f1e; border: 1px solid white;}"  # Стиль для активной вкладки
+            "QTabBar::tab:!selected {background-color: #1e1f1e; border: 1px solid #1e1f1e;}"  # Дополнительный стиль для неактивной вкладки
+        )
         self.verticalLayout.addWidget(self.frame_2)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
@@ -75,6 +80,23 @@ class Ui_MainWindow(object):
         self.menuFile.addAction(self.actionRun)
         self.menuFile.addAction(self.actionNew)
         self.menubar.addAction(self.menuFile.menuAction())
+        self.ResultText = QReadOnlyTextEdit(self.frame_2)
+        self.ResultText.setGeometry(QtCore.QRect(939, 12, 599, 757))
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.ResultText.sizePolicy().hasHeightForWidth())
+        self.ResultText.setSizePolicy(sizePolicy)
+        self.ResultText.setMinimumSize(QtCore.QSize(599, 791))
+        self.ResultText.setMaximumSize(QtCore.QSize(599, 791))
+        font = QtGui.QFont()
+        font.setFamily("MS Shell Dlg 2")
+        font.setPointSize(12)
+        self.ResultText.setFont(font)
+        self.ResultText.setStyleSheet("background-color: #1e1f1e;\n"
+        "color: #ffffff;\n"
+        "padding: 12px; padding-bottom: 100px; padding-right:100px; letter-spacing: 2px;")
+        self.ResultText.setObjectName("ResultText")
 
         self.retranslateUi(MainWindow)
         self.tabWidget.setCurrentIndex(0)
@@ -82,7 +104,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "IDE Python"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "PyScribe"))
         self.menuFile.setTitle(_translate("MainWindow", "     File     "))
         self.actionOpen.setText(_translate("MainWindow", "Open"))
         self.actionOpen.setShortcut(_translate("MainWindow", "Shift+F5"))

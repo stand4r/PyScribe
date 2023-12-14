@@ -8,25 +8,31 @@ from widgets.QReadOnlyTextEditor import QReadOnlyTextEdit
 from json import load
 from time import perf_counter
 from utils.programs import *
+from sys import exit, argv, executable
 
-session = load(open(path.dirname(path.abspath(__file__))+"\\session.json", "r"))
-files = session["files"]
-fileNames = session["filenames"]
-index = len(files)
+try:
+    from PyQt5.QtWinExtras import QtWin                                         
+    myappid = 'stand4r.PyScribe.pyscribe.1'                         
+    QtWin.setCurrentProcessExplicitAppUserModelID(myappid)                         
+except ImportError:
+    print("Error")
+
+files = []
+fileNames = []
 
 languages = {"py": "python",
-             "c": "c",
-             "cpp": "cpp",
-             "js": "javascript",
-             "xml": "xml",
-             "kt": "kotlin",
-             "rss": "rss",
-             "rb": "ruby",
-             "html": "html",
-             "htm": "html",
-             "xhtml": "html",
-             "css": "css"
-             }
+            "c": "c",
+            "cpp": "cpp",
+            "js": "javascript",
+            "xml": "xml",
+            "kt": "kotlin",
+            "rss": "rss",
+            "rb": "ruby",
+            "html": "html",
+            "htm": "html",
+            "xhtml": "html",
+            "css": "css"
+            }
 
 
 class UiMainWindow(Ui_MainWindow):
@@ -34,7 +40,6 @@ class UiMainWindow(Ui_MainWindow):
         self.setupUi(MainWindow)
         self.MainWindow = MainWindow
         scriptDir = path.dirname(path.realpath(__file__))
-        MainWindow.setWindowIcon(QIcon(scriptDir+path.sep+'src/icon2.png')) 
         self.actionRun.triggered.connect(self.actionRunCode)
         self.actionOpen.triggered.connect(self.actionOpenFile)
         self.actionSave.triggered.connect(self.actionSaveFile)
@@ -42,37 +47,55 @@ class UiMainWindow(Ui_MainWindow):
         self.actionNew.triggered.connect(self.actionNewFile)
         
     def closeTab (self, currentIndex):
-        self.tabWidget.removeTab(currentIndex)       
+        self.tabWidget.removeTab(currentIndex)    
+        if self.tabWidget.count() == 0:
+            self.ResultText.setGeometry(QtCore.QRect(939, 12, 599, 757))
+            self.ResultText.setMinimumSize(QtCore.QSize(599, 791))
+            self.ResultText.setMaximumSize(QtCore.QSize(599, 791))
+            self.ResultText.setPlainText("")
 
     def actionRunCode(self):
+        active_tab_index = self.tabWidget.currentIndex()
+        active_tab_widget = self.tabWidget.widget(active_tab_index)
+        if active_tab_widget:
+            CodeEdit = active_tab_widget.findChild(CodeTextEdit, "CodeEdit")
+        
         self.ResultText.setPlainText("")
-        if sys.executable:
-            self.ResultText.insertHtml(f"~> <font color=green>found interpreter</font><br>")
-        else:
-            self.ResultText.insertPlainText(f"~> <font color=red>ERROR</font>: gcc not found<br>")
-        
-        self.ResultText.insertPlainText(f"~> run {self.ResultText.filename}\n")
-        
-        with open(self.ResultText.fullfilepath, 'w') as codefile:
-            codefile.write(self.CodeEdit.toPlainText())
-                    
-        if self.CodeEdit.language == "python":
-            command = [sys.executable, '"'+self.CodeEdit.fullfilepath+'"']
-        elif self.CodeEdit.language == "c":
-            exe_path = compile_program_c(self.CodeEdit.fullfilepath)
+
+        with open(CodeEdit.fullfilepath, 'w') as codefile:
+            codefile.write(CodeEdit.toPlainText())
+
+        if CodeEdit.language == "python":
+            if executable:
+                self.ResultText.insertHtml(f"> <font color=green>found interpreter</font><br>")
+            else:
+                self.ResultText.insertPlainText(f"> <font color=red>ERROR</font>: python interpreter not found<br>")
+            command = [executable, '"' + CodeEdit.fullfilepath + '"']
+
+        elif CodeEdit.language == "c":
+            self.ResultText.insertPlainText(f"> compiling {CodeEdit.filename}...\n")
+            exe_path = compile_program_c(CodeEdit.fullfilepath)
             command = [f'"{exe_path}"']
+            self.ResultText.insertHtml(f"> <font color=green>compilation completed</font><br>")
         elif self.CodeEdit.language == "cpp":
-            exe_path = compile_program_cpp(self.CodeEdit.fullfilepath)
+            self.ResultText.insertPlainText(f"> compiling {CodeEdit.filename}...\n")
+            exe_path = compile_program_cpp(CodeEdit.fullfilepath)
             command = [f'"{exe_path}"']
-            
+            self.ResultText.insertHtml(f"> <font color=green>compilation completed</font><br>")
+        self.ResultText.insertPlainText(f"> run {CodeEdit.filename}\n")
+        
         tac = perf_counter()
         Popen(f'start cmd /k {" ".join(command)}', shell=True)
         tic = perf_counter()
         
         self.ResultText.insertPlainText(f"\nCode executed in {tic-tac:0.4f} seconds")
-                
+
     def actionSaveFile(self):
-        open(self.CodeEdit.fullfilepath, "w").write(self.CodeEdit.toPlainText())
+        active_tab_index = self.tabWidget.currentIndex()
+        active_tab_widget = self.tabWidget.widget(active_tab_index)
+        if active_tab_widget:
+            CodeEdit = active_tab_widget.findChild(CodeTextEdit, "CodeEdit")
+            open(CodeEdit.fullfilepath, "w").write(CodeEdit.toPlainText())
 
     def actionOpenFile(self):
         fileDialog = QtWidgets.QFileDialog()
@@ -84,7 +107,7 @@ class UiMainWindow(Ui_MainWindow):
                 text = file.readlines()
                 files.append(file_path)
                 self.createTab(text, file_path)
-            
+
     def actionNewFile(self):
         options = QtWidgets.QFileDialog.Options()
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self.MainWindow, "Save File", "", "All Files (*);", options=options)
@@ -94,15 +117,17 @@ class UiMainWindow(Ui_MainWindow):
                 with open(fileName, "r") as file_read:
                     text = file_read.readlines()
                     self.createTab(text, fileName)
-            
 
     def createTab(self, text, fileName):
+        self.ResultText.setGeometry(QtCore.QRect(939, 43, 599, 757))
+        self.ResultText.setMinimumSize(QtCore.QSize(599, 791))
+        self.ResultText.setMaximumSize(QtCore.QSize(599, 791))
         self.tab = QtWidgets.QWidget()
         self.tab.setObjectName("tab")
         self.CodeEdit = CodeTextEdit(self.tab)
-        self.CodeEdit.setGeometry(QtCore.QRect(-7, -4, 950, 791))
-        self.CodeEdit.setMinimumSize(QtCore.QSize(950, 0))
-        self.CodeEdit.setMaximumSize(QtCore.QSize(950, 16777215))
+        self.CodeEdit.setGeometry(QtCore.QRect(-7, -3, 950, 791))
+        self.CodeEdit.setMinimumSize(QtCore.QSize(950, 790))
+        self.CodeEdit.setMaximumSize(QtCore.QSize(950, 790))
         self.CodeEdit.filename = rf"{fileName.split('/')[-1]}"
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.language = languages[fileName.split('/')[-1].split('.')[-1]]
@@ -120,50 +145,28 @@ class UiMainWindow(Ui_MainWindow):
         self.CodeEdit.setObjectName("CodeEdit")
         txt = "".join(text)
         self.CodeEdit.addText(txt)
-        self.ResultText = QReadOnlyTextEdit(self.tab)
-        self.ResultText.setGeometry(QtCore.QRect(939, -10, 601, 757))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.ResultText.sizePolicy().hasHeightForWidth())
-        self.ResultText.setSizePolicy(sizePolicy)
-        self.ResultText.setMinimumSize(QtCore.QSize(601, 757))
-        self.ResultText.setMaximumSize(QtCore.QSize(601, 757))
-        font = QtGui.QFont()
-        font.setFamily("MS Shell Dlg 2")
-        font.setPointSize(12)
-        self.ResultText.setFont(font)
-        self.ResultText.setStyleSheet("background-color: #1e1f1e;\n"
-"color: #ffffff;\n"
-"padding: 12px; padding-bottom: 100px; padding-right:100px;")
-        self.ResultText.setObjectName("ResultText")
-        self.ResultText.filename = rf"{fileName.split('/')[-1]}"
-        self.ResultText.fullfilepath = rf"{fileName}"
         self.tabWidget.addTab(self.tab, fileName.split('/')[-1])
-        
+
     def closeEvent(self, event):
-        print(files)
-        print(fileNames)
-        print(index)
         reply = QtWidgets.QMessageBox.question\
         (self.MainWindow, 'Вы нажали на крестик',
             "Вы уверены, что хотите уйти?",
-             QtWidgets.QMessageBox.Yes,
-             QtWidgets.QMessageBox.No)
+            QtWidgets.QMessageBox.Yes,
+            QtWidgets.QMessageBox.No)
         if reply == QtWidgets.QMessageBox.Yes:
             event.accept()
         else:
             event.ignore()
-        
+
 
 
 if __name__ == "__main__":
-    import sys
     scriptDir = path.dirname(path.realpath(__file__))
-    app = QtWidgets.QApplication(sys.argv)
+    app = QtWidgets.QApplication(argv)
     app.setWindowIcon(QIcon(scriptDir+path.sep+'src/icon2.png'))
     MainWindow = QtWidgets.QMainWindow()
     ui = UiMainWindow()
     ui.setupUiCustom(MainWindow)
+    MainWindow.setWindowIcon(QIcon(scriptDir+path.sep+'src/icon2.png'))
     MainWindow.show()
-    sys.exit(app.exec_())
+    exit(app.exec_())

@@ -1,13 +1,28 @@
 from PyQt5.QtCore import Qt, QRegExp
-from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter
+from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor
+from PyQt5.QtWidgets import QPlainTextEdit
 
 keywords = ['and', 'assert', 'break', 'class', 'continue', 'def',
             'del', 'elif', 'else', 'except', 'exec', 'finally',
             'for', 'from', 'global', 'if', 'import', 'in',
             'is', 'lambda', 'not', 'or', 'pass', 'print',
             'raise', 'return', 'try', 'while', 'yield',
-            'None', 'True', 'False', 'self']
-
+            'None', 'True', 'False', 'self', "auto", 
+            "break", "case", "char", "const", "continue", 
+            "default", "do", "double", "else", "enum", "extern", 
+            "float", "for", "goto", "if", "int",
+            "long", "register", "return", "short", "signed", 
+            "sizeof", "static", "struct", "switch", "typedef", 
+            "union", "unsigned", "void", "volatile", "while",
+            "asm", "auto", "bool", "break", "case", "catch", "char", "class", "const",
+            "const_cast", "continue", "default", "delete", "do", "double", "dynamic_cast",
+            "else", "enum", "explicit", "export", "extern", "false", "float", "for",
+            "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace",
+            "new", "operator", "private", "protected", "public", "register", "reinterpret_cast",
+            "return", "short", "signed", "sizeof", "static", "static_cast", "struct",
+            "switch", "template", "this", "throw", "true", "try", "typedef", "typeid",
+            "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t",
+            "while"]
 
 operators = [
             '=',
@@ -25,9 +40,6 @@ braces = [
             '\{', '\}', '\(', '\)', '\[', '\]',
         ]
 
-
-from PyQt5.QtWidgets import QPlainTextEdit
-from PyQt5.QtGui import QTextCursor, QFont, QColor, QTextCharFormat, QSyntaxHighlighter
 
 class CodeTextEdit(QPlainTextEdit):
     def __init__(self, parent=None):
@@ -102,6 +114,10 @@ class WordHighlighter(QSyntaxHighlighter):
         patterns.append((rf"'([^']+)'", format))
         patterns.append((rf"''", format))
         patterns.append((rf'""', format))
+        format = QTextCharFormat()
+        format.setForeground(QColor(Qt.yellow))
+        pattern = (rf'\b#include\b', format)  # Use raw f-string for regex patterns
+        patterns.append(pattern)
 
         return patterns
 
