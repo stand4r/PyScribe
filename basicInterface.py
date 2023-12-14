@@ -2,21 +2,23 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from widgets.QReadOnlyTextEditor import QReadOnlyTextEdit
 
 
-class Ui_MainWindow(object):
-    def setupUi(self, MainWindow):
-        MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(1500, 850)
-        MainWindow.setStyleSheet("background-color:#1e1f1e;")
+class Ui_MainWindow(QtWidgets.QMainWindow):
+    def setupUi(self):
+        menubar = self.menuBar()
+        fmenu = menubar.addMenu("File")
+        self.setObjectName("MainWindow")
+        self.resize(1500, 850)
+        self.setStyleSheet("background-color:#1e1f1e;")
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(MainWindow.sizePolicy().hasHeightForWidth())
-        MainWindow.setSizePolicy(sizePolicy)
-        MainWindow.setMinimumSize(QtCore.QSize(1500, 850))
-        MainWindow.setMaximumSize(QtCore.QSize(1500, 850))
-        MainWindow.setStyleSheet("background-color:  #191819;\n"
-"color: #ffffff")
-        self.centralwidget = QtWidgets.QWidget(MainWindow)
+        sizePolicy.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
+        self.setSizePolicy(sizePolicy)
+        self.setMinimumSize(QtCore.QSize(1500, 850))
+        self.setMaximumSize(QtCore.QSize(1500, 850))
+        self.setStyleSheet("background-color:  #191819;\n"
+        "color: #ffffff")
+        self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setStyleSheet("background-color: #191819")
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
@@ -38,8 +40,8 @@ class Ui_MainWindow(object):
             "QTabBar::tab:!selected {background-color: #1e1f1e; border: 1px solid #1e1f1e;}"  # Дополнительный стиль для неактивной вкладки
         )
         self.verticalLayout.addWidget(self.frame_2)
-        MainWindow.setCentralWidget(self.centralwidget)
-        self.menubar = QtWidgets.QMenuBar(MainWindow)
+        self.setCentralWidget(self.centralwidget)
+        self.menubar = QtWidgets.QMenuBar(self)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1500, 30))
         self.menubar.setObjectName("menubar")
         self.menuFile = QtWidgets.QMenu(self.menubar)
@@ -47,29 +49,29 @@ class Ui_MainWindow(object):
         self.menuFile.setStyleSheet("color: #ffffff")
         self.menuFile.setSeparatorsCollapsible(True)
         self.menuFile.setObjectName("menuFile")
-        MainWindow.setMenuBar(self.menubar)
-        self.statusbar = QtWidgets.QStatusBar(MainWindow)
+        self.setMenuBar(self.menubar)
+        self.statusbar = QtWidgets.QStatusBar(self)
         self.statusbar.setObjectName("statusbar")
-        MainWindow.setStatusBar(self.statusbar)
-        self.actionOpen = QtWidgets.QAction(MainWindow)
+        self.setStatusBar(self.statusbar)
+        self.actionOpen = QtWidgets.QAction(self)
         font = QtGui.QFont()
         font.setFamily("MS UI Gothic")
         font.setPointSize(10)
         self.actionOpen.setFont(font)
         self.actionOpen.setObjectName("actionOpen")
-        self.actionSave = QtWidgets.QAction(MainWindow)
+        self.actionSave = QtWidgets.QAction(self)
         font = QtGui.QFont()
         font.setFamily("MS UI Gothic")
         font.setPointSize(10)
         self.actionSave.setFont(font)
         self.actionSave.setObjectName("actionSave")
-        self.actionRun = QtWidgets.QAction(MainWindow)
+        self.actionRun = QtWidgets.QAction(self)
         font = QtGui.QFont()
         font.setFamily("MS UI Gothic")
         font.setPointSize(10)
         self.actionRun.setFont(font)
         self.actionRun.setObjectName("actionRun")
-        self.actionNew = QtWidgets.QAction(MainWindow)
+        self.actionNew = QtWidgets.QAction(self)
         font = QtGui.QFont()
         font.setFamily("MS UI Gothic")
         font.setPointSize(10)
@@ -98,13 +100,13 @@ class Ui_MainWindow(object):
         "padding: 12px; padding-bottom: 100px; padding-right:100px; letter-spacing: 2px;")
         self.ResultText.setObjectName("ResultText")
 
-        self.retranslateUi(MainWindow)
+        self.retranslateUi()
         self.tabWidget.setCurrentIndex(0)
-        QtCore.QMetaObject.connectSlotsByName(MainWindow)
+        QtCore.QMetaObject.connectSlotsByName(self)
 
-    def retranslateUi(self, MainWindow):
+    def retranslateUi(self):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "PyScribe"))
+        self.setWindowTitle(_translate("MainWindow", "PyScribe"))
         self.menuFile.setTitle(_translate("MainWindow", "     File     "))
         self.actionOpen.setText(_translate("MainWindow", "Open"))
         self.actionOpen.setShortcut(_translate("MainWindow", "Shift+F5"))
@@ -114,13 +116,3 @@ class Ui_MainWindow(object):
         self.actionRun.setShortcut(_translate("MainWindow", "Ctrl+Shift+X"))
         self.actionNew.setText(_translate("MainWindow", "New File"))
         self.actionNew.setShortcut(_translate("MainWindow", "Shift+F6"))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    sys.exit(app.exec_())

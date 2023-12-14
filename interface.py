@@ -4,21 +4,16 @@ from subprocess import PIPE, Popen
 from os import path
 from widgets.QCodeEditor import CodeTextEdit
 from basicInterface import Ui_MainWindow
-from widgets.QReadOnlyTextEditor import QReadOnlyTextEdit
-from json import load
 from time import perf_counter
 from utils.programs import *
 from sys import exit, argv, executable
 
 try:
-    from PyQt5.QtWinExtras import QtWin                                         
-    myappid = 'stand4r.PyScribe.pyscribe.1'                         
-    QtWin.setCurrentProcessExplicitAppUserModelID(myappid)                         
+    from PyQt5.QtWinExtras import QtWin
+    myappid = 'stand4r.PyScribe.pyscribe.1'
+    QtWin.setCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
-    print("Error")
-
-files = []
-fileNames = []
+    pass
 
 languages = {"py": "python",
             "c": "c",
@@ -36,18 +31,27 @@ languages = {"py": "python",
 
 
 class UiMainWindow(Ui_MainWindow):
-    def setupUiCustom(self, MainWindow):
-        self.setupUi(MainWindow)
-        self.MainWindow = MainWindow
+    def setupUiCustom(self):
+        self.setupUi()
+        self.files = loadSession()
         scriptDir = path.dirname(path.realpath(__file__))
         self.actionRun.triggered.connect(self.actionRunCode)
         self.actionOpen.triggered.connect(self.actionOpenFile)
         self.actionSave.triggered.connect(self.actionSaveFile)
         self.tabWidget.tabCloseRequested.connect(self.closeTab)
         self.actionNew.triggered.connect(self.actionNewFile)
-        
+        self.loadSession(self.files)
+
+    def loadSession(self, files):
+        for file in files:
+            self.createTab(open(rf"{file}", "r").readlines(), file)
+
     def closeTab (self, currentIndex):
-        self.tabWidget.removeTab(currentIndex)    
+        active_tab_index = self.tabWidget.currentIndex()
+        active_tab_widget = self.tabWidget.widget(active_tab_index)
+        self.files.remove(active_tab_widget.findChild(CodeTextEdit, "CodeEdit").fullfilepath)
+        self.tabWidget.removeTab(currentIndex)
+        self.actionSaveFile()
         if self.tabWidget.count() == 0:
             self.ResultText.setGeometry(QtCore.QRect(939, 12, 599, 757))
             self.ResultText.setMinimumSize(QtCore.QSize(599, 791))
@@ -105,12 +109,12 @@ class UiMainWindow(Ui_MainWindow):
             file_path = fileDialog.selectedFiles()[0]
             with open(file_path, "r") as file:
                 text = file.readlines()
-                files.append(file_path)
+                self.files.append(file_path)
                 self.createTab(text, file_path)
 
     def actionNewFile(self):
         options = QtWidgets.QFileDialog.Options()
-        fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self.MainWindow, "Save File", "", "All Files (*);", options=options)
+        fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "", "All Files (*);", options=options)
         if fileName:
             with open(fileName, "w") as file:
                 file.write('')
@@ -147,16 +151,17 @@ class UiMainWindow(Ui_MainWindow):
         self.CodeEdit.addText(txt)
         self.tabWidget.addTab(self.tab, fileName.split('/')[-1])
 
+    def saveOpenFiles(self):
+        for i in range(self.tabWidget.count()):
+            tab = self.tabWidget.widget(i)
+            CodeEdit = tab.findChild(CodeTextEdit, "CodeEdit")
+            open(CodeEdit.fullfilepath, "w").write(CodeEdit.toPlainText())
+
     def closeEvent(self, event):
-        reply = QtWidgets.QMessageBox.question\
-        (self.MainWindow, 'Вы нажали на крестик',
-            "Вы уверены, что хотите уйти?",
-            QtWidgets.QMessageBox.Yes,
-            QtWidgets.QMessageBox.No)
-        if reply == QtWidgets.QMessageBox.Yes:
-            event.accept()
-        else:
-            event.ignore()
+        self.saveOpenFiles()
+        saveSession(self.files)
+        event.accept()
+
 
 
 
@@ -164,9 +169,8 @@ if __name__ == "__main__":
     scriptDir = path.dirname(path.realpath(__file__))
     app = QtWidgets.QApplication(argv)
     app.setWindowIcon(QIcon(scriptDir+path.sep+'src/icon2.png'))
-    MainWindow = QtWidgets.QMainWindow()
-    ui = UiMainWindow()
-    ui.setupUiCustom(MainWindow)
+    MainWindow = UiMainWindow()
+    MainWindow.setupUiCustom()
     MainWindow.setWindowIcon(QIcon(scriptDir+path.sep+'src/icon2.png'))
     MainWindow.show()
     exit(app.exec_())
