@@ -162,3 +162,5 @@ cython_debug/
 /widgets/CodeEditorSpyder.py
 /widgets/FileCRunner.py
 /widgets/Terminal.py
+/.vscode
+session.pkl

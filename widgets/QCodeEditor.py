@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt, QRegExp
-from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor
-from PyQt5.QtWidgets import QPlainTextEdit
+from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QFontMetrics
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPlainTextEdit
 
 
 keywords = [
@@ -51,6 +51,15 @@ class CodeTextEdit(QPlainTextEdit):
         self.filename = ""
         self.fullfilepath = ""
         self.language = ""
+        self.setStyleSheet("background-color:#1e1f1e;\n"
+            "color: #ffffff;\n"
+            "padding: 12px;\n"
+            "padding-bottom: 20px;\n"
+            "padding-left: 20px;\n"
+            "padding-right:20px;\n"
+            "letter-spacing:2px;\n"
+            "padding-left: 20px;\n"
+            )
         self.highlighter.rehighlight()
         
     def addText(self, text):
@@ -78,9 +87,37 @@ class CodeTextEdit(QPlainTextEdit):
             self.setTextCursor(cursor)
         elif event.key() == Qt.Key_Tab:
             self.insertPlainText("  ")
+        elif event.key() == Qt.Key_Enter:
+            cursor = self.textCursor()
+            cursor.movePosition(QTextCursor.PreviousBlock, QTextCursor.MoveAnchor, 1)
+            previous_line = cursor.block().text()
+            self.insertPlainText(f"\n\t")
         else:
             super().keyPressEvent(event)
 
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self.viewport())
+        font = painter.font()
+        font.setPointSize(12)  # Задаем размер шрифта для счетчика строк
+        painter.setFont(font)
+
+        block = self.firstVisibleBlock()
+        block_number = block.blockNumber()
+        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+        bottom = top + self.blockBoundingRect(block).height()
+
+        # Определяем видимые блоки и рисуем номера строк
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                number = str(block_number + 1)
+                painter.setPen(QColor("#fdfff5"))
+                painter.drawText(0, int(top), self.viewport().width(), self.fontMetrics().height(), Qt.AlignRight, number)
+
+            block = block.next()
+            top = bottom
+            bottom = top + self.blockBoundingRect(block).height()
+            block_number += 1
 
 
 class WordHighlighter(QSyntaxHighlighter):

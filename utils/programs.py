@@ -1,5 +1,6 @@
 from subprocess import Popen, PIPE
 import pickle
+from os import path
 
 def compile_program_c(path: str) -> str:
     exe_path = path.rsplit(".", 1)[0] + ".exe"
@@ -34,6 +35,11 @@ def loadSession() -> list:
     except FileNotFoundError:
         with open('session.pkl', 'wb') as f:
             pickle.dump([], f)
-            print("File created")
         files_array = []
     return files_array
+
+def exist_config(file_path):
+    return path.exists(file_path)
+
+def create_config(file_path):
+    open(file_path, "w").write("{\n}")
