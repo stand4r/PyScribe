@@ -86,12 +86,7 @@ class CodeTextEdit(QPlainTextEdit):
             cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
             self.setTextCursor(cursor)
         elif event.key() == Qt.Key_Tab:
-            self.insertPlainText("  ")
-        elif event.key() == Qt.Key_Enter:
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.PreviousBlock, QTextCursor.MoveAnchor, 1)
-            previous_line = cursor.block().text()
-            self.insertPlainText(f"\n\t")
+            self.insertPlainText("\t")
         else:
             super().keyPressEvent(event)
 
