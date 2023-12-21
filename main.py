@@ -7,7 +7,7 @@ from basicInterface import Ui_MainWindow
 from time import perf_counter
 from utils.programs import *
 from sys import exit, argv, executable
-from widgets.QArgsEditor import CompilerSettingsWindow
+from widgets.QArgsEditor import ArgsWindow
 
 try:
     from PyQt5.QtWinExtras import QtWin
@@ -39,9 +39,9 @@ class UiMainWindow(Ui_MainWindow):
         self.actionRun.triggered.connect(self.actionRunCode)
         self.actionOpen.triggered.connect(self.actionOpenFile)
         self.actionSave.triggered.connect(self.actionSaveFile)
-        self.actionConfig.triggered.connect(self.setArgsLaunch)
-        self.tabWidget.tabCloseRequested.connect(self.closeTab)
+        self.actionConfig.triggered.connect(self.actionArgsLaunch)
         self.actionNew.triggered.connect(self.actionNewFile)
+        self.tabWidget.tabCloseRequested.connect(self.closeTab)
         self.loadSession(self.files)
 
     def loadSession(self, files):
@@ -122,12 +122,12 @@ class UiMainWindow(Ui_MainWindow):
                     text = file_read.readlines()
                     self.createTab(text, fileName)
 
-    def setArgsLaunch(self):
+    def actionArgsLaunch(self):
         active_tab_index = self.tabWidget.currentIndex()
         active_tab_widget = self.tabWidget.widget(active_tab_index)
         if active_tab_widget:
             CodeEdit = active_tab_widget.findChild(CodeTextEdit, "CodeEdit")
-            self.window = CompilerSettingsWindow(CodeEdit.filename, CodeEdit.fullfilepath)
+            self.window = ArgsWindow(CodeEdit.filename, CodeEdit.fullfilepath, CodeEdit.language)
             self.window.show()
 
     def createTab(self, text, fileName):
