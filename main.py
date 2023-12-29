@@ -1,13 +1,15 @@
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtGui import QIcon
-from subprocess import Popen
-from os import path
+from subprocess import Popen, check_output
+from os import path, system
 from widgets.QCodeEditor import CodeTextEdit
 from basicInterface import Ui_MainWindow
 from time import perf_counter
 from utils.programs import *
 from sys import exit, argv, executable
 from widgets.QArgsEditor import ArgsWindow
+from utils.FabricRunCode import *
+from widgets.QTerminal import *
 
 try:
     from PyQt5.QtWinExtras import QtWin
@@ -50,20 +52,15 @@ class UiMainWindow(Ui_MainWindow):
 
     def closeTab (self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
-        self.files.remove(active_tab_widget.findChild(CodeTextEdit, "CodeEdit").fullfilepath)
+        self.files.remove(active_tab_widget.fullfilepath)
         self.tabWidget.removeTab(currentIndex)
         self.actionSaveFile(currentIndex)
         if self.tabWidget.count() == 0:
-            self.ResultText.setGeometry(QtCore.QRect(939, 12, 599, 757))
-            self.ResultText.setMinimumSize(QtCore.QSize(599, 791))
-            self.ResultText.setMaximumSize(QtCore.QSize(599, 791))
             self.ResultText.setPlainText("")
 
     def actionRunCode(self):
         active_tab_index = self.tabWidget.currentIndex()
-        active_tab_widget = self.tabWidget.widget(active_tab_index)
-        if active_tab_widget:
-            CodeEdit = active_tab_widget.findChild(CodeTextEdit, "CodeEdit")
+        CodeEdit = self.tabWidget.widget(active_tab_index)
         
         self.ResultText.setPlainText("")
 
@@ -72,34 +69,29 @@ class UiMainWindow(Ui_MainWindow):
 
         if CodeEdit.language == "python":
             if executable:
-                self.ResultText.insertHtml(f"> <font color=green>found interpreter</font><br>")
+                self.ResultText.insertColorText("found interpreter", "green")
             else:
-                self.ResultText.insertPlainText(f"> <font color=red>ERROR</font>: python interpreter not found<br>")
+                self.ResultText.insertColorText("python interpreter not found", "red")
             command = [executable, '"' + CodeEdit.fullfilepath + '"']
 
         elif CodeEdit.language == "c":
-            self.ResultText.insertPlainText(f"> compiling {CodeEdit.filename}...\n")
+            self.ResultText.insertColorText(f"compiling {CodeEdit.filename}")
             exe_path = compile_program_c(CodeEdit.fullfilepath)
             command = [f'"{exe_path}"']
-            self.ResultText.insertHtml(f"> <font color=green>compilation completed</font><br>")
+            self.ResultText.insertColorText("compilation completed", "green")
         elif self.CodeEdit.language == "cpp":
-            self.ResultText.insertPlainText(f"> compiling {CodeEdit.filename}...\n")
+            self.ResultText.insertColorText(f"compiling {CodeEdit.filename}")
             exe_path = compile_program_cpp(CodeEdit.fullfilepath)
             command = [f'"{exe_path}"']
-            self.ResultText.insertHtml(f"> <font color=green>compilation completed</font><br>")
-        self.ResultText.insertPlainText(f"> run {CodeEdit.filename}\n")
+            self.ResultText.insertColorText("compilation completed", "green")
+        self.ResultText.insertColorText(f"run {CodeEdit.filename}")
 
-        tac = perf_counter()
-        Popen(f'start cmd /k {" ".join(command)}', shell=True)
-        tic = perf_counter()
-
-        self.ResultText.insertPlainText(f"\nCode executed in {tic-tac:0.4f} seconds")
+        RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language).process()
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
         if active_tab_widget:
-            CodeEdit = active_tab_widget.findChild(CodeTextEdit, "CodeEdit")
-            open(CodeEdit.fullfilepath, "w").write(CodeEdit.toPlainText())
+            open(active_tab_widget.fullfilepath, "w").write(active_tab_widget.toPlainText())
 
     def actionOpenFile(self):
         fileDialog = QtWidgets.QFileDialog()
@@ -131,26 +123,19 @@ class UiMainWindow(Ui_MainWindow):
             self.window.show()
 
     def createTab(self, text, fileName):
-        self.ResultText.setGeometry(QtCore.QRect(939, 43, 599, 791))
-        self.ResultText.setMinimumSize(QtCore.QSize(599, 791))
-        self.ResultText.setMaximumSize(QtCore.QSize(599, 791))
-        self.tab = QtWidgets.QWidget()
-        self.tab.setObjectName("tab")
-        self.CodeEdit = CodeTextEdit(self.tab)
-        self.CodeEdit.setGeometry(QtCore.QRect(-7, -3, 950, 790))
+        self.CodeEdit = CodeTextEdit(self)
         self.CodeEdit.filename = rf"{fileName.split('/')[-1]}"
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.language = languages[fileName.split('/')[-1].split('.')[-1]]
         self.CodeEdit.setObjectName("CodeEdit")
         txt = "".join(text)
         self.CodeEdit.addText(txt)
-        self.tabWidget.addTab(self.tab, fileName.split('/')[-1])
+        self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
 
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):
             tab = self.tabWidget.widget(i)
-            CodeEdit = tab.findChild(CodeTextEdit, "CodeEdit")
-            open(CodeEdit.fullfilepath, "w").write(CodeEdit.toPlainText())
+            open(tab.fullfilepath, "w").write(tab.toPlainText())
 
     def closeEvent(self, event):
         self.saveOpenFiles()

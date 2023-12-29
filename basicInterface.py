@@ -1,5 +1,8 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from widgets.QReadOnlyTextEditor import QReadOnlyTextEdit
+from widgets.QTerminal import *
+from os import getcwd, getlogin
+from socket import gethostname
+
 
 
 class Ui_MainWindow(QtWidgets.QMainWindow):
@@ -7,39 +10,27 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         menubar = self.menuBar()
         fmenu = menubar.addMenu("File")
         self.setObjectName("MainWindow")
-        self.resize(1500, 850)
-        self.setStyleSheet("background-color:#1e1f1e;")
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
-        self.setSizePolicy(sizePolicy)
-        self.setMinimumSize(QtCore.QSize(1500, 850))
-        self.setMaximumSize(QtCore.QSize(1500, 850))
+        self.setWindowOpacity(0.5) 
+        self.setMinimumSize(QtCore.QSize(300, 250))
+        self.setMaximumSize(QtCore.QSize(4050, 4050))
         self.setStyleSheet("background-color:  #191819;\n"
         "color: #ffffff")
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setStyleSheet("background-color: #191819")
         self.centralwidget.setObjectName("centralwidget")
-        self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
+        self.verticalLayout = QtWidgets.QHBoxLayout(self.centralwidget)
         self.verticalLayout.setObjectName("verticalLayout")
-        self.frame_2 = QtWidgets.QFrame(self.centralwidget)
-        self.frame_2.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        self.frame_2.setFrameShadow(QtWidgets.QFrame.Raised)
-        self.frame_2.setObjectName("frame_2")
-        self.tabWidget = QtWidgets.QTabWidget(self.frame_2)
-        self.tabWidget.setGeometry(QtCore.QRect(9, 11, 1471, 791))
+        self.tabWidget = QtWidgets.QTabWidget(self.centralwidget)
         self.tabWidget.setStyleSheet("background-color: #1e1f1e;\n"
         "color: #000000\n")
         self.tabWidget.setTabShape(QtWidgets.QTabWidget.Rounded)
         self.tabWidget.setTabsClosable(True)
         self.tabWidget.setObjectName("tabWidget")
         self.tabWidget.setStyleSheet(
-            "QTabBar::tab {background-color: #1e1f1e; width: 150px; height: 30px; border-width: 1px; padding-right: 20px; font-size: 16px; letter-spacing: 1px; border: 1px solid blue}"
-            "QTabBar::tab:selected {background-color: #1e1f1e; border: 1px solid white;}"  # Стиль для активной вкладки
-            "QTabBar::tab:!selected {background-color: #1e1f1e; border: 1px solid #1e1f1e;}"  # Дополнительный стиль для неактивной вкладки
+            "QTabBar::tab {background-color: #1e1f1e; width: 150px; height: 30px; border-width: 1px; padding-right: 20px; font-size: 16px; letter-spacing: 1px; border: 1px solid blue; border-top-right-radius: 8px; border-top-left-radius: 8px;}"
+            "QTabBar::tab:selected {background-color: #131313; border: 1px solid #3b3b3b; color: #d4d4d4;border-bottom-color: #131313;}"  # Стиль для активной вкладки
+            "QTabBar::tab:!selected {background-color: #1e1f1e; border: 1px solid #4f4843;color: #d4d4d4; border-bottom-color: #3b3b3b;}"  # Дополнительный стиль для неактивной вкладки
         )
-        self.verticalLayout.addWidget(self.frame_2)
         self.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(self)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1500, 30))
@@ -83,24 +74,13 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         self.menuRun.addAction(self.actionConfig)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuRun.menuAction())
-        self.ResultText = QReadOnlyTextEdit(self.frame_2)
-        self.ResultText.setGeometry(QtCore.QRect(939, 12, 599, 757))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.ResultText.sizePolicy().hasHeightForWidth())
-        self.ResultText.setSizePolicy(sizePolicy)
-        self.ResultText.setMinimumSize(QtCore.QSize(599, 791))
-        self.ResultText.setMaximumSize(QtCore.QSize(599, 791))
-        font = QtGui.QFont()
-        font.setFamily("MS Shell Dlg 2")
-        font.setPointSize(12)
-        self.ResultText.setFont(font)
-        self.ResultText.setStyleSheet("background-color: #1e1f1e;\n"
+        self.ResultText = QTerminal(self.centralwidget)
+        self.ResultText.setStyleSheet("background-color: #131313;\n"
         "color: #ffffff;\n"
-        "padding: 12px; padding-bottom: 100px; padding-right:100px; letter-spacing: 2px;")
+        "padding: 7px; letter-spacing: 1px; padding-top: 40px;")
         self.ResultText.setObjectName("ResultText")
-
+        self.verticalLayout.addWidget(self.tabWidget, 5)
+        self.verticalLayout.addWidget(self.ResultText, 3)
         self.retranslateUi()
         self.tabWidget.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(self)
