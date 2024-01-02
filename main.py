@@ -29,7 +29,10 @@ languages = {"py": "python",
             "html": "html",
             "htm": "html",
             "xhtml": "html",
-            "css": "css"
+            "css": "css",
+            "bin": "bin",
+            "out": "out",
+            "exe": "exe"
             }
 
 
@@ -48,13 +51,18 @@ class UiMainWindow(Ui_MainWindow):
 
     def loadSession(self, files):
         for file in files:
-            self.createTab(open(rf"{file}", "r").readlines(), file)
+            try:
+                self.createTab(open(rf"{file}", "r").readlines(), file)
+            except UnicodeDecodeError:
+                self.createTab(open(rf"{file}", "rb").read(), file)
+              
 
     def closeTab (self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
         self.files.remove(active_tab_widget.fullfilepath)
         self.tabWidget.removeTab(currentIndex)
-        self.actionSaveFile(currentIndex)
+        if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
+            self.actionSaveFile(currentIndex)
         if self.tabWidget.count() == 0:
             self.ResultText.setPlainText("")
 
@@ -72,12 +80,10 @@ class UiMainWindow(Ui_MainWindow):
                 self.ResultText.insertColorText("found interpreter", "green")
             else:
                 self.ResultText.insertColorText("python interpreter not found", "red")
-            command = [executable, '"' + CodeEdit.fullfilepath + '"']
 
         elif CodeEdit.language == "c":
             self.ResultText.insertColorText(f"compiling {CodeEdit.filename}")
             exe_path = compile_program_c(CodeEdit.fullfilepath)
-            command = [f'"{exe_path}"']
             self.ResultText.insertColorText("compilation completed", "green")
         elif self.CodeEdit.language == "cpp":
             self.ResultText.insertColorText(f"compiling {CodeEdit.filename}")
@@ -99,10 +105,14 @@ class UiMainWindow(Ui_MainWindow):
         fileDialog.setNameFilter("All files(*.*)")
         if fileDialog.exec_():
             file_path = fileDialog.selectedFiles()[0]
-            with open(file_path, "r") as file:
-                text = file.readlines()
-                self.files.append(file_path)
-                self.createTab(text, file_path)
+            if languages[file_path.split('/')[-1].split('.')[-1]] != "bin" and languages[file_path.split('/')[-1].split('.')[-1]] != "out" and languages[file_path.split('/')[-1].split('.')[-1]] != "exe":
+                file = open(file_path, "r")
+                text = "".join(file.readlines())
+            else:
+                file = open(file_path, "rb")            
+                text = file.read()
+            self.files.append(file_path)
+            self.createTab(text, file_path)
 
     def actionNewFile(self):
         options = QtWidgets.QFileDialog.Options()
@@ -128,20 +138,20 @@ class UiMainWindow(Ui_MainWindow):
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.language = languages[fileName.split('/')[-1].split('.')[-1]]
         self.CodeEdit.setObjectName("CodeEdit")
-        txt = "".join(text)
-        self.CodeEdit.addText(txt)
+        if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
+            self.CodeEdit.addText(text)
         self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
 
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):
             tab = self.tabWidget.widget(i)
-            open(tab.fullfilepath, "w").write(tab.toPlainText())
+            if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
+                open(tab.fullfilepath, "w").write(tab.toPlainText())
 
     def closeEvent(self, event):
         self.saveOpenFiles()
         saveSession(self.files)
         event.accept()
-
 
 
 

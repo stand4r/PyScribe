@@ -70,6 +70,8 @@ class CodeTextEdit(QPlainTextEdit):
         self.shortcutPop = QShortcut(QKeySequence("Ctrl+-"), self)
         self.shortcutPop.activated.connect(self.popFontSize)
         self.highlighter.rehighlight()
+        if self.language == "bin" or self.language == "out" or self.language == "exe":
+            self.setReadOnly(True)
 
     @pyqtSlot()
     def addFontSize(self):
@@ -80,9 +82,29 @@ class CodeTextEdit(QPlainTextEdit):
     def popFontSize(self):
         self.fontSize-=1
         self.setFont(QFont("Console", self.fontSize))
+
+    def convert_to_hex(self, content):
+        hex_string = ""
+        ascii_string = ""
+        for i, byte in enumerate(content):
+            if i % 16 == 0:
+                hex_string += f"     {ascii_string}\n{format(i * 16, '09X')[:-1]}      "
+                ascii_string = ""
+            elif i == 0:
+                hex_string += "\n"
+            hex_string += f"{format(byte, '02X')} "
+            ascii_string += chr(byte) if 21 <= byte <= 191 else "."
+            if i == len(content) - 1:
+                remaining_space = "  " * (16 - len(content) % 16)
+                hex_string += remaining_space + f"   {ascii_string}" 
+        return hex_string.strip()
         
     def addText(self, text):
-        self.insertPlainText(text)
+        try:
+            self.insertPlainText(text)
+        except TypeError:
+            hex_content = self.convert_to_hex(text)
+            self.setPlainText(hex_content)
         self.highlighter.rehighlight()
         
     def set_highlight_words(self, words, color):
@@ -107,19 +129,20 @@ class CodeTextEdit(QPlainTextEdit):
         elif event.key() == Qt.Key_Tab:
             self.insertPlainText(" "*self.tabWidth)
         elif event.key() in [Qt.Key_Enter, Qt.Key_Return]:
+            if self.language == "python":
               # Вставляем новую строку
-            cursor = self.textCursor()
-            line = cursor.block().text()
+                cursor = self.textCursor()
+                line = cursor.block().text()
 
-            # Считаем количество пробелов в начале текущей строки
-            spaces = len(line) - len(line.lstrip(' '))
-            indentation = ' ' * spaces
+                # Считаем количество пробелов в начале текущей строки
+                spaces = len(line) - len(line.lstrip(' '))
+                indentation = ' ' * spaces
 
-            # Проверяем, заканчивается ли предыдущая строка на особые слова
-            if line.strip().endswith(('if', 'for', 'while', 'else', 'elif', ':')):
-                indentation += ' ' * self.tabWidth  # Добавляем отступ
-            self.insertPlainText('\n')
-            self.insertPlainText(indentation)
+                # Проверяем, заканчивается ли предыдущая строка на особые слова
+                if line.strip().endswith(('if', 'for', 'while', 'else', 'elif', ':')):
+                    indentation += ' ' * self.tabWidth  # Добавляем отступ
+                self.insertPlainText('\n')
+                self.insertPlainText(indentation)
         else:
             super().keyPressEvent(event)
 
