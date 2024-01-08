@@ -10,6 +10,7 @@ from sys import exit, argv, executable
 from widgets.QArgsEditor import ArgsWindow
 from utils.FabricRunCode import *
 from widgets.QTerminal import *
+from widgets.SplashScreen import QSplashScreen
 
 try:
     from PyQt5.QtWinExtras import QtWin
@@ -39,14 +40,14 @@ languages = {"py": "python",
 class UiMainWindow(Ui_MainWindow):
     def setupUiCustom(self):
         self.setupUi()
-        self.files = loadSession()
         self.config_path = path.dirname(path.realpath(__file__))+r"\config\launchArgs.json"
         self.actionRun.triggered.connect(self.actionRunCode)
         self.actionOpen.triggered.connect(self.actionOpenFile)
         self.actionSave.triggered.connect(self.actionSaveFile)
         self.actionConfig.triggered.connect(self.actionArgsLaunch)
         self.actionNew.triggered.connect(self.actionNewFile)
-        self.tabWidget.tabCloseRequested.connect(self.closeTab)
+        self.tabWidget.tabCloseRequested.connect(self.closeTab) 
+        self.files = loadSession()
         self.loadSession(self.files)
 
     def loadSession(self, files):
@@ -55,7 +56,6 @@ class UiMainWindow(Ui_MainWindow):
                 self.createTab(open(rf"{file}", "r").readlines(), file)
             except UnicodeDecodeError:
                 self.createTab(open(rf"{file}", "rb").read(), file)
-              
 
     def closeTab (self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)

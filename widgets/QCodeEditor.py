@@ -1,7 +1,6 @@
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QFontMetrics, QKeySequence
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPlainTextEdit, QAction, QShortcut
-import ast
 
 
 
@@ -86,19 +85,19 @@ class CodeTextEdit(QPlainTextEdit):
     def convert_to_hex(self, content):
         hex_string = ""
         ascii_string = ""
+        content_length = len(content)
+        padding_space = "  " * 16
+
         for i, byte in enumerate(content):
             if i % 16 == 0:
-                hex_string += f"     {ascii_string}\n{format(i * 16, '09X')[:-1]}      "
+                if i > 0:
+                    hex_string += f"{ascii_string}\n"
+                hex_string += "{:08X} ".format(i)
                 ascii_string = ""
-            elif i == 0:
-                hex_string += "\n"
-            hex_string += f"{format(byte, '02X')} "
-            ascii_string += chr(byte) if 21 <= byte <= 191 else "."
-            if i == len(content) - 1:
-                remaining_space = "  " * (16 - len(content) % 16)
-                hex_string += remaining_space + f"   {ascii_string}" 
+            ascii_string += chr(byte) if 32 <= byte <= 126 else "."
+            hex_string += f"{byte:02X} "
         return hex_string.strip()
-        
+
     def addText(self, text):
         try:
             self.insertPlainText(text)
@@ -218,7 +217,13 @@ class CodeTextEdit(QPlainTextEdit):
                 top = bottom
                 bottom = top + round(self.blockBoundingRect(block).height())
                 block_number += 1
-
+    
+    def errorLabel(self):
+        self.setPlainText("Ошибка при открытии файла")
+        cursor = self.textCursor()
+        cursor.select(cursor.Document)
+        cursor.setAlignment(Qt.AlignCenter)
+        self.setTextCursor(cursor)
 
 class WordHighlighter(QSyntaxHighlighter):
     def __init__(self, parent):
