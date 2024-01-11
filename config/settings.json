@@ -1,0 +1,68 @@
+{
+  "colorschemes": {
+    "main": "#1e1f1e",
+    "first": " #131313"
+  },
+  "languages": {
+            "py": "python",
+            "c": "c",
+            "cpp": "cpp",
+            "js": "javascript",
+            "xml": "xml",
+            "kt": "kotlin",
+            "rss": "rss",
+            "rb": "ruby",
+            "html": "html",
+            "htm": "html",
+            "xhtml": "html",
+            "css": "css",
+            "bin": "bin",
+            "out": "out",
+            "exe": "exe"
+  },
+  "highlights": {
+    "first": "#00FFFF",
+    "second": "#eedc5b",
+    "third": "#FFFF00"
+  },
+  "syntax": {
+    "keywords": [
+            "and", 'assert', 'break', 'class', 'continue', 'def',
+            "del", 'elif', 'else', 'except', 'exec', 'finally',
+            "for", 'from', 'global', 'if', 'import', 'in',
+            "is", "lambda", "not", "or", "pass", "print",
+            "raise", "return", "try", "while", "yield",
+            "None", "True", "False", "self", "auto", 
+            "break", "case", "char", "const", "continue", 
+            "default", "do", "double", "else", "enum", "extern", 
+            "float", "for", "goto", "if", "int",
+            "long", "register", "return", "short", "signed", 
+            "sizeof", "static", "struct", "switch", "typedef", 
+            "union", "unsigned", "void", "volatile", "while",
+            "asm", "auto", "bool", "break", "case", "catch", "char", "class", "const",
+            "const_cast", "continue", "default", "delete", "do", "double", "dynamic_cast",
+            "else", "enum", "explicit", "export", "extern", "false", "float", "for",
+            "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace",
+            "new", "operator", "private", "protected", "public", "register", "reinterpret_cast",
+            "return", "short", "signed", "sizeof", "static", "static_cast", "struct",
+            "switch", "template", "this", "throw", "true", "try", "typedef", "typeid",
+            "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t",
+            "while"]
+
+    "operators": [
+            '=',
+            # Comparison
+            '==', '!=', '<', '<=', '>', '>=',
+            # Arithmetic
+            '\+', '-', '\*', '/', '//', '\%', '\*\*',
+            # In-place
+            '\+=', '-=', '\*=', '/=', '\%=',
+            # Bitwise
+            '\^', '\|', '\&', '\~', '>>', '<<',
+        ]
+
+    "braces": [
+            '\{', '\}', '\(', '\)', '\[', '\]',
+        ]
+  }
+}

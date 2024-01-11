@@ -1,7 +1,7 @@
 from subprocess import Popen, PIPE
 import pickle
-from os import path, getuid, getlogin
-from json import load
+from os import path, getuid, getlogin, name
+from json import load, dumps
 
 
 def saveSession(files_array: list):
@@ -25,16 +25,19 @@ def create_config(file_path):
     open(file_path, "w").write("{\n}")
 
 def get_username():
-    if os.name == 'nt':
+    if name == 'nt':
         username = getlogin()
     else:
         import pwd
         username = pwd.getpwuid(getuid())[0]
-
     return username
 
+def get_scriptdir():
+    return path.dirname(path.realpath(__file__))
+
+
 def loadConfigFromJson(file_path, need_dict):
-    if !path.exists(file_path):
+    if not path.exists(file_path): 
         return None
     try:
         with open(file_path, "r") as file_json:
@@ -42,25 +45,30 @@ def loadConfigFromJson(file_path, need_dict):
     except:
         return None
 
-def loadJsonFile(file_path):
-    if !path.exists(file_path):
-        return None
-    try:
-        with open(file_path, "r") as file_json:
-            return load(file_path)
-    except:
-        return None
-
-def dumpConfigToJson(file_path, data):
-    if !path.exists(file_path):
-        return 0
+def dumpJsonFile(file_path, json_data):
     try:
         with open(file_path, 'r+') as f:
             f.seek(0)
-            f.write(json.dumps(json_data))
+            f.write(dumps(json_data))
             f.truncate()
-        return 1
     except:
-        return 0
+        return None
 
+def loadJsonFile(file_path):
+    if not path.exists(file_path):
+        return None
+    try:
+        with open(file_path, "r") as file_json:
+            return load(file_json)
+    except:
+        return None
+
+def load_settings(scriptpath):
+    configpath = scriptpath+r"/config/settings.json"
+    try:
+        return load(open(configpath, "r"))
+    except:
+        with open(configpath, "w") as file_json:
+            file_json.write("{}")
+        return load(open(configpath, "r"))
 

@@ -1,23 +1,16 @@
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtGui import QIcon
-from subprocess import Popen, check_output
+from subprocess import Popen
 from os import path, system
 from widgets.QCodeEditor import CodeTextEdit
 from basicInterface import Ui_MainWindow
-from time import perf_counter
 from utils.programs import *
 from sys import exit, argv, executable
 from widgets.QArgsEditor import ArgsWindow
 from utils.FabricRunCode import *
 from widgets.QTerminal import *
-from widgets.SplashScreen import QSplashScreen
+from widgets.HexViewer import HexViewer
 
-try:
-    from PyQt5.QtWinExtras import QtWin
-    myappid = 'stand4r.PyScribe.pyscribe.1'
-    QtWin.setCurrentProcessExplicitAppUserModelID(myappid)
-except ImportError:
-    pass
 
 languages = {"py": "python",
             "c": "c",
@@ -41,6 +34,8 @@ class UiMainWindow(Ui_MainWindow):
     def setupUiCustom(self):
         self.setupUi()
         self.config_path = path.dirname(path.realpath(__file__))+r"\config\launchArgs.json"
+        self.settings = load_settings(path.dirname(path.realpath(__file__)))
+        print(self.settings)
         self.actionRun.triggered.connect(self.actionRunCode)
         self.actionOpen.triggered.connect(self.actionOpenFile)
         self.actionSave.triggered.connect(self.actionSaveFile)
@@ -58,7 +53,7 @@ class UiMainWindow(Ui_MainWindow):
                 self.createTab(open(rf"{file}", "rb").read(), file)
 
     def closeTab (self, currentIndex):
-        active_tab_widget = self.tabWidget.widget(currentIndex)
+        active_tab_widget: CodeTextEdit = self.tabWidget.widget(currentIndex)
         self.files.remove(active_tab_widget.fullfilepath)
         self.tabWidget.removeTab(currentIndex)
         if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
@@ -68,7 +63,7 @@ class UiMainWindow(Ui_MainWindow):
 
     def actionRunCode(self):
         active_tab_index = self.tabWidget.currentIndex()
-        CodeEdit = self.tabWidget.widget(active_tab_index)
+        CodeEdit: CodeTextEdit = self.tabWidget.widget(active_tab_index)
         
         self.ResultText.setPlainText("")
 
@@ -133,18 +128,27 @@ class UiMainWindow(Ui_MainWindow):
             self.window.show()
 
     def createTab(self, text, fileName):
-        self.CodeEdit = CodeTextEdit(self)
-        self.CodeEdit.filename = rf"{fileName.split('/')[-1]}"
-        self.CodeEdit.fullfilepath = rf"{fileName}"
-        self.CodeEdit.language = languages[fileName.split('/')[-1].split('.')[-1]]
-        self.CodeEdit.setObjectName("CodeEdit")
-        if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
-            self.CodeEdit.addText(text)
-        self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
+        if languages[fileName.split('/')[-1].split('.')[-1]] not in ["bin", "out", "exe"]:
+
+            self.CodeEdit = CodeTextEdit(self)
+            self.CodeEdit.filename = rf"{fileName.split('/')[-1]}"
+            self.CodeEdit.fullfilepath = rf"{fileName}"
+            self.CodeEdit.language = languages[fileName.split('/')[-1].split('.')[-1]]
+            self.CodeEdit.setObjectName("CodeEdit")
+            self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
+        else:
+            self.HexViewer = HexViewer(self) 
+            self.HexViewer.filename = rf"{fileName.split('/')[-1]}"
+            self.HexViewer.fullfilepath = rf"{fileName}"
+            self.HexViewer.language = languages[fileName.split('/')[-1].split('.')[-1]]
+            self.HexViewer.setObjectName("HewViewer")
+            self.HexViewer.load_file(text)
+            self.tabWidget.addTab(self.HexViewer, fileName.split('/')[-1])
+            
 
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):
-            tab = self.tabWidget.widget(i)
+            tab: HexViewer | CodeEdit = self.tabWidget.widget(i)
             if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
                 open(tab.fullfilepath, "w").write(tab.toPlainText())
 

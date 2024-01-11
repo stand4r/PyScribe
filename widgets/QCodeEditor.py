@@ -71,6 +71,8 @@ class CodeTextEdit(QPlainTextEdit):
         self.highlighter.rehighlight()
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
+            self.setFont(QFont("Courier New", self.fontSize))
+ 
 
     @pyqtSlot()
     def addFontSize(self):
