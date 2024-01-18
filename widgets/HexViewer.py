@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QGridLayout, QLabel, QPlainTextEdit, QWidget, QShortcut 
+from PyQt5.QtWidgets import QGridLayout, QLabel, QPlainTextEdit, QWidget, QShortcut 
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtGui import QKeySequence, QFont
 
@@ -15,8 +15,10 @@ class HexViewer(QWidget):
         self.byte_widget = QPlainTextEdit(self)
         self.ascii_widget = QPlainTextEdit(self)
         self.address_widget.setStyleSheet("width: 0px;\n")
+        self.address_widget.setFixedWidth(250)
+        self.address_widget
         self.byte_widget.setStyleSheet("width: 0px;\n")
-        self.ascii_widget.setStyleSheet("width: 8px;\n")
+        self.ascii_widget.setStyleSheet("width: 0px;\n")
         self.fontSize = 14
         self.setStyleSheet(
             "background-color:#131313;\n"

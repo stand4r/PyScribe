@@ -6,7 +6,7 @@ class QTerminal(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
-        self.fontSize = 14
+        self.fontSize = 13
         self.setFont(QFont("Console", self.fontSize))
         self.shortcutAdd = QShortcut(QKeySequence("Ctrl+Shift+="), self)
         self.shortcutAdd.activated.connect(self.addFontSize)
@@ -25,6 +25,6 @@ class QTerminal(QTextEdit):
 
     def insertColorText(self, text, color=None):
         if color:
-            self.insertHtml(f"<font color={color}>{text}</font><br>\n")
+            self.insertHtml(f"> <font color={color}>{text}</font><br>\n")
         else:
-            self.insertPlainText(text+"\n")
+            self.insertPlainText("> "+text+"\n")

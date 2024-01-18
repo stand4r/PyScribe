@@ -63,6 +63,7 @@ class CodeTextEdit(QPlainTextEdit):
             "padding-right:20px;\n"
             "letter-spacing:1px;\n"
             "line-height: 15px;\n"
+            "width: 0px;\n"
             )
         self.shortcutAdd = QShortcut(QKeySequence("Ctrl+Shift+="), self)
         self.shortcutAdd.activated.connect(self.addFontSize)

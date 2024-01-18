@@ -1,4 +1,3 @@
-from subprocess import Popen, PIPE
 import pickle
 from os import path, getuid, getlogin, name
 from json import load, dumps
@@ -68,7 +67,5 @@ def load_settings(scriptpath):
     try:
         return load(open(configpath, "r"))
     except:
-        with open(configpath, "w") as file_json:
-            file_json.write("{}")
         return load(open(configpath, "r"))
 
