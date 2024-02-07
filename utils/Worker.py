@@ -1,7 +1,6 @@
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 
-
 class _Worker(QObject):
     finished = pyqtSignal(object)
 
@@ -26,7 +25,6 @@ class RunInThread:
 
         self._thread.started.connect(self._worker.run)
         self._thread.start()
-
 
     def _on_function_finished(result):
         return result

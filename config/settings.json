@@ -1,29 +1,30 @@
 {
-  "colorschemes": {
-    "main": "#1e1f1e",
-    "first": " #131313"
-  },
   "languages": {
-            "py": "python",
-            "c": "c",
-            "cpp": "cpp",
-            "js": "javascript",
-            "xml": "xml",
-            "kt": "kotlin",
-            "rss": "rss",
-            "rb": "ruby",
-            "html": "html",
-            "htm": "html",
-            "xhtml": "html",
-            "css": "css",
-            "bin": "bin",
-            "out": "out",
-            "exe": "exe"
+    "py": "python",
+    "c": "c",
+    "cpp": "cpp",
+    "js": "javascript",
+    "xml": "xml",
+    "kt": "kotlin",
+    "rss": "rss",
+    "rb": "ruby",
+    "html": "html",
+    "htm": "html",
+    "xhtml": "html",
+    "css": "css",
+    "bin": "bin",
+    "out": "out",
+    "exe": "exe"
   },
   "highlights": {
     "first": "#00FFFF",
     "second": "#eedc5b",
     "third": "#FFFF00"
   },
-  "fontsize": 14
+  "settings": {
+    "fontsize": "18",
+    "main_color": "#1e1f1e",
+    "first_color": "#191819",
+    "second_color": "#131313"
+  }
 }

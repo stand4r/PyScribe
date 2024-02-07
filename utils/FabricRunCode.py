@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from os import getenv, system, environ, path
-from subprocess import PIPE, run, Popen, call, CalledProcessError, check_output
-from sys import platform, stdout, stdin
+from os import path
+from subprocess import PIPE, Popen, CalledProcessError, check_output
+from sys import platform
 
 
 class FabricFoundTerminalClass(ABC):
@@ -9,9 +9,11 @@ class FabricFoundTerminalClass(ABC):
     def get_terminal_command(self, command):
         pass
 
+
 class WindowsFoundTerminalClass(FabricFoundTerminalClass):
     def get_terminal_command(self, command) -> str:
         return f'start cmd /k "{command}"'
+
 
 class LinuxFoundTerminalClass(FabricFoundTerminalClass):
     def get_terminal_command(self, command) -> str:
@@ -32,9 +34,11 @@ class LinuxFoundTerminalClass(FabricFoundTerminalClass):
                 pass
         return None
 
+
 class OSXFoundTerminalClass(FabricFoundTerminalClass):
     def get_terminal_command(self, command) -> str:
         return " "
+
 
 def choice_env(command):
     if platform == "win32":
@@ -47,34 +51,35 @@ def choice_env(command):
         return ""
 
 
-
 def compile_program_c(path: str) -> str:
     if platform == "win32":
         exe_path = path.rsplit(".", 1)[0] + ".exe"
     elif platform == "linux" or platform == "linux2":
         exe_path = path.rsplit(".", 1)[0] + ".out"
     command = ["gcc", path, "-o", exe_path]
-            
+
     compile_process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
     stdout, stderr = compile_process.communicate()
     if compile_process.returncode != 0:
-        raise ValueError(f"Compilation completed with error {compile_process.returncode}")      
+        raise ValueError(f"Compilation completed with error {compile_process.returncode}")
     else:
         return exe_path
+
 
 def compile_program_cpp(path: str) -> str:
     if platform == "win32":
         exe_path = path.rsplit(".", 1)[0] + ".exe"
     elif platform == "linux" or platform == "linux2":
-        exe_path = path.rsplit(".", 1)[0] + ".out"    
+        exe_path = path.rsplit(".", 1)[0] + ".out"
     command = ["g++", path, "-o", exe_path]
-            
+
     compile_process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
     stdout, stderr = compile_process.communicate()
     if compile_process.returncode != 0:
-        raise ValueError(f"Compilation completed with error {compile_process.returncode}")      
+        raise ValueError(f"Compilation completed with error {compile_process.returncode}")
     else:
         return exe_path
+
 
 class RunCodeClass:
     def __init__(self, pathFile, name, lang, args=""):
@@ -100,9 +105,6 @@ class RunCodeClass:
                     raise ValueError
             case _:
                 self.command = ""
-    
+
     def process(self):
         Popen(self.command, shell=True)
-      
-
-    
