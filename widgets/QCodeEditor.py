@@ -55,7 +55,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.language = ""
         self.tabWidth = 4
         self.setStyleSheet(
-            "background-color:#131313;\n"
+            "background-color: #16171D;\n"
             "color: #ffffff;\n"
             "padding-top: 20px;\n"
             "padding-bottom: 20px;\n"

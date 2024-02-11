@@ -20,6 +20,7 @@ class SettingsWidget(QtWidgets.QWidget):
                            "color: #ffffff")
         self.layout = QtWidgets.QFormLayout(self)
         self.buttonSave = QtWidgets.QPushButton("Save")
+        self.buttonSave.setStyleSheet("border: 1px solid blue; border-radius:10px; color: blue;")
         font = QtGui.QFont()
         font.setFamily("MS UI Gothic")
         font.setPointSize(14)
@@ -29,7 +30,11 @@ class SettingsWidget(QtWidgets.QWidget):
             locals()["self.edit_"+key] = QtWidgets.QLineEdit(str(value))
             locals()["self.edit_" + key].setFont(font)
             self.layout.addRow(locals()["self.label_"+key], locals()["self.edit_"+key])
+            self.layout.addRow(QtWidgets.QLabel())
         self.buttonSave.clicked.connect(partial(self.save, locals()))
+        self.buttonSave.setMaximumSize(QtCore.QSize(180, 30))
+        self.buttonSave.setMinimumSize(QtCore.QSize(180, 30))
+       
         self.layout.addRow(self.buttonSave)
 
     def save(self, locales):
