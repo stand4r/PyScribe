@@ -57,8 +57,9 @@ def compile_program_c(path: str) -> str:
     elif platform == "linux" or platform == "linux2":
         exe_path = path.rsplit(".", 1)[0] + ".out"
     command = ["gcc", path, "-o", exe_path]
+    print(*command)
 
-    compile_process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
+    compile_process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True, shell=True)
     stdout, stderr = compile_process.communicate()
     if compile_process.returncode != 0:
         raise ValueError(f"Compilation completed with error {compile_process.returncode}")
@@ -74,7 +75,6 @@ def compile_program_cpp(path: str) -> str:
     command = ["g++", path, "-o", exe_path]
 
     compile_process = Popen(command, stderr=PIPE, stdout=PIPE, universal_newlines=True)
-    stdout, stderr = compile_process.communicate()
     if compile_process.returncode != 0:
         raise ValueError(f"Compilation completed with error {compile_process.returncode}")
     else:

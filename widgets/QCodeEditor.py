@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot
-from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QFontMetrics, QKeySequence
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPlainTextEdit, QAction, QShortcut
+from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QKeySequence
+from PyQt5.QtWidgets import QPlainTextEdit, QShortcut
 
 
 
@@ -130,9 +130,9 @@ class CodeTextEdit(QPlainTextEdit):
             self.setTextCursor(cursor)
         elif event.key() == Qt.Key_Tab:
             self.insertPlainText(" "*self.tabWidth)
-        elif event.key() in [Qt.Key_Enter, Qt.Key_Return]:
+        elif event.key() in [Qt.Key_Enter, Qt.Key_Return] and self.language in ["python", "c", "cpp"]:
             if self.language == "python":
-              # Вставляем новую строку
+                # Вставляем новую строку
                 cursor = self.textCursor()
                 line = cursor.block().text()
 
@@ -145,6 +145,26 @@ class CodeTextEdit(QPlainTextEdit):
                     indentation += ' ' * self.tabWidth  # Добавляем отступ
                 self.insertPlainText('\n')
                 self.insertPlainText(indentation)
+            elif self.language in ["c", "cpp"]:
+                cursor = self.textCursor()
+                line = cursor.block().text()
+
+                # Считаем количество пробелов в начале текущей строки
+                spaces = len(line) - len(line.lstrip(' '))
+                indentation = ' ' * spaces
+                cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 1)
+
+                cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, 1)
+
+                symbol = cursor.selectedText()
+                if symbol == "{":
+                    indentation += ' ' * self.tabWidth
+                    self.insertPlainText("\n\n")  # Добавляем отступ
+                    cursor.movePosition(QTextCursor.Up)
+                    self.setTextCursor(cursor)
+                    self.insertPlainText(indentation)
+                else:
+                    self.insertPlainText("\n"+indentation)
         else:
             super().keyPressEvent(event)
 
