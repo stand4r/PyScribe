@@ -1,17 +1,21 @@
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QKeySequence
 from PyQt5.QtWidgets import QPlainTextEdit, QShortcut
+import ast
 
 
-
-keywords = [
+keywords = {
+        "python": [
             'and', 'assert', 'break', 'class', 'continue', 'def',
             'del', 'elif', 'else', 'except', 'exec', 'finally',
             'for', 'from', 'global', 'if', 'import', 'in',
             'is', 'lambda', 'not', 'or', 'pass', 'print',
             'raise', 'return', 'try', 'while', 'yield',
             'None', 'True', 'False', 'self', "auto", 
-            "break", "case", "char", "const", "continue", 
+            "break", "case", "char", "const", "continue"
+            ],
+
+        "cpp": [
             "default", "do", "double", "else", "enum", "extern", 
             "float", "for", "goto", "if", "int",
             "long", "register", "return", "short", "signed", 
@@ -25,7 +29,15 @@ keywords = [
             "return", "short", "signed", "sizeof", "static", "static_cast", "struct",
             "switch", "template", "this", "throw", "true", "try", "typedef", "typeid",
             "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t",
-            "while"]
+            "while"
+            ],
+
+        "c": [
+            'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do', 
+            'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'int', 'long',
+            'register', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch',
+            'typedef', 'union', 'unsigned', 'void', 'volatile', 'while'
+    ]}
 
 operators = [
             '=',
@@ -44,15 +56,15 @@ braces = [
         ]
 
 
+
 class CodeTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, language=""):
         super(CodeTextEdit, self).__init__(parent)
         self.fontSize = 14
         self.setFont(QFont("Console", self.fontSize))
-        self.highlighter = WordHighlighter(self.document())
         self.filename = ""
         self.fullfilepath = ""
-        self.language = ""
+        self.language = language
         self.tabWidth = 4
         self.setStyleSheet(
             "background-color: #16171D;\n"
@@ -62,13 +74,14 @@ class CodeTextEdit(QPlainTextEdit):
             "padding-left: 20px;\n"
             "padding-right:20px;\n"
             "letter-spacing:1px;\n"
-            "line-height: 15px;\n"
             "width: 0px;\n"
+            "border: none"
             )
         self.shortcutAdd = QShortcut(QKeySequence("Ctrl+Shift+="), self)
         self.shortcutAdd.activated.connect(self.addFontSize)
         self.shortcutPop = QShortcut(QKeySequence("Ctrl+-"), self)
         self.shortcutPop.activated.connect(self.popFontSize)
+        self.highlighter = WordHighlighter(self.document(), self.language)
         self.highlighter.rehighlight()
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
@@ -94,8 +107,8 @@ class CodeTextEdit(QPlainTextEdit):
         for i, byte in enumerate(content):
             if i % 16 == 0:
                 if i > 0:
-                    hex_string += f"{ascii_string}\n"
-                hex_string += "{:08X} ".format(i)
+                    hex_string += f"   {ascii_string}\n"
+                hex_string += "{:08X}   ".format(i)
                 ascii_string = ""
             ascii_string += chr(byte) if 32 <= byte <= 126 else "."
             hex_string += f"{byte:02X} "
@@ -107,7 +120,6 @@ class CodeTextEdit(QPlainTextEdit):
         except TypeError:
             hex_content = self.convert_to_hex(text)
             self.setPlainText(hex_content)
-        self.highlighter.rehighlight()
         
     def set_highlight_words(self, words, color):
         self.highlighter.set_patterns(words, color)
@@ -124,6 +136,8 @@ class CodeTextEdit(QPlainTextEdit):
                 self.insertPlainText("[]")
             elif event.text() == "{":
                 self.insertPlainText("{}")
+            elif event.text() == "<":
+                self.insertPlainText("<>")
 
             cursor = self.textCursor()
             cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
@@ -240,65 +254,64 @@ class CodeTextEdit(QPlainTextEdit):
                 top = bottom
                 bottom = top + round(self.blockBoundingRect(block).height())
                 block_number += 1
-    
-    def errorLabel(self):
-        self.setPlainText("Ошибка при открытии файла")
-        cursor = self.textCursor()
-        cursor.select(cursor.Document)
-        cursor.setAlignment(Qt.AlignCenter)
-        self.setTextCursor(cursor)
+
 
 class WordHighlighter(QSyntaxHighlighter):
-    def __init__(self, parent):
+    def __init__(self, parent, language):
         super(WordHighlighter, self).__init__(parent)
+        self.language = language
+        self.patterns = []
         self.set_patterns()
 
     def set_patterns(self):
-        self.patterns = self.create_patterns()
+        self.create_patterns()
 
     def create_patterns(self):
-        patterns = []
-        for word in keywords:
+        try:
+            for word in keywords[self.language]:
+                format = QTextCharFormat()
+                if word == 'self':
+                    format.setFontItalic(True)
+                format.setForeground(QColor(Qt.cyan))
+                pattern = (rf'\b{word}\b', format)  # Use raw f-string for regex patterns
+                self.patterns.append(pattern)
+            for word in braces:
+                format = QTextCharFormat()
+                format.setForeground(QColor(Qt.yellow))
+                pattern = (rf'{word}', format)  # Use raw f-string for regex patterns
+                self.patterns.append(pattern)
+            for word in operators:
+                format = QTextCharFormat()
+                format.setForeground(QColor("#eedc5b"))
+                pattern = (rf'{word}', format)  # Use raw f-string for regex patterns
+                self.patterns.append(pattern)
             format = QTextCharFormat()
-            if word == 'self':
-                format.setFontItalic(True)
-            format.setForeground(QColor(Qt.cyan))
-            pattern = (rf'\b{word}\b', format)  # Use raw f-string for regex patterns
-            patterns.append(pattern)
-        for word in braces:
+            format.setForeground(QColor("#639AC1"))
+            self.patterns.append((rf'"([^"]+)"', format))
+            self.patterns.append((rf"'([^']+)'", format))
+            self.patterns.append((rf"''", format))
+            self.patterns.append((rf'""', format))
             format = QTextCharFormat()
             format.setForeground(QColor(Qt.yellow))
-            pattern = (rf'{word}', format)  # Use raw f-string for regex patterns
-            patterns.append(pattern)
-        for word in operators:
-            format = QTextCharFormat()
-            format.setForeground(QColor("#eedc5b"))
-            pattern = (rf'{word}', format)  # Use raw f-string for regex patterns
-            patterns.append(pattern)
-        format = QTextCharFormat()
-        format.setForeground(QColor("#639AC1"))
-        patterns.append((rf'"([^"]+)"', format))
-        patterns.append((rf"'([^']+)'", format))
-        patterns.append((rf"''", format))
-        patterns.append((rf'""', format))
-        format = QTextCharFormat()
-        format.setForeground(QColor(Qt.yellow))
-        pattern = (rf'\b#include\b', format)  # Use raw f-string for regex patterns
-        patterns.append(pattern)
+            pattern = (rf'\b#include\b', format)  # Use raw f-string for regex patterns
+            self.patterns.append(pattern)
 
-        return patterns
+            return self.patterns
+        except:
+            return []
 
     def highlightBlock(self, text):
-        for pattern, format in self.patterns:
-            expression = QRegExp(pattern)
-            index = expression.indexIn(text)
-            while index >= 0:
-                length = expression.matchedLength()
-                self.setFormat(index, length, format)
-                index = expression.indexIn(text, index + length)
+        if self.patterns != []:
+            for pattern, format in self.patterns:
+                expression = QRegExp(pattern)
+                index = expression.indexIn(text)
+                while index >= 0:
+                    length = expression.matchedLength()
+                    self.setFormat(index, length, format)
+                    index = expression.indexIn(text, index + length)
 
 
-def format_code(code):
+'''def format_code(code):
     tree = ast.parse(code)
     ast.fix_missing_locations(tree)
 
@@ -323,4 +336,4 @@ def format_code(code):
     visitor.visit(tree)
     formatted_code = ast.unparse(tree)
     
-    return formatted_code
+    return formatted_code'''

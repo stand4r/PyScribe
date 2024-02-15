@@ -1,13 +1,14 @@
 from sys import exit, argv, executable
 
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtGui import QIcon, QFont
+from PyQt5.QtGui import QIcon, QFont, QPalette, QColor
 
 from utils.FabricRunCode import *
 from utils.programs import *
 from widgets.QArgsEditor import ArgsWindow
 from widgets.QCodeEditor import CodeTextEdit
 from widgets.SettingsWidget import SettingsWidget
+from widgets.Dialog import CustomDialog
 
 
 
@@ -23,12 +24,12 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def setupUi(self):
         menubar = self.menuBar()
-        fmenu = menubar.addMenu("File")
+        menubar.addMenu("File")
         self.setObjectName("MainWindow")
-        self.setMinimumSize(QtCore.QSize(1080, 720))
-        self.setMaximumSize(QtCore.QSize(4050, 4050))
+        sizeObject = QtWidgets.QDesktopWidget().screenGeometry(-1)
+        self.setFixedSize(sizeObject.width(), sizeObject.height()-20)
         self.setStyleSheet(f"background-color:  {first_color};\n"
-                           "color: #ffffff")
+                        "color: #ffffff")
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setStyleSheet(f"background-color: {first_color}")
         self.centralwidget.setObjectName("centralwidget")
@@ -44,13 +45,13 @@ class UiMainWindow(QtWidgets.QMainWindow):
         # Создаем кнопки
         self.button_run = QtWidgets.QPushButton("▶")
         self.button_run.setFlat(True)
-        self.button_run.setStyleSheet("border:none; padding-right:10px;")
-        self.button_run.setFont(QFont("Console", 16))
+        self.button_run.setStyleSheet("border:none; padding-right:10px; padding-left:10px; ")
+        self.button_run.setFont(QFont("Console", 20))
         self.button_run.clicked.connect(self.actionRunCode)
         self.button_settings = QtWidgets.QPushButton("⚙")
         self.button_settings.setFlat(True)
-        self.button_settings.setStyleSheet("border:none;padding-right:10px;")
-        self.button_settings.setFont(QFont("Console", 21))
+        self.button_settings.setStyleSheet("border:none;padding-right:10px; padding-bottom:5px;")
+        self.button_settings.setFont(QFont("Console", 18))
         self.button_settings.clicked.connect(self.actionSettingsLaunch)
 
         # Добавляем кнопки в QHBoxLayout
@@ -63,17 +64,19 @@ class UiMainWindow(QtWidgets.QMainWindow):
         # Помещаем виджет с кнопками в правую часть таба
         self.tabWidget.setCornerWidget(self.right_tab_widget)
         self.tabWidget.setStyleSheet(f"background-color: {main_color};\n"
-                                     "color: #000000;\n"
-                                     "margin-top:20px;\n"
-                                     )
+                                    "color: #000000;\n"
+                                    "margin-top:20px;\n"
+                                    )
         self.tabWidget.setTabShape(QtWidgets.QTabWidget.Rounded)
         self.tabWidget.setTabsClosable(True)
         self.tabWidget.setObjectName("tabWidget")
+        self.tabWidget.setDocumentMode(True)
         self.tabWidget.setStyleSheet(
             "QTabBar::close-button {image: url(src/close.png);}"
-            "QTabBar::tab {background-color: #1F2228; width: 150px; height: 30px; border-width: 1px; padding-right: 20px; font-size: 16px; letter-spacing: 1px; border: 1px solid blue; border-top-right-radius: 5px; border-top-left-radius: 5px;}"
-            "QTabBar::tab:selected {background-color: #16171D; border: 1px solid #3b3b3b; color: #d4d4d4;border-bottom-color: #131313;}"
-            "QTabBar::tab:!selected {background-color: #1F2228; border: 1px solid #4f4843;color: #d4d4d4; border-bottom-color: #3b3b3b;}"
+            "QTabWidget::tab-bar {border:none;}"
+            "QTabBar::tab {background-color: #1F2228; width: 150px; height: 30px; border-width: 0px; padding-right: 20px; font-size: 16px; letter-spacing: 1px; border: none; border-bottom-color: #16171D;}"
+            "QTabBar::tab:selected {background-color: #16171D; border: none; color: #ffffff;}"
+            "QTabBar::tab:!selected {background-color: #1F2228; border: none;color: #ffffff;}"
         )
         self.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(self)
@@ -159,9 +162,9 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def loadSession(self, files):
         for file in files:
-            try:
+            if path.basename(file).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
                 self.createTab(open(rf"{file}", "r").readlines(), file)
-            except UnicodeDecodeError:
+            else:
                 self.createTab(open(rf"{file}", "rb").read(), file)
 
     def closeTab(self, currentIndex):
@@ -177,14 +180,18 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
         with open(CodeEdit.fullfilepath, 'w') as codefile:
             codefile.write(CodeEdit.toPlainText())
-
-        if self.CodeEdit.language == "c":
-            exe_path = compile_program_c(CodeEdit.fullfilepath)
-        elif self.CodeEdit.language == "cpp":
-            exe_path = compile_program_cpp(CodeEdit.fullfilepath)
-            command = [f'"{exe_path}"']
-
-        RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language).process()
+        try:
+            if self.CodeEdit.language == "c":
+                compile_program_c(CodeEdit.fullfilepath)
+            elif self.CodeEdit.language == "cpp":
+                compile_program_cpp(CodeEdit.fullfilepath)
+            try:
+                RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language).process()
+            except:
+                CustomDialog("Error running code").exec()
+        except:
+            CustomDialog("Compilation error").exec()
+        
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
@@ -231,14 +238,15 @@ class UiMainWindow(QtWidgets.QMainWindow):
         window.show()
 
     def createTab(self, text, fileName):
-        self.CodeEdit = CodeTextEdit(self)
-        self.CodeEdit.filename = rf"{fileName.split('/')[-1]}"
+        lang = fileName.split('/')[-1].split('.')[-1]
+        self.CodeEdit = CodeTextEdit(self, languages[lang])
+        self.CodeEdit.filename = path.basename(fileName)
         self.CodeEdit.fullfilepath = rf"{fileName}"
-        self.CodeEdit.language = languages[fileName.split('/')[-1].split('.')[-1]]
-        self.CodeEdit.setPlainText("".join(text))
         self.CodeEdit.setObjectName("CodeEdit")
         if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
             self.CodeEdit.addText(text)
+        else:
+            self.CodeEdit.setPlainText("".join(text))
         self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
 
     def saveOpenFiles(self):
@@ -257,6 +265,22 @@ if __name__ == "__main__":
     scriptDir = path.dirname(path.realpath(__file__))
     app = QtWidgets.QApplication(argv)
     app.setWindowIcon(QIcon(scriptDir + path.sep + 'src/icon2.png'))
+    app.setStyle("Fusion")
+    palette = QPalette()
+    palette.setColor(QPalette.Window, QColor(53, 53, 53))
+    palette.setColor(QPalette.WindowText, QtCore.Qt.white)
+    palette.setColor(QPalette.Base, QColor(25, 25, 25))
+    palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+    palette.setColor(QPalette.ToolTipBase, QtCore.Qt.black)
+    palette.setColor(QPalette.ToolTipText, QtCore.Qt.white)
+    palette.setColor(QPalette.Text, QtCore.Qt.white)
+    palette.setColor(QPalette.Button, QColor(53, 53, 53))
+    palette.setColor(QPalette.ButtonText, QtCore.Qt.white)
+    palette.setColor(QPalette.BrightText, QtCore.Qt.red)
+    palette.setColor(QPalette.Link, QColor(42, 130, 218))
+    palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+    palette.setColor(QPalette.HighlightedText, QtCore.Qt.black)
+    app.setPalette(palette)
     MainWindow = UiMainWindow()
     MainWindow.setupUi()
     MainWindow.setWindowIcon(QIcon(scriptDir + path.sep + 'src/icon2.png'))

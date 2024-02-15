@@ -89,7 +89,7 @@ class RunCodeClass:
         self.command = ""
         match lang:
             case "python":
-                self.command = choice_env(f"python {self._path}")
+                self.command = choice_env(rf"python '{self._path}'")
                 print(self.command)
             case "c":
                 try:
