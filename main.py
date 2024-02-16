@@ -269,6 +269,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
         event.accept()
 
 
+
+
 if __name__ == "__main__":
     scriptDir = path.dirname(path.realpath(__file__))
     chdir(path.abspath(__file__).replace(path.basename(__file__), ""))

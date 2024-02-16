@@ -82,6 +82,10 @@ class CodeTextEdit(QPlainTextEdit):
         self.shortcutAdd.activated.connect(self.addFontSize)
         self.shortcutPop = QShortcut(QKeySequence("Ctrl+-"), self)
         self.shortcutPop.activated.connect(self.popFontSize)
+        self.shortcutEnd = QShortcut(QKeySequence("Ctrl+Down"), self)
+        self.shortcutEnd.activated.connect(self.moveCursorToEnd)
+        self.shortcutStart = QShortcut(QKeySequence("Ctrl+Up"), self)
+        self.shortcutStart.activated.connect(self.moveCursorToStart)
         self.highlighter = WordHighlighter(self.document(), self.language)
         self.highlighter.rehighlight()
         if self.language == "bin" or self.language == "out" or self.language == "exe":
@@ -99,6 +103,14 @@ class CodeTextEdit(QPlainTextEdit):
         if self.fontSize > 1:
             self.fontSize -= 1
             self.setFont(QFont("Console", self.fontSize))
+
+    @pyqtSlot()
+    def moveCursorToEnd(self):
+        self.moveCursor(QTextCursor.End)
+    
+    @pyqtSlot()
+    def moveCursorToStart(self):
+        self.moveCursor(QTextCursor.Start)
 
     def convert_to_hex(self, content):
         hex_string = ""

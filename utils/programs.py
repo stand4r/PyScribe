@@ -1,5 +1,6 @@
 import pickle
 from os import path, getlogin, name
+import ast
 
 try:
     from os import getuid
@@ -85,3 +86,27 @@ def update_settings(scriptPath, data):
         f.seek(0)
         f.write(dumps(data))
         f.truncate()
+
+def analyze_code(code):
+    # Создаем пустой словарь для автодополнения
+    autocomplete_dict = {}
+
+    # Разбираем код в абстрактное синтаксическое дерево (AST)
+    tree = ast.parse(code)
+
+    # Обходим AST, чтобы найти все определения и импорты
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            # Если узел - определение функции, добавляем ее имя в словарь
+            autocomplete_dict[node.name] = "function"
+        elif isinstance(node, ast.ClassDef):
+            # Если узел - определение класса, добавляем его имя в словарь
+            autocomplete_dict[node.name] = "class"
+        elif isinstance(node, ast.Import):
+            # Если узел - импорт, добавляем имена импортированных модулей в словарь
+            for alias in node.names:
+                autocomplete_dict[alias.name.split(".")[0]] = "module"
+        elif isinstance(node, ast.Constant):
+            autocomplete_dict[node.name] = "constant"
+        
+    return autocomplete_dict
