@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QPlainTextEdit, QShortcut
 import ast
 
 
+
 keywords = {
         "python": [
             'and', 'assert', 'break', 'class', 'continue', 'def',
@@ -90,13 +91,14 @@ class CodeTextEdit(QPlainTextEdit):
 
     @pyqtSlot()
     def addFontSize(self):
-        self.fontSize+=1
+        self.fontSize += 1
         self.setFont(QFont("Console", self.fontSize))
 
     @pyqtSlot()
     def popFontSize(self):
-        self.fontSize-=1
-        self.setFont(QFont("Console", self.fontSize))
+        if self.fontSize > 1:
+            self.fontSize -= 1
+            self.setFont(QFont("Console", self.fontSize))
 
     def convert_to_hex(self, content):
         hex_string = ""

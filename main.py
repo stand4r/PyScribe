@@ -1,4 +1,5 @@
 from sys import exit, argv, executable
+from os import path, chdir
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QFont, QPalette, QColor
@@ -9,7 +10,6 @@ from widgets.QArgsEditor import ArgsWindow
 from widgets.QCodeEditor import CodeTextEdit
 from widgets.SettingsWidget import SettingsWidget
 from widgets.Dialog import CustomDialog
-
 
 
 path_settings = path.dirname(path.realpath(__file__))
@@ -26,8 +26,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
         menubar = self.menuBar()
         menubar.addMenu("File")
         self.setObjectName("MainWindow")
-        sizeObject = QtWidgets.QDesktopWidget().screenGeometry(-1)
-        self.setFixedSize(sizeObject.width(), sizeObject.height()-20)
+        if name == 'nt':
+            sizeObject = QtWidgets.QDesktopWidget().screenGeometry(-1)
+            self.setFixedSize(sizeObject.width(), sizeObject.height()-20)
+        else:
+            self.setBaseSize(QtCore.QSize(1920,1080))
         self.setStyleSheet(f"background-color:  {first_color};\n"
                         "color: #ffffff")
         self.centralwidget = QtWidgets.QWidget(self)
@@ -162,10 +165,13 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def loadSession(self, files):
         for file in files:
-            if path.basename(file).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
-                self.createTab(open(rf"{file}", "r").readlines(), file)
-            else:
-                self.createTab(open(rf"{file}", "rb").read(), file)
+            try:
+                if path.basename(file).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
+                    self.createTab(open(rf"{file}", "r").readlines(), file)
+                else:
+                    self.createTab(open(rf"{file}", "rb").read(), file)
+            except:
+                pass
 
     def closeTab(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
@@ -191,7 +197,6 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 CustomDialog("Error running code").exec()
         except:
             CustomDialog("Compilation error").exec()
-        
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
@@ -238,16 +243,19 @@ class UiMainWindow(QtWidgets.QMainWindow):
         window.show()
 
     def createTab(self, text, fileName):
-        lang = fileName.split('/')[-1].split('.')[-1]
-        self.CodeEdit = CodeTextEdit(self, languages[lang])
-        self.CodeEdit.filename = path.basename(fileName)
-        self.CodeEdit.fullfilepath = rf"{fileName}"
-        self.CodeEdit.setObjectName("CodeEdit")
-        if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
-            self.CodeEdit.addText(text)
-        else:
-            self.CodeEdit.setPlainText("".join(text))
-        self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
+        try:
+            lang = fileName.split('/')[-1].split('.')[-1]
+            self.CodeEdit = CodeTextEdit(self, languages[lang])
+            self.CodeEdit.filename = path.basename(fileName)
+            self.CodeEdit.fullfilepath = rf"{fileName}"
+            self.CodeEdit.setObjectName("CodeEdit")
+            if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
+                self.CodeEdit.addText(text)
+            else:
+                self.CodeEdit.setPlainText("".join(text))
+            self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
+        except:
+            CustomDialog("Open file error").exec()
 
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):
@@ -263,6 +271,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
 if __name__ == "__main__":
     scriptDir = path.dirname(path.realpath(__file__))
+    chdir(path.abspath(__file__).replace(path.basename(__file__), ""))
     app = QtWidgets.QApplication(argv)
     app.setWindowIcon(QIcon(scriptDir + path.sep + 'src/icon2.png'))
     app.setStyle("Fusion")
