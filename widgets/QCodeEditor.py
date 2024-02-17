@@ -1,6 +1,6 @@
-from PyQt5.QtCore import Qt, QRegExp, pyqtSlot
+from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QKeySequence
-from PyQt5.QtWidgets import QPlainTextEdit, QShortcut
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut
 import ast
 
 
@@ -59,13 +59,14 @@ braces = [
 
 
 class CodeTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None, language=""):
+    def __init__(self, parent=None, language="", d=[]):
         super(CodeTextEdit, self).__init__(parent)
         self.fontSize = 14
         self.setFont(QFont("Console", self.fontSize))
         self.filename = ""
         self.fullfilepath = ""
         self.language = language
+        self.dict = d
         self.tabWidth = 4
         self.setStyleSheet(
             "background-color: #16171D;\n"
@@ -88,9 +89,28 @@ class CodeTextEdit(QPlainTextEdit):
         self.shortcutStart.activated.connect(self.moveCursorToStart)
         self.highlighter = WordHighlighter(self.document(), self.language)
         self.highlighter.rehighlight()
+        self.completer = MyCompleter(self.dict)
+        self.completer.setWidget(self)        
+        print(self.dict)
+        self.completer.insertText.connect(self.insertCompletion)
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
             self.setFont(QFont("Courier New", self.fontSize))
+
+
+    def insertCompletion(self, completion):
+        tc = self.textCursor()
+        extra = (len(completion) - len(self.completer.completionPrefix()))
+        tc.movePosition(QTextCursor.Left)
+        tc.movePosition(QTextCursor.EndOfWord)
+        tc.insertText(completion[-extra:])
+        self.setTextCursor(tc)
+        self.completer.popup().hide()
+
+    def focusInEvent(self, event):
+        if self.completer:
+            self.completer.setWidget(self)
+        QPlainTextEdit.focusInEvent(self, event)
  
 
     @pyqtSlot()
@@ -193,6 +213,26 @@ class CodeTextEdit(QPlainTextEdit):
                     self.insertPlainText(indentation)
                 else:
                     self.insertPlainText("\n"+indentation)
+            tc = self.textCursor()
+            if event.key() == Qt.Key_Tab and self.completer.popup().isVisible():
+                self.completer.insertText.emit(self.completer.getSelected())
+                self.completer.setCompletionMode(QCompleter.PopupCompletion)
+                return
+
+            QPlainTextEdit.keyPressEvent(self, event)
+            tc.select(QTextCursor.WordUnderCursor)
+            cr = self.cursorRect()
+
+            if len(tc.selectedText()) > 0:
+                self.completer.setCompletionPrefix(tc.selectedText())
+                popup = self.completer.popup()
+                popup.setCurrentIndex(self.completer.completionModel().index(0,0))
+
+                cr.setWidth(self.completer.popup().sizeHintForColumn(0) 
+                + self.completer.popup().verticalScrollBar().sizeHint().width())
+                self.completer.complete(cr)
+            else:
+                self.completer.popup().hide()
         else:
             super().keyPressEvent(event)
 
@@ -323,6 +363,22 @@ class WordHighlighter(QSyntaxHighlighter):
                     length = expression.matchedLength()
                     self.setFormat(index, length, format)
                     index = expression.indexIn(text, index + length)
+
+
+class MyCompleter(QCompleter):
+    insertText = pyqtSignal(str)
+
+    def __init__(self, d=[], parent=None):
+        QCompleter.__init__(self, d, parent)
+        self.setCompletionMode(QCompleter.PopupCompletion)
+        self.highlighted.connect(self.setHighlighted)
+
+    def setHighlighted(self, text):
+        self.lastSelected = text
+
+    def getSelected(self):
+        return self.lastSelected
+
 
 
 '''def format_code(code):

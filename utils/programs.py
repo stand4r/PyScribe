@@ -89,7 +89,15 @@ def update_settings(scriptPath, data):
 
 def analyze_code(code):
     # Создаем пустой словарь для автодополнения
-    autocomplete_dict = {}
+    autocomplete_dict = [
+            'and', 'assert', 'break', 'class', 'continue', 'def',
+            'del', 'elif', 'else', 'except', 'exec', 'finally',
+            'for', 'from', 'global', 'if', 'import', 'in',
+            'is', 'lambda', 'not', 'or', 'pass', 'print',
+            'raise', 'return', 'try', 'while', 'yield',
+            'None', 'True', 'False', 'self', "auto", 
+            "break", "case", "char", "const", "continue"
+            ]
 
     # Разбираем код в абстрактное синтаксическое дерево (AST)
     tree = ast.parse(code)
@@ -98,15 +106,13 @@ def analyze_code(code):
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             # Если узел - определение функции, добавляем ее имя в словарь
-            autocomplete_dict[node.name] = "function"
+            autocomplete_dict.append(node.name)
         elif isinstance(node, ast.ClassDef):
             # Если узел - определение класса, добавляем его имя в словарь
-            autocomplete_dict[node.name] = "class"
+            autocomplete_dict.append(node.name)
         elif isinstance(node, ast.Import):
             # Если узел - импорт, добавляем имена импортированных модулей в словарь
             for alias in node.names:
-                autocomplete_dict[alias.name.split(".")[0]] = "module"
-        elif isinstance(node, ast.Constant):
-            autocomplete_dict[node.name] = "constant"
+                autocomplete_dict.append(alias.name.split(".")[0])
         
     return autocomplete_dict

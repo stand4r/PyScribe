@@ -170,8 +170,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
                     self.createTab(open(rf"{file}", "r").readlines(), file)
                 else:
                     self.createTab(open(rf"{file}", "rb").read(), file)
-            except:
-                pass
+            except Exception as e:
+                print(e)
 
     def closeTab(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
@@ -193,9 +193,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 compile_program_cpp(CodeEdit.fullfilepath)
             try:
                 RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language).process()
-            except:
+            except Exception as e:
+                print(e)
                 CustomDialog("Error running code").exec()
-        except:
+        except Exception as e:
+            print(e)
             CustomDialog("Compilation error").exec()
 
     def actionSaveFile(self, currentIndex):
@@ -245,7 +247,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def createTab(self, text, fileName):
         try:
             lang = fileName.split('/')[-1].split('.')[-1]
-            self.CodeEdit = CodeTextEdit(self, languages[lang])
+            self.CodeEdit = CodeTextEdit(self, languages[lang], analyze_code("".join(text)))
             self.CodeEdit.filename = path.basename(fileName)
             self.CodeEdit.fullfilepath = rf"{fileName}"
             self.CodeEdit.setObjectName("CodeEdit")
@@ -254,7 +256,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
             else:
                 self.CodeEdit.setPlainText("".join(text))
             self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
-        except:
+        except Exception as e:
+            print(e)
             CustomDialog("Open file error").exec()
 
     def saveOpenFiles(self):
