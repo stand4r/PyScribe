@@ -2,6 +2,9 @@
 
 PyScribe is a sleek IDE built with PyQt5, designed to streamline your coding experience. With support for C, C++, and Python, PyScribe offers powerful features to enhance your workflow.
 
+![image](https://github.com/stand4r/PyScribe/assets/82241829/f9a57c11-0bb5-4535-8659-2a4e29a02318)
+
+
 ## Key Features
 
 - **Code Autocompletion**: Effortlessly complete your code with PyScribe's intelligent autocompletion feature, saving you time and reducing errors.
@@ -32,6 +35,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-Have questions or suggestions? Feel free to reach out to us at [your_email@example.com](mailto:your_email@example.com). We'd love to hear from you!
+Have questions or suggestions? Feel free to reach out to us at [email](mailto:sahojko.dima2018@gmail.com). We'd love to hear from you!
 
 Start coding smarter with PyScribe!
