@@ -7,7 +7,7 @@ from PyQt5.QtGui import QIcon, QFont, QPalette, QColor
 from utils.FabricRunCode import *
 from utils.programs import *
 from widgets.QArgsEditor import ArgsWindow
-from widgets.QCodeEditor import CodeTextEdit
+from widgets.QCodeEditor import CodeTextEdit, CodeEdit
 from widgets.SettingsWidget import SettingsWidget
 from widgets.Dialog import CustomDialog
 
@@ -48,12 +48,12 @@ class UiMainWindow(QtWidgets.QMainWindow):
         # Создаем кнопки
         self.button_run = QtWidgets.QPushButton("▶")
         self.button_run.setFlat(True)
-        self.button_run.setStyleSheet("border:none; padding-right:10px; padding-left:10px; ")
+        self.button_run.setStyleSheet("border:none; padding-right:10px; padding-left:10px; padding-top: 2px; padding-bottom: 5px;")
         self.button_run.setFont(QFont("Console", 20))
         self.button_run.clicked.connect(self.actionRunCode)
         self.button_settings = QtWidgets.QPushButton("⚙")
         self.button_settings.setFlat(True)
-        self.button_settings.setStyleSheet("border:none;padding-right:10px; padding-bottom:5px;")
+        self.button_settings.setStyleSheet("border:none;padding-right:10px; padding-bottom:5px; padding-top: 2px;")
         self.button_settings.setFont(QFont("Console", 18))
         self.button_settings.clicked.connect(self.actionSettingsLaunch)
 
@@ -68,18 +68,15 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.tabWidget.setCornerWidget(self.right_tab_widget)
         self.tabWidget.setStyleSheet(f"background-color: {main_color};\n"
                                     "color: #000000;\n"
-                                    "margin-top:20px;\n"
                                     )
-        self.tabWidget.setTabShape(QtWidgets.QTabWidget.Rounded)
         self.tabWidget.setTabsClosable(True)
         self.tabWidget.setObjectName("tabWidget")
         self.tabWidget.setDocumentMode(True)
         self.tabWidget.setStyleSheet(
             "QTabBar::close-button {image: url(src/close.png);}"
-            "QTabWidget::tab-bar {border:none;}"
-            "QTabBar::tab {background-color: #1F2228; width: 150px; height: 30px; border-width: 0px; padding-right: 20px; font-size: 16px; letter-spacing: 1px; border: none; border-bottom-color: #16171D;}"
-            "QTabBar::tab:selected {background-color: #16171D; border: none; color: #ffffff;}"
-            "QTabBar::tab:!selected {background-color: #1F2228; border: none;color: #ffffff;}"
+            "QTabBar {margin-left:10px;}"
+            "QTabBar::tab {padding: 1px; background-color: #1F2228; height: 28px; font-size: 14px; border: 1px solid #16171D; border-bottom-color: #16171D;}"
+            "QTabBar::tab:selected {background-color: #16171D; color: #ffffff; border-top-color: #00FFFF; padding:1px;}"
         )
         self.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(self)
@@ -130,6 +127,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menubar.addAction(self.menuRun.menuAction())
         self.label_status = QtWidgets.QLabel("run code")
         self.label_status.setFont(QtGui.QFont("Console", 11))
+        self.verticalLayout.setSpacing(0)
         self.verticalLayout.addWidget(self.tabWidget)
         self.retranslateUi()
         self.tabWidget.setCurrentIndex(0)
@@ -236,7 +234,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         active_tab_index = self.tabWidget.currentIndex()
         active_tab_widget = self.tabWidget.widget(active_tab_index)
         if active_tab_widget:
-            CodeEdit = active_tab_widget.findChild(CodeTextEdit, "CodeEdit")
+            CodeEdit = active_tab_widget.findChild(CodeEdit, "CodeEdit")
             self.window = ArgsWindow(CodeEdit.filename, CodeEdit.fullfilepath, CodeEdit.language)
             self.window.show()
 
@@ -245,20 +243,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
         window.show()
 
     def createTab(self, text, fileName):
-        try:
-            lang = fileName.split('/')[-1].split('.')[-1]
-            self.CodeEdit = CodeTextEdit(self, languages[lang], analyze_code("".join(text)))
-            self.CodeEdit.filename = path.basename(fileName)
-            self.CodeEdit.fullfilepath = rf"{fileName}"
-            self.CodeEdit.setObjectName("CodeEdit")
-            if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
-                self.CodeEdit.addText(text)
-            else:
-                self.CodeEdit.setPlainText("".join(text))
-            self.tabWidget.addTab(self.CodeEdit, fileName.split('/')[-1])
-        except Exception as e:
-            print(e)
-            CustomDialog("Open file error").exec()
+        lang = fileName.split('/')[-1].split('.')[-1]
+        self.CodeEdit = CodeEdit(self, languages[lang])
+        self.CodeEdit.filename = path.basename(fileName)
+        self.CodeEdit.fullfilepath = rf"{fileName}"
+        self.CodeEdit.setObjectName("CodeEdit")
+        if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
+            self.CodeEdit.addText(text)
+        else:
+            self.CodeEdit.setPlainText("".join(text))
+        self.tabWidget.addTab(self.CodeEdit, f"       {fileName.split('/')[-1]}        ")
 
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):

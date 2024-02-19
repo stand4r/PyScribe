@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QKeySequence
-from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QTextEdit,QWidget, QHBoxLayout, QLabel
 import ast
 
 
@@ -62,7 +62,7 @@ class CodeTextEdit(QPlainTextEdit):
     def __init__(self, parent=None, language="", d=[]):
         super(CodeTextEdit, self).__init__(parent)
         self.fontSize = 14
-        self.setFont(QFont("Console", self.fontSize))
+        self.setFont(QFont("Courier New", self.fontSize))
         self.filename = ""
         self.fullfilepath = ""
         self.language = language
@@ -71,66 +71,17 @@ class CodeTextEdit(QPlainTextEdit):
         self.setStyleSheet(
             "background-color: #16171D;\n"
             "color: #ffffff;\n"
-            "padding-top: 20px;\n"
-            "padding-bottom: 20px;\n"
-            "padding-left: 20px;\n"
-            "padding-right:20px;\n"
+            "padding: 20px;\n"
+            "padding-top: 10px;\n"
             "letter-spacing:1px;\n"
             "width: 0px;\n"
             "border: none"
             )
-        self.shortcutAdd = QShortcut(QKeySequence("Ctrl+Shift+="), self)
-        self.shortcutAdd.activated.connect(self.addFontSize)
-        self.shortcutPop = QShortcut(QKeySequence("Ctrl+-"), self)
-        self.shortcutPop.activated.connect(self.popFontSize)
-        self.shortcutEnd = QShortcut(QKeySequence("Ctrl+Down"), self)
-        self.shortcutEnd.activated.connect(self.moveCursorToEnd)
-        self.shortcutStart = QShortcut(QKeySequence("Ctrl+Up"), self)
-        self.shortcutStart.activated.connect(self.moveCursorToStart)
         self.highlighter = WordHighlighter(self.document(), self.language)
         self.highlighter.rehighlight()
-        self.completer = MyCompleter(self.dict)
-        self.completer.setWidget(self)        
-        print(self.dict)
-        self.completer.insertText.connect(self.insertCompletion)
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
-            self.setFont(QFont("Courier New", self.fontSize))
-
-
-    def insertCompletion(self, completion):
-        tc = self.textCursor()
-        extra = (len(completion) - len(self.completer.completionPrefix()))
-        tc.movePosition(QTextCursor.Left)
-        tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(completion[-extra:])
-        self.setTextCursor(tc)
-        self.completer.popup().hide()
-
-    def focusInEvent(self, event):
-        if self.completer:
-            self.completer.setWidget(self)
-        QPlainTextEdit.focusInEvent(self, event)
- 
-
-    @pyqtSlot()
-    def addFontSize(self):
-        self.fontSize += 1
-        self.setFont(QFont("Console", self.fontSize))
-
-    @pyqtSlot()
-    def popFontSize(self):
-        if self.fontSize > 1:
-            self.fontSize -= 1
-            self.setFont(QFont("Console", self.fontSize))
-
-    @pyqtSlot()
-    def moveCursorToEnd(self):
-        self.moveCursor(QTextCursor.End)
-    
-    @pyqtSlot()
-    def moveCursorToStart(self):
-        self.moveCursor(QTextCursor.Start)
+            self.setFont(QFont("Courier New", self.fontSize))    
 
     def convert_to_hex(self, content):
         hex_string = ""
@@ -213,101 +164,81 @@ class CodeTextEdit(QPlainTextEdit):
                     self.insertPlainText(indentation)
                 else:
                     self.insertPlainText("\n"+indentation)
-            tc = self.textCursor()
-            if event.key() == Qt.Key_Tab and self.completer.popup().isVisible():
-                self.completer.insertText.emit(self.completer.getSelected())
-                self.completer.setCompletionMode(QCompleter.PopupCompletion)
-                return
-
-            QPlainTextEdit.keyPressEvent(self, event)
-            tc.select(QTextCursor.WordUnderCursor)
-            cr = self.cursorRect()
-
-            if len(tc.selectedText()) > 0:
-                self.completer.setCompletionPrefix(tc.selectedText())
-                popup = self.completer.popup()
-                popup.setCurrentIndex(self.completer.completionModel().index(0,0))
-
-                cr.setWidth(self.completer.popup().sizeHintForColumn(0) 
-                + self.completer.popup().verticalScrollBar().sizeHint().width())
-                self.completer.complete(cr)
-            else:
-                self.completer.popup().hide()
         else:
             super().keyPressEvent(event)
 
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        painter = QPainter(self.viewport())
-        font = painter.font()
-        font.setPointSize(self.fontSize-1)  # Задаем размер шрифта для счетчика строк
-        painter.setFont(font)
 
-        block = self.firstVisibleBlock()
-        block_number = block.blockNumber()
-        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
-        bottom = top + self.blockBoundingRect(block).height()
+class CodeEdit(QWidget):
+    def __init__(self, parent=None, language="", d=[]):
+        super(CodeEdit, self).__init__(parent)
+        self.language = language
+        self.fontSize = 14
+        self.filename = ""
+        self.fullfilepath = ""
+        self.layout = QHBoxLayout(self)
+        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.textedit = CodeTextEdit(self, language=language, d=d)
+        self.labelCount = QPlainTextEdit(self)
+        self.labelCount.setReadOnly(True)
+        self.labelCount.setStyleSheet("padding-left: 12px; color: #ABB2BF; width: 0px;\n padding-top: 10px;\n" 
+                                        "background-color: #16171D; padding-bottom: 20px; letter-spacing:1px; border: 2px solid #16171D; border-right-color: #282C34;")
+        self.labelCount.setFixedWidth(90)
+        self.labelCount.setFont(QFont("Courier New", self.fontSize))
+        self.textedit.blockCountChanged.connect(self.changeCount)
+        self.textedit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
+        self.labelCount.verticalScrollBar().valueChanged.connect(self.sync_scroll)
+        self.layout.addWidget(self.labelCount, 1)
+        self.layout.addWidget(self.textedit, 10) 
+        self.setLayout(self.layout)
+        self.shortcutAdd = QShortcut(QKeySequence("Ctrl+Shift+="), self)
+        self.shortcutAdd.activated.connect(self.addFontSize)
+        self.shortcutPop = QShortcut(QKeySequence("Ctrl+-"), self)
+        self.shortcutPop.activated.connect(self.popFontSize)
+        self.shortcutEnd = QShortcut(QKeySequence("Ctrl+Down"), self)
+        self.shortcutEnd.activated.connect(self.moveCursorToEnd)
+        self.shortcutStart = QShortcut(QKeySequence("Ctrl+Up"), self)
+        self.shortcutStart.activated.connect(self.moveCursorToStart)
 
-        # Определяем видимые блоки и рисуем номера строк
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                number = str(block_number + 1)
-                painter.setPen(QColor("#fdfff5"))
-                painter.drawText(0, int(top), self.viewport().width(), self.fontMetrics().height(), Qt.AlignRight, number)
+    def sync_scroll(self, value):
+        self.labelCount.verticalScrollBar().setValue(value)
+        self.textedit.verticalScrollBar().setValue(value)
 
-            block = block.next()
-            top = bottom
-            bottom = top + self.blockBoundingRect(block).height()
-            block_number += 1
+    def changeCount(self):
+        self.labelCount.setPlainText("")
+        self.labelCount.insertPlainText("\n".join([str(i+1) for i in range(self.textedit.blockCount())]))
 
-    def linenumberarea_paint_event(self, event):
-        """
-        Paint the line number area.
-        """
-        if self._linenumber_enabled:
-            painter = QPainter(self.linenumberarea)
-            painter.fillRect(
-                event.rect(),
-                self._highlighter.get_sideareas_color(),
-            )
+    def addText(self, text):
+        self.textedit.addText(text)
+    
+    def setPlainText(self, text):
+        self.textedit.setPlainText(text)
 
-            block = self.firstVisibleBlock()
-            block_number = block.blockNumber()
-            top = round(self.blockBoundingGeometry(block).translated(
-                self.contentOffset()).top())
-            bottom = top + round(self.blockBoundingRect(block).height())
+    def toPlainText(self):
+        return self.textedit.toPlainText()
 
-            font = painter.font()
-            font.setPointSize(12)
-            active_block = self.textCursor().block()
-            active_line_number = active_block.blockNumber() + 1
+    @pyqtSlot()
+    def addFontSize(self):
+        self.fontSize += 1
+        self.textedit.setFont(QFont("Courier New", self.fontSize))
+        self.labelCount.setFont(QFont("Courier New", self.fontSize))
 
-            while block.isValid() and top <= event.rect().bottom():
-                if block.isVisible() and bottom >= event.rect().top():
-                    number = block_number + 1
+    @pyqtSlot()
+    def popFontSize(self):
+        if self.fontSize > 1:
+            self.fontSize -= 1
+            self.textedit.setFont(QFont("Courier New", self.fontSize))
+            self.labelCount.setFont(QFont("Courier New", self.fontSize))
 
-                    if number == active_line_number:
-                        font.setWeight(font.Bold)
-                        painter.setFont(font)
-                        painter.setPen(
-                            self._highlighter.get_foreground_color())
-                    else:
-                        font.setWeight(font.Normal)
-                        painter.setFont(font)
-                        painter.setPen(QColor(Qt.darkGray))
-                    right_padding = self.linenumberarea._right_padding
-                    painter.drawText(
-                        0,
-                        top,
-                        self.linenumberarea.width() - right_padding,
-                        self.fontMetrics().height(),
-                        Qt.AlignRight, str(number),
-                    )
-
-                block = block.next()
-                top = bottom
-                bottom = top + round(self.blockBoundingRect(block).height())
-                block_number += 1
+    @pyqtSlot()
+    def moveCursorToEnd(self):
+        self.textedit.moveCursor(QTextCursor.End)
+        self.labelCount.moveCursor(QTextCursor.End)
+    
+    @pyqtSlot()
+    def moveCursorToStart(self):
+        self.labelCount.moveCursor(QTextCursor.Start)
+        self.textedit.moveCursor(QTextCursor.Start)
 
 
 class WordHighlighter(QSyntaxHighlighter):
@@ -378,32 +309,3 @@ class MyCompleter(QCompleter):
 
     def getSelected(self):
         return self.lastSelected
-
-
-
-'''def format_code(code):
-    tree = ast.parse(code)
-    ast.fix_missing_locations(tree)
-
-    class IndentVisitor(ast.NodeVisitor):
-        def __init__(self):
-            self.indentation_level = 0
-
-        def generic_visit(self, node):
-            ast.NodeVisitor.generic_visit(self, node)
-            if isinstance(node, (ast.FunctionDef, ast.With)):
-                self.indentation_level += 1
-
-        def visit(self, node):
-            node.lineno = node.lineno + self.indentation_level
-            return ast.NodeVisitor.visit(self, node)
-
-        def depart(self, node):
-            if isinstance(node, (ast.FunctionDef, ast.With)):
-                self.indentation_level -= 1
-
-    visitor = IndentVisitor()
-    visitor.visit(tree)
-    formatted_code = ast.unparse(tree)
-    
-    return formatted_code'''
