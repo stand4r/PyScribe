@@ -81,7 +81,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.highlighter.rehighlight()
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
-            self.setFont(QFont("Courier New", self.fontSize))    
+            self.setFont(QFont("Courier New", self.fontSize)) 
 
     def convert_to_hex(self, content):
         hex_string = ""

@@ -87,6 +87,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menuFile.setStyleSheet("color: #ffffff")
         self.menuFile.setSeparatorsCollapsible(True)
         self.menuFile.setObjectName("menuFile")
+        self.menuEdit = QtWidgets.QMenu(self.menubar)
+        self.menuEdit.setBaseSize(QtCore.QSize(70, 0))
+        self.menuEdit.setStyleSheet("color: #ffffff")
+        self.menuEdit.setSeparatorsCollapsible(True)
+        self.menuEdit.setObjectName("menuEdit")
         self.menuRun = QtWidgets.QMenu(self.menubar)
         self.menuRun.setBaseSize(QtCore.QSize(70, 0))
         self.menuRun.setStyleSheet("color: #ffffff")
@@ -129,10 +134,30 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionNew.setObjectName("actionNewFile")
         self.actionExit = QtWidgets.QAction(self)
         self.actionExit.setFont(font)
-        self.actionExit.setObjectName("actionNewFile")
+        self.actionExit.setObjectName("actionExit")
         self.actionSettings = QtWidgets.QAction(self)
         self.actionSettings.setFont(font)
         self.actionSettings.setObjectName("actionSettings")
+        #
+        self.actionReturn = QtWidgets.QAction(self)
+        self.actionReturn.setFont(font)
+        self.actionReturn.setObjectName("actionReturn")
+        self.actionRepeat = QtWidgets.QAction(self)
+        self.actionRepeat.setFont(font)
+        self.actionRepeat.setObjectName("actionRepeat")
+        self.actionCut = QtWidgets.QAction(self)
+        self.actionCut.setFont(font)
+        self.actionCut.setObjectName("actionCut")
+        self.actionCopy = QtWidgets.QAction(self)
+        self.actionCopy.setFont(font)
+        self.actionCopy.setObjectName("actionCopy")
+        self.actionInsert = QtWidgets.QAction(self)
+        self.actionInsert.setFont(font)
+        self.actionInsert.setObjectName("actionInsert")
+        self.actionHighlight = QtWidgets.QAction(self)
+        self.actionHighlight.setFont(font)
+        self.actionHighlight.setObjectName("actionHighlight")
+        #
         self.menuFile.addAction(self.actionNew)
         self.menuFile.addAction(self.actionOpen)
         self.menuFile.addAction(self.actionRecent)
@@ -144,11 +169,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menuFile.addAction(self.actionRun)
         self.menuFile.addAction(self.actionSettings)
         self.menuFile.addAction(self.actionExit)
+        self.menuEdit.addAction(self.actionReturn)
+        self.menuEdit.addAction(self.actionRepeat)
+        self.menuEdit.addAction(self.actionCut)
+        self.menuEdit.addAction(self.actionCopy)
+        self.menuEdit.addAction(self.actionInsert)
+        self.menuEdit.addAction(self.actionHighlight)
         self.menuRun.addAction(self.actionConfig)
         self.menubar.addAction(self.menuFile.menuAction())
+        self.menubar.addAction(self.menuEdit.menuAction())
         self.menubar.addAction(self.menuRun.menuAction())
-        self.label_status = QtWidgets.QLabel("run code")
-        self.label_status.setFont(QtGui.QFont("Console", 11))
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.addWidget(self.tabWidget)
         self.retranslateUi()
@@ -158,9 +188,20 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionRun.triggered.connect(self.actionRunCode)
         self.actionOpen.triggered.connect(self.actionOpenFile)
         self.actionSave.triggered.connect(self.actionSaveFile)
+        self.actionClose.triggered.connect(self.actionCloseFile)
+        self.actionCloseAll.triggered.connect(self.actionCloseAllFiles)
+        self.actionSaveAs.triggered.connect(self.actionSaveAsFile)
+        self.actionSaveAll.triggered.connect(self.actionSaveAllFiles)
         self.actionConfig.triggered.connect(self.actionArgsLaunch)
         self.actionNew.triggered.connect(self.actionNewFile)
         self.actionSettings.triggered.connect(self.actionSettingsLaunch)
+        self.actionReturn.triggered.connect(self.actionReturnText)
+        self.actionRepeat.triggered.connect(self.actionRepeatText)
+        self.actionCut.triggered.connect(self.actionCutText)
+        self.actionCopy.triggered.connect(self.actionCopyText)
+        self.actionInsert.triggered.connect(self.actionInsertText)
+        self.actionHighlight.triggered.connect(self.actionHighlightText)
+        self.actionExit.triggered.connect(self.actionExitProgram)
         self.tabWidget.tabCloseRequested.connect(self.closeTab)
         self.files = loadSession()
         self.loadSession(self.files)
@@ -171,6 +212,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(_translate("MainWindow", "PyScribe"))
         self.menuFile.setTitle(_translate("MainWindow", "     File     "))
         self.menuRun.setTitle(_translate("MainWindow", "     Run     "))
+        self.menuEdit.setTitle(_translate("MainWindow", "      Edit    "))
         self.actionConfig.setText(_translate("MainWindow", "Launch parameters"))
         self.actionConfig.setShortcut(_translate("MainWindow", "Shift+F4"))
         self.actionNew.setText(_translate("MainWindow", "New"))
@@ -182,6 +224,18 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionClose.setText(_translate("MainWindow", "Close"))
         self.actionCloseAll.setShortcut(_translate("MainWindow", "Ctrl+Shift+W"))
         self.actionCloseAll.setText(_translate("MainWindow", "Close all"))
+        self.actionReturn.setShortcut(_translate("MainWindow", "Ctrl+Z"))
+        self.actionReturn.setText(_translate("MainWindow", "Return"))
+        self.actionRepeat.setShortcut(_translate("MainWindow", "Ctrl+Y"))
+        self.actionRepeat.setText(_translate("MainWindow", "Repeat"))
+        self.actionCut.setShortcut(_translate("MainWindow", "Ctrl+X"))
+        self.actionCut.setText(_translate("MainWindow", "Cut"))
+        self.actionCopy.setShortcut(_translate("MainWindow", "Ctrl+C"))
+        self.actionCopy.setText(_translate("MainWindow", "Copy"))
+        self.actionInsert.setShortcut(_translate("MainWindow", "Ctrl+V"))
+        self.actionInsert.setText(_translate("MainWindow", "Insert"))
+        self.actionHighlight.setShortcut(_translate("MainWindow", "Ctrl+A"))
+        self.actionHighlight.setText(_translate("MainWindow", "Highlight"))
         self.actionSave.setText(_translate("MainWindow", "Save"))
         self.actionSave.setShortcut(_translate("MainWindow", "Ctrl+S"))
         self.actionSaveAll.setText(_translate("MainWindow", "Save all"))
@@ -193,6 +247,52 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionExit.setText(_translate("MainWindow", "Exit"))
         self.actionExit.setShortcut(_translate("MainWindow", "Alt+F4"))
         self.actionSettings.setText(_translate("MainWindow", "Settings"))
+
+    def actionExitProgram(self):
+        self.saveOpenFiles()
+        saveSession(self.files)
+        self.close()
+
+    def actionCloseFile(self):
+        currentIndex = self.tabWidget.currentIndex()
+        active_tab_widget = self.tabWidget.widget(currentIndex)
+        self.files.remove(active_tab_widget.fullfilepath)
+        self.tabWidget.removeTab(currentIndex)
+        if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
+            self.actionSaveFile(currentIndex)
+
+    def actionCloseAllFiles(self):
+        for i in range(self.tabWidget.count()):
+            tab = self.tabWidget.widget(i)
+            self.files.remove(tab.fullfilepath)
+            self.tabWidget.removeTab(i)
+
+    def actionSaveAsFile(self):
+        pass
+
+    def actionSaveAllFiles(self):
+        for i in range(self.tabWidget.count()):
+            tab = self.tabWidget.widget(i)
+            if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
+                open(tab.fullfilepath, "w").write(tab.toPlainText())
+    
+    def actionReturnText(self):
+        pass
+
+    def actionRepeatText(self):
+        pass
+
+    def actionCutText(self):
+        pass
+
+    def actionCopyText(self):
+        pass
+
+    def actionInsertText(self):
+        pass
+
+    def actionHighlightText(self):
+        pass
 
     def loadSession(self, files):
         for file in files:
