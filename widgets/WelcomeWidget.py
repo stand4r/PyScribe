@@ -5,6 +5,7 @@ class Ui_Welcome(QtWidgets.QWidget):
     def __init__(self, parent=None, settings={}):
         super(Ui_Welcome, self).__init__(parent)
         self.settings = settings
+        self.welcome = True
         self.color = self.settings["settings"]["first_color"]
         self.setObjectName("Main")
         self.setStyleSheet(f"background-color: {self.color};")

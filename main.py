@@ -26,7 +26,6 @@ font_size_tab = settings["settings"]["font_size_tab"]
 
 
 class UiMainWindow(QtWidgets.QMainWindow):
-
     def setupUi(self):
         menubar = self.menuBar()
         menubar.addMenu("File")
@@ -51,15 +50,13 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.right_tab_layout.setContentsMargins(0, 0, 0, 0)
 
         # Создаем кнопки
-        self.button_run = QtWidgets.QPushButton("▶")
-        self.button_run.setFlat(True)
+        self.button_run = QtWidgets.QPushButton("")
         self.button_run.setStyleSheet("border:none; padding-right:10px; padding-left:10px; padding-top: 2px; padding-bottom: 5px;")
-        self.button_run.setFont(QFont("Console", 20))
+        self.button_run.setIcon(QtGui.QIcon('src/iconRun.png'))
         self.button_run.clicked.connect(self.actionRunCode)
-        self.button_settings = QtWidgets.QPushButton("⚙")
-        self.button_settings.setFlat(True)
+        self.button_settings = QtWidgets.QPushButton("")
         self.button_settings.setStyleSheet("border:none;padding-right:10px; padding-bottom:5px; padding-top: 2px;")
-        self.button_settings.setFont(QFont("Console", 18))
+        self.button_settings.setIcon(QtGui.QIcon('src/iconSettings.png'))
         self.button_settings.clicked.connect(self.actionSettingsLaunch)
 
         # Добавляем кнопки в QHBoxLayout
@@ -97,6 +94,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menuEdit.setStyleSheet("color: #ffffff")
         self.menuEdit.setSeparatorsCollapsible(True)
         self.menuEdit.setObjectName("menuEdit")
+        self.menuTools = QtWidgets.QMenu(self.menubar)
+        self.menuTools.setBaseSize(QtCore.QSize(70, 0))
+        self.menuTools.setStyleSheet("color: #ffffff")
+        self.menuTools.setSeparatorsCollapsible(True)
+        self.menuTools.setObjectName("menuTools")
+        self.menuHelp = QtWidgets.QMenu(self.menubar)
+        self.menuHelp.setBaseSize(QtCore.QSize(70, 0))
+        self.menuHelp.setStyleSheet("color: #ffffff")
+        self.menuHelp.setSeparatorsCollapsible(True)
+        self.menuHelp.setObjectName("menuTools")
         self.menuRun = QtWidgets.QMenu(self.menubar)
         self.menuRun.setBaseSize(QtCore.QSize(70, 0))
         self.menuRun.setStyleSheet("color: #ffffff")
@@ -162,17 +169,24 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionHighlight = QtWidgets.QAction(self)
         self.actionHighlight.setFont(font)
         self.actionHighlight.setObjectName("actionHighlight")
+        self.actionShell = QtWidgets.QAction(self)
+        self.actionShell.setFont(font)
+        self.actionShell.setObjectName("actionShell")
+        self.actionGit = QtWidgets.QAction(self)
+        self.actionGit.setFont(font)
+        self.actionGit.setObjectName("actionShell")
         #
         self.menuFile.addAction(self.actionNew)
         self.menuFile.addAction(self.actionOpen)
         self.menuFile.addAction(self.actionRecent)
+        self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionClose)
         self.menuFile.addAction(self.actionCloseAll)
+        self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionSave)
         self.menuFile.addAction(self.actionSaveAll)
         self.menuFile.addAction(self.actionSaveAs)
-        self.menuFile.addAction(self.actionRun)
-        self.menuFile.addAction(self.actionSettings)
+        self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionExit)
         self.menuEdit.addAction(self.actionReturn)
         self.menuEdit.addAction(self.actionRepeat)
@@ -180,10 +194,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menuEdit.addAction(self.actionCopy)
         self.menuEdit.addAction(self.actionInsert)
         self.menuEdit.addAction(self.actionHighlight)
+        self.menuTools.addAction(self.actionShell)
+        self.menuTools.addAction(self.actionSettings)
+        self.menuHelp.addAction(self.actionGit)
+        self.menuRun.addAction(self.actionRun)
         self.menuRun.addAction(self.actionConfig)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuEdit.menuAction())
         self.menubar.addAction(self.menuRun.menuAction())
+        self.menubar.addAction(self.menuTools.menuAction())
+        self.menubar.addAction(self.menuHelp.menuAction())
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.addWidget(self.tabWidget)
         self.retranslateUi()
@@ -207,10 +227,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionInsert.triggered.connect(self.actionInsertText)
         self.actionHighlight.triggered.connect(self.actionHighlightText)
         self.actionExit.triggered.connect(self.actionExitProgram)
+        self.actionShell.triggered.connect(self.actionShellChoice)
+        self.actionGit.triggered.connect(self.actionGitOpen)
         self.tabWidget.tabCloseRequested.connect(self.closeTab)
         self.files = loadSession()
         self.loadSession(self.files)
-
 
     def retranslateUi(self):
         _translate = QtCore.QCoreApplication.translate
@@ -218,6 +239,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menuFile.setTitle(_translate("MainWindow", "     File     "))
         self.menuRun.setTitle(_translate("MainWindow", "     Run     "))
         self.menuEdit.setTitle(_translate("MainWindow", "      Edit    "))
+        self.menuTools.setTitle(_translate("MainWindow", "      Tools    "))
+        self.menuHelp.setTitle(_translate("MainWindow", "      Help    "))
         self.actionConfig.setText(_translate("MainWindow", "Launch parameters"))
         self.actionConfig.setShortcut(_translate("MainWindow", "Shift+F4"))
         self.actionNew.setText(_translate("MainWindow", "New"))
@@ -252,6 +275,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionExit.setText(_translate("MainWindow", "Exit"))
         self.actionExit.setShortcut(_translate("MainWindow", "Alt+F4"))
         self.actionSettings.setText(_translate("MainWindow", "Settings"))
+        self.actionShell.setText(_translate("MainWindow", "Set shell"))
+        self.actionGit.setText(_translate("MainWindow", "Github Issues"))
 
     def actionExitProgram(self):
         self.saveOpenFiles()
@@ -274,6 +299,12 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def actionSaveAsFile(self):
         pass
+
+    def actionGitOpen(self):
+        pass
+
+    def actionShellChoice(self):
+        self.actionSettingsLaunch()
 
     def actionSaveAllFiles(self):
         for i in range(self.tabWidget.count()):
@@ -334,22 +365,24 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def actionRunCode(self):
         active_tab_index = self.tabWidget.currentIndex()
         CodeEdit = self.tabWidget.widget(active_tab_index)
-
-        with open(CodeEdit.fullfilepath, 'w') as codefile:
-            codefile.write(CodeEdit.toPlainText())
-        try:
-            if self.CodeEdit.language == "c":
-                compile_program_c(CodeEdit.fullfilepath)
-            elif self.CodeEdit.language == "cpp":
-                compile_program_cpp(CodeEdit.fullfilepath)
+        if not CodeEdit.welcome:
+            with open(CodeEdit.fullfilepath, 'w') as codefile:
+                codefile.write(CodeEdit.toPlainText())
             try:
-                RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language).process()
+                if self.CodeEdit.language == "c":
+                    compile_program_c(CodeEdit.fullfilepath)
+                elif self.CodeEdit.language == "cpp":
+                    compile_program_cpp(CodeEdit.fullfilepath)
+                try:
+                    RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language).process()
+                except Exception as e:
+                    print(e)
+                    CustomDialog("Error running code").exec()
             except Exception as e:
                 print(e)
-                CustomDialog("Error running code").exec()
-        except Exception as e:
-            print(e)
-            CustomDialog("Compilation error").exec()
+                CustomDialog("Compilation error").exec()
+        else:
+            pass
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
@@ -413,8 +446,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):
             tab = self.tabWidget.widget(i)
-            if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
-                open(tab.fullfilepath, "w").write(tab.toPlainText())
+            try:
+                if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
+                    open(tab.fullfilepath, "w").write(tab.toPlainText())
+            except:
+                pass
 
     def closeEvent(self, event):
         self.saveOpenFiles()

@@ -21,13 +21,10 @@ class SettingsWidget(QtWidgets.QWidget):
 
     def setupUi(self):
         self.setStyleSheet(f"background-color:  {self.first_color};\n"
-                           "color: #ffffff"
-                           "padding: 40px"
-                           "padding-left: 100px"
-                           "padding-right: 150px")
+                           "color: #ffffff;")
         self.layout = QtWidgets.QFormLayout(self)
         self.buttonSave = QtWidgets.QPushButton("Save")
-        self.buttonSave.setStyleSheet(f"border: 1px solid blue; fontsize: {self.font_size}; border-radius:10px; color: blue; margin-left: 80px; padding-left: 20px; padding-right: 20px;")
+        self.buttonSave.setStyleSheet(f"border: 1px solid blue; border-radius:10px; color: blue; margin-left: 80px; padding-left: 20px; padding-right: 20px;")
         font = QtGui.QFont()
         font.setFamily("MS UI Gothic")
         font.setPointSize(self.font_size)

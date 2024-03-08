@@ -63,6 +63,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.fullfilepath = ""
         self.language = language
         self.settings = settings
+        self.welcome = False
         self.main_color = self.settings["settings"]['main_color']#013B81
         self.text_color = self.settings["settings"]["text_color"]#ABB2BF
         self.first_color = self.settings["settings"]['first_color']#16171D
@@ -180,6 +181,7 @@ class CodeEdit(QWidget):
         self.filename = ""
         self.fullfilepath = ""
         self.settings = settings
+        self.welcome = False
         self.fontSize = int(self.settings["settings"]["fontsize"])
         self.first_color = self.settings["settings"]["first_color"]
         self.layout = QHBoxLayout(self)
