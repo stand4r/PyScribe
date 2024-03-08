@@ -1,8 +1,6 @@
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal
-from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QPainter, QKeySequence
-from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QTextEdit,QWidget, QHBoxLayout, QLabel
-import ast
-
+from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout
 
 
 keywords = {
@@ -59,17 +57,24 @@ braces = [
 
 
 class CodeTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None, language="", d=[]):
+    def __init__(self, parent=None, language="", d=[], settings={}):
         super(CodeTextEdit, self).__init__(parent)
-        self.fontSize = 14
-        self.setFont(QFont("Courier New", self.fontSize))
         self.filename = ""
         self.fullfilepath = ""
         self.language = language
+        self.settings = settings
+        self.main_color = self.settings["settings"]['main_color']#013B81
+        self.text_color = self.settings["settings"]["text_color"]#ABB2BF
+        self.first_color = self.settings["settings"]['first_color']#16171D
+        self.second_color = self.settings["settings"]['second_color']#131313
+        self.tab_color = self.settings["settings"]['tab_color']#1F2228
+        self.languages = self.settings["languages"]
+        self.font_size = int(self.settings["settings"]["fontsize"])
         self.dict = d
         self.tabWidth = 4
+        self.setFont(QFont("Courier New", self.font_size))
         self.setStyleSheet(
-            "background-color: #16171D;\n"
+            f"background-color: {self.first_color};\n"
             "color: #ffffff;\n"
             "padding: 20px;\n"
             "padding-top: 10px;\n"
@@ -81,7 +86,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.highlighter.rehighlight()
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
-            self.setFont(QFont("Courier New", self.fontSize)) 
+            self.setFont(QFont("Courier New", self.font_size)) 
 
     def convert_to_hex(self, content):
         hex_string = ""
@@ -169,20 +174,22 @@ class CodeTextEdit(QPlainTextEdit):
 
 
 class CodeEdit(QWidget):
-    def __init__(self, parent=None, language="", d=[]):
+    def __init__(self, parent=None, language="", d=[],  settings={}):
         super(CodeEdit, self).__init__(parent)
         self.language = language
-        self.fontSize = 14
         self.filename = ""
         self.fullfilepath = ""
+        self.settings = settings
+        self.fontSize = int(self.settings["settings"]["fontsize"])
+        self.first_color = self.settings["settings"]["first_color"]
         self.layout = QHBoxLayout(self)
         self.layout.setSpacing(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.textedit = CodeTextEdit(self, language=language, d=d)
+        self.textedit = CodeTextEdit(self, language=language, d=d, settings=self.settings)
         self.labelCount = QPlainTextEdit(self)
         self.labelCount.setReadOnly(True)
-        self.labelCount.setStyleSheet("padding-left: 12px; color: #ABB2BF; width: 0px;\n padding-top: 10px;\n" 
-                                        "background-color: #16171D; padding-bottom: 20px; letter-spacing:1px; border: 2px solid #16171D; border-right-color: #282C34;")
+        self.labelCount.setStyleSheet(f"padding-left: 12px; color: #ABB2BF; width: 0px;\n padding-top: 10px;\n" 
+                                        f"background-color: {self.first_color}; padding-bottom: 20px; letter-spacing:1px; border: 2px solid {self.first_color}; border-right-color: #282C34;")
         self.labelCount.setFixedWidth(90)
         self.labelCount.setFont(QFont("Courier New", self.fontSize))
         self.textedit.blockCountChanged.connect(self.changeCount)

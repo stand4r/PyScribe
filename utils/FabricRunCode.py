@@ -18,18 +18,17 @@ class WindowsFoundTerminalClass(FabricFoundTerminalClass):
 class LinuxFoundTerminalClass(FabricFoundTerminalClass):
     def get_terminal_command(self, command) -> str:
         terminals = {
+            'alacritty': '-e',
             'xterm': '-e',
             'gnome-terminal': '--command',
             'konsole': '-e',
             'xfce4-terminal': '-e',
-            'alacritty': '-e',
             'kitty': '-e',
         }
         for terminal, param in terminals.items():
             try:
-                check_output(['which', terminal])
-                banner = '"Press enter to continue..."'
-                return f'{terminal} {param} bash -c "{command} && read"'
+                term = str(check_output(['which', terminal]))
+                return f'{term} {param} bash -c "{command} && read"'
             except CalledProcessError:
                 pass
         return None
@@ -89,8 +88,7 @@ class RunCodeClass:
         self.command = ""
         match lang:
             case "python":
-                self.command = choice_env(rf"python '{self._path}'")
-                print(self.command)
+                self.command = choice_env(rf"python {self._path}")
             case "c":
                 try:
                     exe = compile_program_c(self._path)

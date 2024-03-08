@@ -1,4 +1,4 @@
-from sys import exit, argv, executable
+from sys import exit, argv
 from os import path, chdir
 
 from PyQt5 import QtWidgets, QtCore, QtGui
@@ -7,17 +7,22 @@ from PyQt5.QtGui import QIcon, QFont, QPalette, QColor
 from utils.FabricRunCode import *
 from utils.programs import *
 from widgets.QArgsEditor import ArgsWindow
-from widgets.QCodeEditor import CodeTextEdit, CodeEdit
+from widgets.QCodeEditor import CodeEdit
 from widgets.SettingsWidget import SettingsWidget
 from widgets.Dialog import CustomDialog
+from widgets.WelcomeWidget import Ui_Welcome
 
 
 path_settings = path.dirname(path.realpath(__file__))
 settings = load_settings(path_settings)
-main_color = settings["settings"]['main_color']#1e1f1e
-first_color = settings["settings"]['first_color']#191819
+main_color = settings["settings"]['main_color']#013B81
+text_color = settings["settings"]["text_color"]#ABB2BF
+first_color = settings["settings"]['first_color']#16171D
 second_color = settings["settings"]['second_color']#131313
+tab_color = settings["settings"]['tab_color']#1F2228
 languages = settings["languages"]
+font_size = int(settings["settings"]["fontsize"])
+font_size_tab = settings["settings"]["font_size_tab"]
 
 
 class UiMainWindow(QtWidgets.QMainWindow):
@@ -75,8 +80,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.tabWidget.setStyleSheet(
             "QTabBar::close-button {image: url(src/close.png);}"
             "QTabBar {margin-left:10px;}"
-            "QTabBar::tab {padding: 1px; background-color: #1F2228; height: 28px; font-size: 14px; border: 1px solid #16171D; border-bottom-color: #16171D;}"
-            "QTabBar::tab:selected {background-color: #16171D; color: #ffffff; border-top-color: #00FFFF; padding:1px;}"
+            "QTabBar::tab {padding: 1px; background-color: "+tab_color+"; height: 28px; font-size:"+font_size_tab+"px; border: 1px solid"+first_color+"; border-bottom-color:"+first_color+";}"
+            "QTabBar::tab:selected {background-color:"+first_color+"; color: #ffffff; border-top-color: #00FFFF; padding:1px;}"
         )
         self.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(self)
@@ -295,21 +300,36 @@ class UiMainWindow(QtWidgets.QMainWindow):
         pass
 
     def loadSession(self, files):
-        for file in files:
-            try:
-                if path.basename(file).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
-                    self.createTab(open(rf"{file}", "r").readlines(), file)
-                else:
-                    self.createTab(open(rf"{file}", "rb").read(), file)
-            except Exception as e:
-                print(e)
+        if files != []:
+            for file in files:
+                try:
+                    if path.basename(file).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
+                        self.createTab(open(rf"{file}", "r").readlines(), file)
+                    else:
+                        self.createTab(open(rf"{file}", "rb").read(), file)
+                except Exception as e:
+                    print(e)
+        else:
+            self.welcomeWidget()
+
+    def welcomeWidget(self):
+        widget = Ui_Welcome(self.tabWidget, settings)
+        widget.NewFileButton.clicked.connect(self.actionNewFile)
+        widget.OpenFileButton.clicked.connect(self.actionOpenFile)
+        self.tabWidget.addTab(widget, "         Welcome         ")
 
     def closeTab(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
-        self.files.remove(active_tab_widget.fullfilepath)
+        try:
+            self.files.remove(active_tab_widget.fullfilepath)
+        except:
+            pass
         self.tabWidget.removeTab(currentIndex)
-        if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
-            self.actionSaveFile(currentIndex)
+        try:
+            if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
+                self.actionSaveFile(currentIndex)
+        except:
+            pass
 
     def actionRunCode(self):
         active_tab_index = self.tabWidget.currentIndex()
@@ -333,8 +353,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
-        if active_tab_widget:
-            open(active_tab_widget.fullfilepath, "w").write(active_tab_widget.toPlainText())
+        try:
+            if active_tab_widget:
+                open(active_tab_widget.fullfilepath, "w").write(active_tab_widget.toPlainText())
+        except:
+            pass
 
     def actionOpenFile(self):
         fileDialog = QtWidgets.QFileDialog()
@@ -373,11 +396,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def actionSettingsLaunch(self):
         window = SettingsWidget(settings, path_settings)
-        window.show()
+        self.tabWidget.addTab(window, "         Settings         ")
 
     def createTab(self, text, fileName):
         lang = fileName.split('/')[-1].split('.')[-1]
-        self.CodeEdit = CodeEdit(self, languages[lang])
+        self.CodeEdit = CodeEdit(self, languages[lang],[], settings)
         self.CodeEdit.filename = path.basename(fileName)
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.setObjectName("CodeEdit")

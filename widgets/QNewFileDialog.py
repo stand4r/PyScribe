@@ -1,6 +1,5 @@
 from fileinput import filename
-import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QFileDialog
+from PyQt5.QtWidgets import QWidget, QFileDialog
 
 class FileSaveWindow(QWidget):
     def __init__(self):
