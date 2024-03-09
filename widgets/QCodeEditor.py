@@ -72,6 +72,9 @@ class CodeTextEdit(QPlainTextEdit):
         self.languages = self.settings["languages"]
         self.font_size = int(self.settings["settings"]["fontsize"])
         self.dict = d
+        '''self.completer = MyCompleter()
+        self.completer.setWidget(self)
+        self.completer.insertText.connect(self.insertCompletion)'''
         self.tabWidth = 4
         self.setFont(QFont("Courier New", self.font_size))
         self.setStyleSheet(
@@ -88,6 +91,20 @@ class CodeTextEdit(QPlainTextEdit):
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
             self.setFont(QFont("Courier New", self.font_size)) 
+    
+    '''def insertCompletion(self, completion):
+        tc = self.textCursor()
+        extra = (len(completion) - len(self.completer.completionPrefix()))
+        tc.movePosition(QTextCursor.Left)
+        tc.movePosition(QTextCursor.EndOfWord)
+        tc.insertText(completion[-extra:])
+        self.setTextCursor(tc)
+        self.completer.popup().hide()
+
+    def focusInEvent(self, event):
+        if self.completer:
+            self.completer.setWidget(self)
+        QPlainTextEdit.focusInEvent(self, event)'''
 
     def convert_to_hex(self, content):
         hex_string = ""
@@ -116,6 +133,28 @@ class CodeTextEdit(QPlainTextEdit):
         self.highlighter.set_patterns(words, color)
 
     def keyPressEvent(self, event):
+        '''
+        tc = self.textCursor()
+        if event.key() == Qt.Key_Tab and self.completer.popup().isVisible():
+            self.completer.insertText.emit(self.completer.getSelected())
+            self.completer.setCompletionMode(QCompleter.PopupCompletion)
+            return
+
+        QPlainTextEdit.keyPressEvent(self, event)
+        tc.select(QTextCursor.WordUnderCursor)
+        cr = self.cursorRect()
+
+        if len(tc.selectedText()) > 0:
+            self.completer.setCompletionPrefix(tc.selectedText())
+            popup = self.completer.popup()
+            popup.setCurrentIndex(self.completer.completionModel().index(0,0))
+
+            cr.setWidth(self.completer.popup().sizeHintForColumn(0) 
+            + self.completer.popup().verticalScrollBar().sizeHint().width())
+            self.completer.complete(cr)
+        else:
+            self.completer.popup().hide()
+        '''
         if event.text() in  ["'", '"', "(", "{", "["]:
             if event.text() == '"':
                 self.insertPlainText('""')
@@ -308,8 +347,8 @@ class WordHighlighter(QSyntaxHighlighter):
 class MyCompleter(QCompleter):
     insertText = pyqtSignal(str)
 
-    def __init__(self, d=[], parent=None):
-        QCompleter.__init__(self, d, parent)
+    def __init__(self, parent=None):
+        QCompleter.__init__(self, ["test","foo","bar"], parent)
         self.setCompletionMode(QCompleter.PopupCompletion)
         self.highlighted.connect(self.setHighlighted)
 
