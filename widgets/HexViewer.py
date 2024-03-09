@@ -11,6 +11,7 @@ class HexViewer(QWidget):
         self.language = ""
         self.filename = ""
         self.fullfilepeth = ""
+        self.welcome = False
         self.address_widget = QPlainTextEdit(self)
         self.byte_widget = QPlainTextEdit(self)
         self.ascii_widget = QPlainTextEdit(self)

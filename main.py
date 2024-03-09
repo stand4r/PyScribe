@@ -1,8 +1,8 @@
 from sys import exit, argv
-from os import path, chdir
+from os import path, chdir, remove
 
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtGui import QIcon, QFont, QPalette, QColor
+from PyQt5.QtGui import QIcon, QPalette, QColor
 
 from utils.FabricRunCode import *
 from utils.programs import *
@@ -290,6 +290,18 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.tabWidget.removeTab(currentIndex)
         if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
             self.actionSaveFile(currentIndex)
+    
+    def setAsterisk(self, index, text):
+        self.tabWidget.setTabText(index, text + "*")
+
+    def setTabText(self, index, text):
+        self.tabWidget.setTabText(index, text)
+
+    def removeAsterisk(self, index):
+        text = self.tabWidget.tabText(index)
+        if "*" in text:
+            text = text.strip("*")
+            self.tabWidget.setTabText(index, text)
 
     def actionCloseAllFiles(self):
         for i in range(self.tabWidget.count()):
@@ -298,7 +310,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
             self.tabWidget.removeTab(i)
 
     def actionSaveAsFile(self):
-        pass
+        active_tab_widget = self.tabWidget.widget(self.tabWidget.currentIndex())
+        if active_tab_widget:
+            if not active_tab_widget.welcome:
+                old_name = active_tab_widget.fullfilepath
+                options = QtWidgets.QFileDialog.Options()
+                fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save As", "", "All Files (*);;Text Files (*.txt)", options=options)
+                open(fileName, "w").write(active_tab_widget.toPlainText())
+                remove(old_name)
+                self.setTabText(self.tabWidget.currentIndex(), f"       {path.basename(fileName)}       ")
+
 
     def actionGitOpen(self):
         pass
