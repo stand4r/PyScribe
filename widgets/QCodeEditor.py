@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal
+from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
 from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout
 import ast
@@ -73,9 +73,11 @@ class CodeTextEdit(QPlainTextEdit):
         self.languages = self.settings["languages"]
         self.font_size = int(self.settings["settings"]["fontsize"])
         self.dict = d
-        '''self.completer = MyCompleter()
+        self.analyzer = CodeAnalyzer()
+        self.blockCountChanged.connect(self.analyzeCode)
+        self.completer = MyCompleter(self.dict, self.first_color, self.font_size)
         self.completer.setWidget(self)
-        self.completer.insertText.connect(self.insertCompletion)'''
+        self.completer.insertText.connect(self.insertCompletion)
         self.tabWidth = 4
         self.setFont(QFont("Courier New", self.font_size))
         self.setStyleSheet(
@@ -93,7 +95,13 @@ class CodeTextEdit(QPlainTextEdit):
             self.setReadOnly(True)
             self.setFont(QFont("Courier New", self.font_size)) 
     
-    '''def insertCompletion(self, completion):
+    def analyzeCode(self):
+        if self.toPlainText() != "":
+            self.analyzer.analyze_code(self.toPlainText())
+            self.dict = self.analyzer.get_auto_complete_dict()
+            self.completer.update(self.dict)
+
+    def insertCompletion(self, completion):
         tc = self.textCursor()
         extra = (len(completion) - len(self.completer.completionPrefix()))
         tc.movePosition(QTextCursor.Left)
@@ -105,7 +113,7 @@ class CodeTextEdit(QPlainTextEdit):
     def focusInEvent(self, event):
         if self.completer:
             self.completer.setWidget(self)
-        QPlainTextEdit.focusInEvent(self, event)'''
+        QPlainTextEdit.focusInEvent(self, event)
 
     def convert_to_hex(self, content):
         hex_string = ""
@@ -134,28 +142,19 @@ class CodeTextEdit(QPlainTextEdit):
         self.highlighter.set_patterns(words, color)
 
     def keyPressEvent(self, event):
-        '''
         tc = self.textCursor()
-        if event.key() == Qt.Key_Tab and self.completer.popup().isVisible():
-            self.completer.insertText.emit(self.completer.getSelected())
-            self.completer.setCompletionMode(QCompleter.PopupCompletion)
-            return
-
-        QPlainTextEdit.keyPressEvent(self, event)
-        tc.select(QTextCursor.WordUnderCursor)
-        cr = self.cursorRect()
-
-        if len(tc.selectedText()) > 0:
-            self.completer.setCompletionPrefix(tc.selectedText())
-            popup = self.completer.popup()
-            popup.setCurrentIndex(self.completer.completionModel().index(0,0))
-
-            cr.setWidth(self.completer.popup().sizeHintForColumn(0) 
-            + self.completer.popup().verticalScrollBar().sizeHint().width())
-            self.completer.complete(cr)
-        else:
-            self.completer.popup().hide()
-        '''
+        if event.key() == Qt.Key_Tab:
+            if self.completer.popup().isVisible():  # Если виджет автодополнения видим
+                inserted_text = self.completer.getSelected()  # Получаем выбранный текст из виджета автодополнения
+                if inserted_text:
+                    cursor_position = tc.position()  # Получаем начальное положение курсора
+                    tc.select(QTextCursor.WordUnderCursor)  # Выбираем слово, над которым находится курсор
+                    tc.removeSelectedText()  # Удаляем текст, над которым находится курсор
+                    self.setTextCursor(tc)  # Устанавливаем обновленное положение курсора
+                    self.insertPlainText(inserted_text)  # Вставляем выбранный текст
+                    self.completer.popup().hide()
+                    return
+        
         if event.text() in  ["'", '"', "(", "{", "["]:
             if event.text() == '"':
                 self.insertPlainText('""')
@@ -176,6 +175,7 @@ class CodeTextEdit(QPlainTextEdit):
         elif event.key() == Qt.Key_Tab:
             self.insertPlainText(" "*self.tabWidth)
         elif event.key() in [Qt.Key_Enter, Qt.Key_Return] and self.language in ["python", "c", "cpp"]:
+            self.completer.popup().hide()
             if self.language == "python":
                 # Вставляем новую строку
                 cursor = self.textCursor()
@@ -211,6 +211,18 @@ class CodeTextEdit(QPlainTextEdit):
                 else:
                     self.insertPlainText("\n"+indentation)
         else:
+            tc.select(QTextCursor.WordUnderCursor)
+            cr = self.cursorRect()
+            if event.text() not in [".", "[", "{", "("]:
+                if len(tc.selectedText()) > 0:
+                    prefix = tc.selectedText()  # Получаем выбранный текст для установки в качестве префикса автодополнения
+                    self.completer.setCompletionPrefix(prefix)
+                    popup = self.completer.popup()
+                    popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
+                    cr.setWidth(self.completer.popup().sizeHintForColumn(0) + self.completer.popup().verticalScrollBar().sizeHint().width()) 
+                    self.completer.complete(cr)  # Запускаем автодополнение
+            else:
+                self.completer.popup().hide()  # Если ничего не выбрано, скрываем всплывающий список
             super().keyPressEvent(event)
 
 
@@ -360,10 +372,16 @@ class WordHighlighter(QSyntaxHighlighter):
 class MyCompleter(QCompleter):
     insertText = pyqtSignal(str)
 
-    def __init__(self, parent=None):
-        QCompleter.__init__(self, ["test","foo","bar"], parent)
+    def __init__(self, d=[], backcolor="", fontsize=10, parent=None):
+        QCompleter.__init__(self, d, parent)
         self.setCompletionMode(QCompleter.PopupCompletion)
         self.highlighted.connect(self.setHighlighted)
+        self.popup().setStyleSheet("QListView { background-color: "+backcolor+"; color: white; border: 1px solid lightgray;} QListView::item:selected { background-color: lightgray;}")
+
+    def update(self, d):
+        model = QStringListModel()
+        model.setStringList(d)
+        self.setModel(model)
 
     def setHighlighted(self, text):
         self.lastSelected = text
@@ -385,27 +403,31 @@ class CodeAnalyzer:
         self.defined_names = []  # Переменные и функции, определенные в коде
 
     def analyze_code(self, code):
+        import re
         self.defined_names = []  # Сброс списка определенных имен
         # Анализируем текст кода, чтобы найти определения функций и переменных
-        
+        try:
         # Разбираем код в абстрактное синтаксическое дерево (AST)
-        tree = ast.parse(code)
+            tree = ast.parse(code)
 
-        # Обходим AST, чтобы найти все определения и импорты
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef):
-                # Если узел - определение функции, добавляем ее имя в словарь
-                self.defined_names += node.name
-            elif isinstance(node, ast.ClassDef):
-                # Если узел - определение класса, добавляем его имя в словарь
-                self.defined_names += node.name
-            elif isinstance(node, ast.Import):
-                # Если узел - импорт, добавляем имена импортированных модулей в словарь
-                for alias in node.names:
-                    self.defined_names += alias.name.split(".")[0]
-        import re
+            # Обходим AST, чтобы найти все определения и импорты
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    # Если узел - определение функции, добавляем ее имя в словарь
+                    self.defined_names += node.name
+                elif isinstance(node, ast.ClassDef):
+                    # Если узел - определение класса, добавляем его имя в словарь
+                    self.defined_names += node.name
+                elif isinstance(node, ast.Import):
+                    # Если узел - импорт, добавляем имена импортированных модулей в словарь
+                    for alias in node.names:
+                        self.defined_names += alias.name.split(".")[0]
+        except:
+            function_pattern = r'def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(' 
+            self.defined_names += re.findall(function_pattern, code)
         variable_pattern = r'\b([A-Za-z_][A-Za-z0-9_]*)\b(?=[^\(]*\))'  # Регулярное выражение для определения переменных
         self.defined_names += re.findall(variable_pattern, code)
+        
 
     def get_auto_complete_dict(self):
-        return {name: '' for name in self.defined_names if name not in self.keywords}  # Возвращаем словарь для автодополнения
+        return [name for name in self.defined_names]  # Возвращаем словарь для автодополнения
