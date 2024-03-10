@@ -291,8 +291,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
         if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
             self.actionSaveFile(currentIndex)
     
-    def setAsterisk(self, index, text):
-        self.tabWidget.setTabText(index, text + "*")
+    def setAsterisk(self):
+        index = self.tabWidget.currentIndex()
+        text = self.tabWidget.tabText(index)
+        if "*" not in text:
+            self.tabWidget.setTabText(index, f"      {text.strip(' ')}     *    ")
 
     def setTabText(self, index, text):
         self.tabWidget.setTabText(index, text)
@@ -300,7 +303,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def removeAsterisk(self, index):
         text = self.tabWidget.tabText(index)
         if "*" in text:
-            text = text.strip("*")
+            text = text.replace("*", " ")
             self.tabWidget.setTabText(index, text)
 
     def actionCloseAllFiles(self):
@@ -317,6 +320,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 options = QtWidgets.QFileDialog.Options()
                 fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save As", "", "All Files (*);;Text Files (*.txt)", options=options)
                 open(fileName, "w").write(active_tab_widget.toPlainText())
+                self.removeAsterisk(self.tabWidget.currentIndex())
                 remove(old_name)
                 self.setTabText(self.tabWidget.currentIndex(), f"       {path.basename(fileName)}       ")
 
@@ -330,6 +334,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def actionSaveAllFiles(self):
         for i in range(self.tabWidget.count()):
             tab = self.tabWidget.widget(i)
+            self.removeAsterisk(i)
             if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
                 open(tab.fullfilepath, "w").write(tab.toPlainText())
     
@@ -407,11 +412,10 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
-        try:
-            if active_tab_widget:
+        if active_tab_widget:
+            if not active_tab_widget.welcome:
+                self.removeAsterisk(currentIndex)
                 open(active_tab_widget.fullfilepath, "w").write(active_tab_widget.toPlainText())
-        except:
-            pass
 
     def actionOpenFile(self):
         fileDialog = QtWidgets.QFileDialog()
@@ -458,6 +462,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.CodeEdit.filename = path.basename(fileName)
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.setObjectName("CodeEdit")
+        self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
         if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
             self.CodeEdit.addText(text)
         else:

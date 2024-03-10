@@ -231,7 +231,7 @@ class CodeEdit(QWidget):
         self.labelCount.setReadOnly(True)
         self.labelCount.setStyleSheet(f"padding-left: 12px; color: #ABB2BF; width: 0px;\n padding-top: 10px;\n" 
                                         f"background-color: {self.first_color}; padding-bottom: 20px; letter-spacing:1px; border: 2px solid {self.first_color}; border-right-color: #282C34;")
-        self.labelCount.setFixedWidth(90)
+        self.labelCount.setFixedWidth(70)
         self.labelCount.setFont(QFont("Courier New", self.fontSize))
         self.textedit.blockCountChanged.connect(self.changeCount)
         self.textedit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
@@ -249,12 +249,13 @@ class CodeEdit(QWidget):
         self.shortcutStart.activated.connect(self.moveCursorToStart)
 
     def sync_scroll(self, value):
-        self.labelCount.verticalScrollBar().setValue(value)
         self.textedit.verticalScrollBar().setValue(value)
+        self.labelCount.verticalScrollBar().setValue(value)
 
-    def changeCount(self):
+    def changeCount(self, value):
         self.labelCount.setPlainText("")
-        self.labelCount.insertPlainText("\n".join([str(i+1) for i in range(self.textedit.blockCount())]))
+        self.labelCount.insertPlainText("\n".join([f"{round(i, 2):>3}" for i in range(self.textedit.blockCount())]))
+        self.labelCount.verticalScrollBar().setValue(value)
 
     def addText(self, text):
         self.textedit.addText(text)
