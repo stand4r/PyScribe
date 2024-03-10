@@ -1,6 +1,7 @@
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
 from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout
+import ast
 
 
 keywords = {
@@ -369,3 +370,42 @@ class MyCompleter(QCompleter):
 
     def getSelected(self):
         return self.lastSelected
+    
+class CodeAnalyzer:
+    def __init__(self):
+        self.keywords = [
+            'and', 'assert', 'break', 'class', 'continue', 'def',
+            'del', 'elif', 'else', 'except', 'exec', 'finally',
+            'for', 'from', 'global', 'if', 'import', 'in',
+            'is', 'lambda', 'not', 'or', 'pass', 'print',
+            'raise', 'return', 'try', 'while', 'yield',
+            'None', 'True', 'False', 'self', "auto", 
+            "break", "case", "char", "const", "continue"
+            ]
+        self.defined_names = []  # Переменные и функции, определенные в коде
+
+    def analyze_code(self, code):
+        self.defined_names = []  # Сброс списка определенных имен
+        # Анализируем текст кода, чтобы найти определения функций и переменных
+        
+        # Разбираем код в абстрактное синтаксическое дерево (AST)
+        tree = ast.parse(code)
+
+        # Обходим AST, чтобы найти все определения и импорты
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                # Если узел - определение функции, добавляем ее имя в словарь
+                self.defined_names += node.name
+            elif isinstance(node, ast.ClassDef):
+                # Если узел - определение класса, добавляем его имя в словарь
+                self.defined_names += node.name
+            elif isinstance(node, ast.Import):
+                # Если узел - импорт, добавляем имена импортированных модулей в словарь
+                for alias in node.names:
+                    self.defined_names += alias.name.split(".")[0]
+        import re
+        variable_pattern = r'\b([A-Za-z_][A-Za-z0-9_]*)\b(?=[^\(]*\))'  # Регулярное выражение для определения переменных
+        self.defined_names += re.findall(variable_pattern, code)
+
+    def get_auto_complete_dict(self):
+        return {name: '' for name in self.defined_names if name not in self.keywords}  # Возвращаем словарь для автодополнения
