@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel
+from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
 from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout
 import ast
@@ -154,7 +154,10 @@ class CodeTextEdit(QPlainTextEdit):
                     self.insertPlainText(inserted_text)  # Вставляем выбранный текст
                     self.completer.popup().hide()
                     return
+            else:
+                self.insertPlainText(" "*self.tabWidth)
         
+
         if event.text() in  ["'", '"', "(", "{", "["]:
             if event.text() == '"':
                 self.insertPlainText('""')
@@ -172,8 +175,8 @@ class CodeTextEdit(QPlainTextEdit):
             cursor = self.textCursor()
             cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
             self.setTextCursor(cursor)
-        elif event.key() == Qt.Key_Tab:
-            self.insertPlainText(" "*self.tabWidth)
+
+
         elif event.key() in [Qt.Key_Enter, Qt.Key_Return] and self.language in ["python", "c", "cpp"]:
             self.completer.popup().hide()
             if self.language == "python":
@@ -211,6 +214,8 @@ class CodeTextEdit(QPlainTextEdit):
                 else:
                     self.insertPlainText("\n"+indentation)
         else:
+            if event.key() == Qt.Key_Backspace:
+                self.completer.popup().hide()  # Скрываем popup при удалении последнего символа
             tc.select(QTextCursor.WordUnderCursor)
             cr = self.cursorRect()
             if event.text() not in [".", "[", "{", "("]:
@@ -372,16 +377,31 @@ class WordHighlighter(QSyntaxHighlighter):
 class MyCompleter(QCompleter):
     insertText = pyqtSignal(str)
 
-    def __init__(self, d=[], backcolor="", fontsize=10, parent=None):
+    def __init__(self, d=[], backcolor="", fontsize=11, parent=None):
         QCompleter.__init__(self, d, parent)
         self.setCompletionMode(QCompleter.PopupCompletion)
+        self.setFilterMode(Qt.MatchContains)
         self.highlighted.connect(self.setHighlighted)
-        self.popup().setStyleSheet("QListView { background-color: "+backcolor+"; color: white; border: 1px solid lightgray;} QListView::item:selected { background-color: lightgray;}")
+        self.popup().setStyleSheet(f"width: 150px; font-size: {fontsize-1}pt;"
+                                   "QListView { background-color: "+backcolor+"; color: white; padding: 2px; border: 1px solid lightgray;} "
+                                   "QFrame {border: 1px solid #ccc; padding: 2px;}"
+                                   "QListView::item:selected { background-color: lightgray;}"
+                                   "QListView::item {height: 30px;}")
 
     def update(self, d):
         model = QStringListModel()
         model.setStringList(d)
         self.setModel(model)
+
+    def complete(self, rect):
+        # Рассчитываем позицию попапа относительно курсора
+        point = QPoint(rect.left(), rect.top() + rect.height())
+        global_point = rect.bottomLeft() + point
+
+        # Перемещаем попап QCompleter
+        self.popup().move(global_point)
+
+        super().complete(rect)
 
     def setHighlighted(self, text):
         self.lastSelected = text
@@ -390,44 +410,105 @@ class MyCompleter(QCompleter):
         return self.lastSelected
     
 class CodeAnalyzer:
-    def __init__(self):
-        self.keywords = [
-            'and', 'assert', 'break', 'class', 'continue', 'def',
-            'del', 'elif', 'else', 'except', 'exec', 'finally',
-            'for', 'from', 'global', 'if', 'import', 'in',
-            'is', 'lambda', 'not', 'or', 'pass', 'print',
-            'raise', 'return', 'try', 'while', 'yield',
-            'None', 'True', 'False', 'self', "auto", 
-            "break", "case", "char", "const", "continue"
-            ]
-        self.defined_names = []  # Переменные и функции, определенные в коде
+    def __init__(self, lang):
+        self._lang = lang
+        self.defined_names = keywords[self._lang]
 
     def analyze_code(self, code):
-        import re
-        self.defined_names = []  # Сброс списка определенных имен
-        # Анализируем текст кода, чтобы найти определения функций и переменных
-        try:
-        # Разбираем код в абстрактное синтаксическое дерево (AST)
-            tree = ast.parse(code)
+        if self._lang == "python":
+            import re
+            self.defined_names = keywords[self._lang]  # Сброс списка определенных имен
+            # Анализируем текст кода, чтобы найти определения функций и переменных
+            try:
+            # Разбираем код в абстрактное синтаксическое дерево (AST)
+                tree = ast.parse(code)
 
-            # Обходим AST, чтобы найти все определения и импорты
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
-                    # Если узел - определение функции, добавляем ее имя в словарь
-                    self.defined_names += node.name
-                elif isinstance(node, ast.ClassDef):
-                    # Если узел - определение класса, добавляем его имя в словарь
-                    self.defined_names += node.name
-                elif isinstance(node, ast.Import):
-                    # Если узел - импорт, добавляем имена импортированных модулей в словарь
-                    for alias in node.names:
-                        self.defined_names += alias.name.split(".")[0]
-        except:
-            function_pattern = r'def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(' 
-            self.defined_names += re.findall(function_pattern, code)
-        variable_pattern = r'\b([A-Za-z_][A-Za-z0-9_]*)\b(?=[^\(]*\))'  # Регулярное выражение для определения переменных
-        self.defined_names += re.findall(variable_pattern, code)
+                # Обходим AST, чтобы найти все определения и импорты
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.FunctionDef):
+                        # Если узел - определение функции, добавляем ее имя в словарь
+                        if node.name not in self.defined_names:
+                            self.defined_names += node.name
+                    elif isinstance(node, ast.ClassDef):
+                        # Если узел - определение класса, добавляем его имя в словарь
+                        if node.name not in self.defined_names:
+                            self.defined_names += node.name
+                        for n in node.body:
+                            if isinstance(n, ast.FunctionDef):
+                                if node.name not in self.defined_names:
+                                    self.defined_names += n.name
+                    elif isinstance(node, ast.Import):
+                        # Если узел - импорт, добавляем имена импортированных модулей в словарь
+                        for alias in node.names:
+                            if node.name not in self.defined_names:
+                                self.defined_names += alias.name.split(".")[0]
+            except:
+                function_pattern = r'def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(' 
+                self.defined_names += re.findall(function_pattern, code)
+            variable_pattern = r'\b([A-Za-z_][A-Za-z0-9_]*)\b(?=[^\(]*\))'  # Регулярное выражение для определения переменных
+            self.defined_names += re.findall(variable_pattern, code)
+        elif self._lang == "c":
+            c_language_dictionary = [
+                "auto", "double", "int", "struct", "break", "else", "long", "switch",
+                "case", "enum", "register", "typedef", "char", "extern", "return", "union",
+                "continue", "for", "signed", "void", "do", "if", "static", "while",
+                "default", "goto", "sizeof", "volatile", "const", "float", "short", "unsigned"
+            ]
+
+            c_standard_library = [
+                "assert", "errno", "time", "stdlib", "stdio", "math", "string"  # И другие стандартные библиотеки C
+            ]
+            
+            import ply.lex as lex
+            import ply.yacc as yacc
+            tokens = (
+                'VAR',  # Переменная
+                'FUNC',  # Функция
+                # Другие токены, такие как INT, FLOAT и т.д.
+            )
+
+            # Определение правил для токенов
+            def t_VAR(t):
+                r'[a-zA-Z_][a-zA-Z0-9_]*'
+                # Добавляем переменную в список
+                variables.append(t.value)
+                return t
+
+            def t_FUNC(t):
+                r'[a-zA-Z_][a-zA-Z0-9_]*\('
+                # Добавляем имя функции в список
+                functions.append(t.value[:-1])
+                return t
+
+            # Другие правила для токенов
+
+            # Запуск парсера
+            def parse_c_code(code):
+                lexer = lex.lex()
+                lexer.input(code)
+                for token in lexer:
+                    pass  # Парсинг всех токенов
+
+            # Пример использования парсера
+            variables = []
+            functions = []
+            parse_c_code(code)
+            self.defined_names += variables
+            self.defined_names += functions
+            self.defined_names += c_language_dictionary
+            self.defined_names += c_standard_library
+        elif self._lang == "cpp":
+            variable_pattern = r'\b\w+\s+\w+\s*=\s*.*;'
+            function_pattern = r'\b\w+\s+\w+\(.*\)\s*{'
+
+            # Извлечение переменных
+            variables = re.findall(variable_pattern, code)
+
+            # Извлечение функций
+            functions = re.findall(function_pattern, code)
+            self.defined_names += variables
+            self.defined_names += functions
         
 
     def get_auto_complete_dict(self):
-        return [name for name in self.defined_names]  # Возвращаем словарь для автодополнения
+        return list(set([name for name in self.defined_names]))  # Возвращаем словарь для автодополнения
