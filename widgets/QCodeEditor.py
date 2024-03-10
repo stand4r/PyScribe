@@ -73,7 +73,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.languages = self.settings["languages"]
         self.font_size = int(self.settings["settings"]["fontsize"])
         self.dict = d
-        self.analyzer = CodeAnalyzer()
+        self.analyzer = CodeAnalyzer(self.language)
         self.blockCountChanged.connect(self.analyzeCode)
         self.completer = MyCompleter(self.dict, self.first_color, self.font_size)
         self.completer.setWidget(self)

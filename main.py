@@ -462,7 +462,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.CodeEdit.filename = path.basename(fileName)
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.setObjectName("CodeEdit")
-        self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
+        if not self.CodeEdit.welcome:
+            self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
         if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
             self.CodeEdit.addText(text)
         else:
