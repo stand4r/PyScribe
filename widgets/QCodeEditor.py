@@ -10,7 +10,7 @@ keywords = {
             'for', 'from', 'global', 'if', 'import', 'in',
             'is', 'lambda', 'not', 'or', 'pass', 'print',
             'raise', 'return', 'try', 'while', 'yield',
-            'None', 'True', 'False', 'self', "auto", 
+            'None', 'True', 'False', "auto", 
             "break", "case", "char", "const", "continue"
             ],
 
@@ -306,7 +306,7 @@ class WordHighlighter(QSyntaxHighlighter):
                 format = QTextCharFormat()
                 if word == 'self':
                     format.setFontItalic(True)
-                format.setForeground(QColor(Qt.cyan))
+                format.setForeground(QColor("#c77a5a"))
                 pattern = (rf'\b{word}\b', format)  # Use raw f-string for regex patterns
                 self.patterns.append(pattern)
             for word in braces:
@@ -316,20 +316,31 @@ class WordHighlighter(QSyntaxHighlighter):
                 self.patterns.append(pattern)
             for word in operators:
                 format = QTextCharFormat()
-                format.setForeground(QColor("#eedc5b"))
+                format.setForeground(QColor("#c77a5a"))
                 pattern = (rf'{word}', format)  # Use raw f-string for regex patterns
                 self.patterns.append(pattern)
             format = QTextCharFormat()
-            format.setForeground(QColor("#639AC1"))
+            format.setForeground(QColor("#FFFF9C"))
+            self.patterns.append((r'#.*$', format))
             self.patterns.append((rf'"([^"]+)"', format))
             self.patterns.append((rf"'([^']+)'", format))
             self.patterns.append((rf"''", format))
             self.patterns.append((rf'""', format))
+            '''format = QTextCharFormat()
+            format.setForeground(QColor("#fffdd0"))
+            self.patterns.append((r"\bself\b", format))'''
             format = QTextCharFormat()
             format.setForeground(QColor(Qt.yellow))
-            pattern = (rf'\b#include\b', format)  # Use raw f-string for regex patterns
-            self.patterns.append(pattern)
-
+            self.patterns.append((rf'\b#include\b', format))
+            format = QTextCharFormat()
+            format.setForeground(QColor("#7777FF"))
+            self.patterns.append((r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(:]', format))
+            format = QTextCharFormat()
+            format.setForeground(QColor("#00C200"))
+            self.patterns.append((r'[A-Za-z_][A-Za-z0-9_]*\s*\(', format))
+            format = QTextCharFormat()
+            format.setForeground(QColor("#7777FF"))
+            self.patterns.append((r'\b\d+\b', format))
             return self.patterns
         except:
             return []
