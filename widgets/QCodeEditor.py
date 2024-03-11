@@ -2,6 +2,9 @@ from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QP
 from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
 from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout
 import ast
+from os import remove
+import subprocess
+import tempfile
 
 
 keywords = {
@@ -55,6 +58,53 @@ braces = [
             '\{', '\}', '\(', '\)', '\[', '\]',
         ]
 
+patterns = {
+    "python": {
+            (r"\band\b", "#c77a5a"), (r"\bassert\b", "#c77a5a"), (r"\bbreak\b", "#c77a5a"),
+            (r"\bcontinue\b", "#c77a5a"), (r"\bdef\b", "#c77a5a"), (r"\bdel\b", "#c77a5a"), 
+            (r"\belif\b", "#c77a5a"),  (r"\belse\b", "#c77a5a"), (r"\bexcept\b", "#c77a5a"), 
+            (r"\bexec\b", "#c77a5a"), (r"\bfinally\b", "#c77a5a"), (r"\bfor\b", "#c77a5a"), 
+            (r"\bfrom\b", "#c77a5a"), (r"\bglobal\b", "#c77a5a"), (r"\bglobal\b", "#c77a5a"), 
+            (r"\bif\b", "#c77a5a"), (r"\bimport\b", "#c77a5a"), (r"\bin\b", "#c77a5a"), 
+            (r'\bis\b', "#c77a5a"), (r'\blambda\b', "#c77a5a"), (r'\bnot\b', "#c77a5a"), (r'\bor\b', "#c77a5a"), 
+            (r'\bpass\b', "#c77a5a"), (r'\braise\b', "#c77a5a"), (r'\bis\b', "#c77a5a"), (r'\bis\b', "#c77a5a"), 
+            (r'\bis\b', "#c77a5a"), (r'\bprint\b', "#c77a5a"), (r'\breturn\b', "#c77a5a"), (r'\btry\b', "#c77a5a"), 
+            (r'\bwhile\b', "#c77a5a"), (r'\byield\b', "#c77a5a"), (r'\bNone\b', "#c77a5a"), (r'\bTrue\b', "#c77a5a"), 
+            (r'\bFalse\b', "#c77a5a"), (r'\bauto\b', "#c77a5a"), (r'\bbreak\b', "#c77a5a"), (r'\bcase\b', "#c77a5a"), 
+            (r'\bchar\b', "#c77a5a"), (r'\bconst\b', "#c77a5a"),
+            (r'#.*$', "#FFFF9C"), (rf'"([^"]+)"', "#FFFF9C"), (rf"''", "#FFFF9C"), (rf'""', "#FFFF9C"), 
+            (r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(:]', "#7777FF"),
+            (r'[A-Za-z_][A-Za-z0-9_]*\s*\('), (r'\b\d+\b', "#00C200"), 
+            (r'\b\d+\b', "#7777FF"), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+            (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+            (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+            (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+            (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+            (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+            (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+            (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
+    },
+    "c": {
+        (r'\b\d+\b', "#7777FF"), (r"\{", "#ffff00"), (r"\}", "#ffff00"), (rf"\(", "#ffff00"), (rf"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
+    },
+    "cpp": {
+        (r'\b\d+\b', "#7777FF"), (r"\{", "#ffff00"), (r"\}", "#ffff00"), (rf"\(", "#ffff00"), (rf"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
+    }
+}
 
 
 class CodeTextEdit(QPlainTextEdit):
@@ -91,10 +141,49 @@ class CodeTextEdit(QPlainTextEdit):
             )
         self.highlighter = WordHighlighter(self.document(), self.language)
         self.highlighter.rehighlight()
+        if self.language == "python":
+            self.textChanged.connect(self.analyzeAndHighlightErrors)
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
             self.setFont(QFont("Courier New", self.font_size)) 
-    
+
+    def analyzeAndHighlightErrors(self):
+        code = self.toPlainText()
+
+        # Создаем временный файл для кода
+        with open("temp_file.py", "w") as temp_file:
+            temp_file.write(code)
+
+        # Запускаем процесс flake8 на временном файле
+        try:
+            result = subprocess.check_output(["python -m flake8 temp_file.py"], shell=True)
+            output = result.stdout
+            errors = self.parseFlake8Output(output)
+            self.highlightCodeErrors(errors)
+        except subprocess.CalledProcessError as e:
+            print("Error while running flake8:", e.stderr)
+        remove("temp_file.py")
+
+    def parseFlake8Output(self, output):
+        errors = []
+        for line in output.split('\n'):
+            if line:
+                parts = line.split(':')
+                line_number = int(parts[1])
+                column = int(parts[2])
+                errors.append((line_number, column))
+        return errors
+
+    def highlightCodeErrors(self, errors):
+        for (line, _) in errors:
+            start_pos = self.document().findBlockByLineNumber(line - 1).position()
+            text_cursor = QTextCursor(self.document())
+            text_cursor.setPosition(start_pos)
+            text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+            self.error_format = self.text_edit.currentCharFormat()
+            self.error_format.setBackground(Qt.red)
+            text_cursor.setCharFormat(self.error_format)
+
     def analyzeCode(self):
         if self.toPlainText() != "":
             self.analyzer.analyze_code(self.toPlainText())
@@ -221,6 +310,8 @@ class CodeTextEdit(QPlainTextEdit):
             if event.text() not in [".", "[", "{", "("]:
                 if len(tc.selectedText()) > 0:
                     prefix = tc.selectedText()  # Получаем выбранный текст для установки в качестве префикса автодополнения
+                    if "." in prefix:
+                        prefix = prefix.split(".")[-1]
                     self.completer.setCompletionPrefix(prefix)
                     popup = self.completer.popup()
                     popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
@@ -320,45 +411,8 @@ class WordHighlighter(QSyntaxHighlighter):
 
     def create_patterns(self):
         try:
-            for word in keywords[self.language]:
-                format = QTextCharFormat()
-                if word == 'self':
-                    format.setFontItalic(True)
-                format.setForeground(QColor("#c77a5a"))
-                pattern = (rf'\b{word}\b', format)  # Use raw f-string for regex patterns
-                self.patterns.append(pattern)
-            for word in braces:
-                format = QTextCharFormat()
-                format.setForeground(QColor(Qt.yellow))
-                pattern = (rf'{word}', format)  # Use raw f-string for regex patterns
-                self.patterns.append(pattern)
-            for word in operators:
-                format = QTextCharFormat()
-                format.setForeground(QColor("#c77a5a"))
-                pattern = (rf'{word}', format)  # Use raw f-string for regex patterns
-                self.patterns.append(pattern)
-            format = QTextCharFormat()
-            format.setForeground(QColor("#FFFF9C"))
-            self.patterns.append((r'#.*$', format))
-            self.patterns.append((rf'"([^"]+)"', format))
-            self.patterns.append((rf"'([^']+)'", format))
-            self.patterns.append((rf"''", format))
-            self.patterns.append((rf'""', format))
-            '''format = QTextCharFormat()
-            format.setForeground(QColor("#fffdd0"))
-            self.patterns.append((r"\bself\b", format))'''
-            format = QTextCharFormat()
-            format.setForeground(QColor(Qt.yellow))
-            self.patterns.append((rf'\b#include\b', format))
-            format = QTextCharFormat()
-            format.setForeground(QColor("#7777FF"))
-            self.patterns.append((r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(:]', format))
-            format = QTextCharFormat()
-            format.setForeground(QColor("#00C200"))
-            self.patterns.append((r'[A-Za-z_][A-Za-z0-9_]*\s*\(', format))
-            format = QTextCharFormat()
-            format.setForeground(QColor("#7777FF"))
-            self.patterns.append((r'\b\d+\b', format))
+            for i in patterns[self.language]:
+                self.patterns.append((i[0], QColor(i[1])))
             return self.patterns
         except:
             return []
@@ -379,10 +433,12 @@ class MyCompleter(QCompleter):
 
     def __init__(self, d=[], backcolor="", fontsize=11, parent=None):
         QCompleter.__init__(self, d, parent)
+        self.setCaseSensitivity(Qt.CaseInsensitive)  # Нечувствительность к регистру
+        self.setFilterMode(Qt.MatchContains)  # Фильтрация по вхождению
         self.setCompletionMode(QCompleter.PopupCompletion)
-        self.setFilterMode(Qt.MatchContains)
+        self.popup().setFixedWidth(200)
         self.highlighted.connect(self.setHighlighted)
-        self.popup().setStyleSheet(f"width: 150px; font-size: {fontsize-1}pt;"
+        self.popup().setStyleSheet(f"font-size: {fontsize-1}pt;"
                                    "QListView { background-color: "+backcolor+"; color: white; padding: 2px; border: 1px solid lightgray;} "
                                    "QFrame {border: 1px solid #ccc; padding: 2px;}"
                                    "QListView::item:selected { background-color: lightgray;}"
