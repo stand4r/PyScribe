@@ -9,6 +9,7 @@ except:
 from json import load, dumps
 
 
+
 def saveSession(files_array: list):
     with open('session.pkl', 'wb') as f:
         pickle.dump((files_array), f)

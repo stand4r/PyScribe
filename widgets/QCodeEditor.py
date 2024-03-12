@@ -4,7 +4,6 @@ from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBo
 import ast
 from os import remove
 import subprocess
-import tempfile
 
 
 keywords = {
