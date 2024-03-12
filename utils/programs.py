@@ -16,8 +16,8 @@ def saveSession(files_array: list):
 
         if temp_dir:
             file_path = path.join(temp_dir, "session.pkl")
-        else:
-            file_path = "session.pkl"
+    else:
+        file_path = "session.pkl"
     with open(file_path, 'wb') as f:
         pickle.dump((files_array), f)
 
@@ -25,19 +25,18 @@ def saveSession(files_array: list):
 def loadSession() -> list:
     if name == 'nt':
         temp_dir = environ.get('TEMP', None)
-
         if temp_dir:
             file_path = path.join(temp_dir, "session.pkl")
-        else:
-            file_path = "session.pkl"
-        try:
-            with open(file_path, 'rb') as f:
-                files_array = pickle.load(f)
-        except FileNotFoundError:
-            with open(file_path, 'wb') as f:
-                pickle.dump([], f)
-            files_array = []
-        return files_array
+    else:
+        file_path = "session.pkl"
+    try:
+        with open(file_path, 'rb') as f:
+            files_array = pickle.load(f)
+    except FileNotFoundError:
+        with open(file_path, 'wb') as f:
+            pickle.dump([], f)
+        files_array = []
+    return files_array
 
 
 def exist_config(file_path):

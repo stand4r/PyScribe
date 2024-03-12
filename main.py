@@ -10,12 +10,13 @@ from widgets.QArgsEditor import ArgsWindow
 from widgets.QCodeEditor import CodeEdit
 from widgets.SettingsWidget import SettingsWidget
 from widgets.Dialog import CustomDialog
+from widgets.DialogSave import CustomDialogSave
 from widgets.WelcomeWidget import Ui_Welcome
 
 if name == "nt":
     system("pip install flake8 PyQt5 ")
 else:
-    system("pip install flake8 PyQt5  --break-system-packages")
+    system("pip install flake8 PyQt5 --break-system-packages")
 
 path_settings = path.dirname(path.realpath(__file__))
 settings = load_settings(path_settings)
@@ -484,11 +485,17 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 pass
 
     def closeEvent(self, event):
+        '''self.dialog = CustomDialogSave()
+        self.dialog.buttonBox.accepted.connect(self.accept)  
+        self.dialog.show() '''   
         self.saveOpenFiles()
         saveSession(self.files)
         event.accept()
-
-
+    
+    def accept(self):
+        self.saveOpenFiles()
+        saveSession(self.files)
+        self.dialog.close()
 
 
 if __name__ == "__main__":
