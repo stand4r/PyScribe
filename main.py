@@ -13,9 +13,9 @@ from widgets.Dialog import CustomDialog
 from widgets.WelcomeWidget import Ui_Welcome
 
 if name == "nt":
-    system("pip install flake8 PyQt5 subprocess python_shell")
+    system("pip install flake8 PyQt5 ")
 else:
-    system("pip install flake8 PyQt5 python_shell --break-system-packages")
+    system("pip install flake8 PyQt5  --break-system-packages")
 
 path_settings = path.dirname(path.realpath(__file__))
 settings = load_settings(path_settings)
