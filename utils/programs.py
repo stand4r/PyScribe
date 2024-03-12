@@ -1,5 +1,5 @@
 import pickle
-from os import path, getlogin, name
+from os import path, getlogin, name, environ
 import ast
 
 try:
@@ -11,19 +11,33 @@ from json import load, dumps
 
 
 def saveSession(files_array: list):
-    with open('session.pkl', 'wb') as f:
+    if name == 'nt':
+        temp_dir = environ.get('TEMP', None)
+
+        if temp_dir:
+            file_path = path.join(temp_dir, "session.pkl")
+        else:
+            file_path = "session.pkl"
+    with open(file_path, 'wb') as f:
         pickle.dump((files_array), f)
 
 
 def loadSession() -> list:
-    try:
-        with open('session.pkl', 'rb') as f:
-            files_array = pickle.load(f)
-    except FileNotFoundError:
-        with open('session.pkl', 'wb') as f:
-            pickle.dump([], f)
-        files_array = []
-    return files_array
+    if name == 'nt':
+        temp_dir = environ.get('TEMP', None)
+
+        if temp_dir:
+            file_path = path.join(temp_dir, "session.pkl")
+        else:
+            file_path = "session.pkl"
+        try:
+            with open(file_path, 'rb') as f:
+                files_array = pickle.load(f)
+        except FileNotFoundError:
+            with open(file_path, 'wb') as f:
+                pickle.dump([], f)
+            files_array = []
+        return files_array
 
 
 def exist_config(file_path):
