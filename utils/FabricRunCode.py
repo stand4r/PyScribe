@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 from os import path
-from subprocess import PIPE, Popen
-from python_shell import Shell
-from python_shell.util.streaming import decode_stream
+from subprocess import PIPE, Popen, check_output, CalledProcessError
 from sys import platform
 
 
@@ -29,10 +27,11 @@ class LinuxFoundTerminalClass(FabricFoundTerminalClass):
         }
         
         for terminal, param in terminals.items():
-            com = Shell.which(terminal)
-            term = decode_stream(com.output)
-            if term != "":
+            try:
+                term = str(check_output(['which', terminal]))
                 return f'{term} {param} bash -c "{command} && read"'
+            except CalledProcessError:
+                pass
         return None
 
 
