@@ -1,7 +1,8 @@
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint
-from PyQt5.QtGui import QColor, QTextCharFormat, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
+from PyQt5.QtGui import QColor, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
 from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout
 import ast
+import re
 from os import remove
 import subprocess
 
@@ -84,6 +85,8 @@ patterns = {
             (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     },
     "c": {
+        (r'\b(int|float|char|double|short|long)\s+\w+', "#ffff00"), (r'\bint\b', "#c77a5a"), (r'\bfloat\b', "#c77a5a"),
+        (r'\bchar\b', "#c77a5a"), (r'\bdouble\b', "#c77a5a"), (r'\bshort\b', "#c77a5a"), (r'\blong\b', "#c77a5a"),
         (r'\b\d+\b', "#7777FF"), (r"\{", "#ffff00"), (r"\}", "#ffff00"), (rf"\(", "#ffff00"), (rf"\)", "#ffff00"), 
         (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
         (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
@@ -91,7 +94,8 @@ patterns = {
         (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
         (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
         (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a"), (r"#include\s+<[^>]+>", "#c77a5a"),
+        (r'"([^"\\]|\\.)*"', "#FFFF9C"), (r'\([^\)]*\)', "#7777FF")
     },
     "cpp": {
         (r'\b\d+\b', "#7777FF"), (r"\{", "#ffff00"), (r"\}", "#ffff00"), (rf"\(", "#ffff00"), (rf"\)", "#ffff00"), 
@@ -471,7 +475,6 @@ class CodeAnalyzer:
 
     def analyze_code(self, code):
         if self._lang == "python":
-            import re
             self.defined_names = keywords[self._lang]  # Сброс списка определенных имен
             # Анализируем текст кода, чтобы найти определения функций и переменных
             try:
@@ -514,6 +517,9 @@ class CodeAnalyzer:
                 "assert", "errno", "time", "stdlib", "stdio", "math", "string"  # И другие стандартные библиотеки C
             ]
             
+            functions = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*\(', code)
+            variables = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*', code)
+            '''
             import ply.lex as lex
             import ply.yacc as yacc
             tokens = (
@@ -549,6 +555,7 @@ class CodeAnalyzer:
             functions = []
             parse_c_code(code)
             self.defined_names += variables
+            self.defined_names += functions'''
             self.defined_names += functions
             self.defined_names += c_language_dictionary
             self.defined_names += c_standard_library

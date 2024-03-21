@@ -124,7 +124,6 @@ class UiMainWindow(QtWidgets.QMainWindow):
         font.setPointSize(10)
         self.actionOpen.setFont(font)
         self.actionOpen.setObjectName("actionOpen")
-        self.actionRecent = QtWidgets.QAction(self)
         self.actionClose = QtWidgets.QAction(self)
         self.actionClose.setFont(font)
         self.actionClose.setObjectName("actionClose")
@@ -183,7 +182,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         #
         self.menuFile.addAction(self.actionNew)
         self.menuFile.addAction(self.actionOpen)
-        self.menuFile.addAction(self.actionRecent)
+        self.actionRecent = self.menuFile.addMenu("Recent")
         self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionClose)
         self.menuFile.addAction(self.actionCloseAll)
@@ -252,7 +251,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionNew.setShortcut(_translate("MainWindow", "Ctrl+N"))
         self.actionOpen.setText(_translate("MainWindow", "Open..."))
         self.actionOpen.setShortcut(_translate("MainWindow", "Ctrl+O"))
-        self.actionRecent.setText(_translate("MainWindow", "Recent"))
+        self.actionRecent.setTitle(_translate("MainWindow", "Recent"))
         self.actionClose.setShortcut(_translate("MainWindow", "Ctrl+W"))
         self.actionClose.setText(_translate("MainWindow", "Close"))
         self.actionCloseAll.setShortcut(_translate("MainWindow", "Ctrl+Shift+W"))
@@ -282,6 +281,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionSettings.setText(_translate("MainWindow", "Settings"))
         self.actionShell.setText(_translate("MainWindow", "Set shell"))
         self.actionGit.setText(_translate("MainWindow", "Github Issues"))
+
+    def actionLoadRecent(self):
+        list_files = loadRecent()
+        if list_files.count() != 0:
+            for i in loadRecent():
+                if path.basename(i).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
+                    text = open(rf"{i}", "r").readlines()
+                else:
+                    text = open(rf"{i}", "rb").read()
+                self.actionRecent.addAction(i).triggered.connect(self.createTab, text, i)
 
     def actionExitProgram(self):
         self.saveOpenFiles()
