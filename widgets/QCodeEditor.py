@@ -9,15 +9,17 @@ import subprocess
 
 keywords = {
         "python": [
-            'and', 'assert', 'break', 'class', 'continue', 'def',
-            'del', 'elif', 'else', 'except', 'exec', 'finally',
-            'for', 'from', 'global', 'if', 'import', 'in',
-            'is', 'lambda', 'not', 'or', 'pass', 'print',
-            'raise', 'return', 'try', 'while', 'yield',
-            'None', 'True', 'False', "auto", 
-            "break", "case", "char", "const", "continue"
+            "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue", 
+                "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", 
+                "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield",
+                "abs", "all", "any", "bin", "bool", "bytearray", "bytes", "callable", "chr", "classmethod",
+                "compile", "complex", "delattr", "dict", "dir", "divmod", "enumerate", "eval", "exec", "filter",
+                "float", "format", "frozenset", "getattr", "globals", "hasattr", "hash", "help", "hex", "id",
+                "input", "int", "isinstance", "issubclass", "iter", "len", "list", "locals", "map", "max",
+                "memoryview", "min", "next", "object", "oct", "open", "ord", "pow", "print", "property",
+                "range", "repr", "reversed", "round", "set", "setattr", "slice", "sorted", "staticmethod",
+                "str", "sum", "super", "tuple", "type", "vars", "zip"
             ],
-
         "cpp": [
             "default", "do", "double", "else", "enum", "extern", 
             "float", "for", "goto", "if", "int",
@@ -40,12 +42,79 @@ keywords = {
             'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'int', 'long',
             'register', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch',
             'typedef', 'union', 'unsigned', 'void', 'volatile', 'while'
-    ]}
+        ],
+        "java": ["abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
+                "continue", "default", "do", "double", "else", "enum", "extends", "final", "finally", "float",
+                "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native",
+                "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp",
+                "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile",
+                "while"
+        ],
+        "javascript": ["await", "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
+                "do", "else", "enum", "export", "extends", "false", "finally", "for", "function", "if", "implements",
+                "import", "in", "instanceof", "interface", "let", "new", "null", "package", "private", "protected",
+                "public", "return", "super", "switch", "static", "this", "throw", "try", "typeof", "var", "void",
+                "volatile", "while", "with", "yield"
+        ],
+        "kotlin": ["abstract", "annotation", "as", "break", "by", "catch", "class", "companion", "const",
+                "constructor", "continue", "crossinline", "data", "do", "dynamic", "else", "enum", "external",    
+                "false", "file", "final", "finally", "for", "fun", "get", "if", "import", "in", "infix", "init",    
+                "inline", "inner", "interface", "internal", "is", "it", "lateinit", "noinline", "null", "object",    
+                "open", "operator", "out", "override", "package", "private", "protected", "public", "reified",    
+                "return", "sealed", "set", "super", "tailrec", "this", "throw", "true", "try", "typealias",    
+                "typeof", "val", "var", "when", "while"
+        ],
+        "php": ["__halt_compiler", "__CLASS__", "__DIR__", "__EXIT__", "__FILE__", "__FUNCTION__", "__LINE__",    
+                "__METHOD__", "__NAMESPACE__", "__TRAIT__", "abstract", "and", "array", "as", "break", "callable",    
+                "case", "catch", "class", "clone", "const", "continue", "declare", "default", "die", "do", "echo",    
+                "else", "elseif", "empty", "enddeclare", "endfor", "endforeach", "endif", "endswitch", "endwhile",    
+                "eval", "exit", "extends", "final", "finally", "for", "foreach", "function", "global", "goto", "if",    
+                "implements", "include", "include_once", "instanceof", "insteadof", "interface", "isset", "list",    
+                "namespace", "new", "or", "print", "private", "protected", "public", "require", "require_once",    
+                "return", "static", "switch", "throw", "trait", "try", "unset", "use", "var", "while", "xor",    
+                "yield", "yield from"
+        ],
+        "kt": ["abstract", "any", "as", "async", "await", "boolean", "break", "case", "catch", "class",    
+                "const", "continue", "debugger", "declare", "default", "delete", "do", "else", "enum",    
+                "export", "extends", "false", "finally", "for", "from", "function", "get", "if", "implements",    
+                "import", "in", "instanceof", "interface", "let", "module", "new", "null", "number", "of",    
+                "package", "private", "protected", "public", "return", "set", "static", "string", "super",    
+                "switch", "symbol", "this", "throw", "true", "try", "type", "typeof", "undefined", "var",    
+                "void", "while", "with", "yield"
+        ],
+        "cs": ["abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",    
+                "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",    
+                "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",    
+                "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",    
+                "long", "namespace", "new", "null", "object", "operator", "out", "override", "params",    
+                "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",    
+                "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true",    
+                "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual",    
+                "void", "volatile", "while"
+        ],
+        "ruby": ["alias", "and", "begin", "break", "case", "class", "def", "defined?", "do",
+            "else", "elsif", "end", "ensure", "false", "for", "if", "in", "module", "next",
+            "nil", "not", "or", "redo", "rescue", "retry", "return", "self", "super", "then",
+            "true", "undef", "unless", "until", "when", "while", "yield"
+        ],
+        "go": ["break", "case","chan", "const", "continue", "default", "defer", 
+            "else", "fallthrough", "for", "func", "go", "goto", "if", "import", "interface", 
+            "map", "package", "range", "return", "select", "struct", "switch", "type", "var"
+        ],
+        "lua":["and", "break","do", "else",
+            "elseif", "end", "false", "for", "function", "if", "in", "local", "nil",
+            "not", "or", "repeat", "return", "then", "true", "until", "while"
+        ],
+        "rust":[ "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for", "if",
+            "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "return", "self", "static",
+            "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while"
+        ]
+}
 
 operators = [
             '=',
             # Comparison
-            '==', '!=', '<', '<=', '>', '>=',
+            '==', '!=', '<', '<=', '>', '>=', '<>',
             # Arithmetic
             '\+', '-', '\*', '/', '//', '\%', '\*\*',
             # In-place
@@ -106,7 +175,144 @@ patterns = {
         (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
         (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
         (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    }
+    },
+    "ruby": {
+        (r'\bif\b|\belse\b|\belsif\b|\bend\b|\bwhile\b|\bdo\b|\bbegin\b|\brescue\b|\bensure\b|\bcase\b|\bwhen\b|\bthen\b|\bunless\b|\
+         \buntil\b|\bdef\b|\bclass\b|\bmodule\b|\brequire\b|\binclude\b|\
+         \bextend\b|\bself\b|\breturn\b|\bsuper\b\bfalse\b|\btrue\b|', "#c77a5a"),
+        (r'\b[A-Z]\w*\b', "#7777FF"),
+        (r'\bclass\s+\w+', "#FFFF9C"),
+        (r'\bdef\s+\w+', "#FFFF9C"), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
+    },
+    "java" : {
+        (r'\babstract\b', '#c77a5a'), (r'\bassert\b', '#c77a5a'), (r'\bboolean\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), 
+        (r'\bbyte\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'), (r'\bchar\b', '#c77a5a'), (r'\bclass\b', '#c77a5a'), 
+        (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bdefault\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\bdouble\b', '#c77a5a'), 
+        (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), (r'\bextends\b', '#c77a5a'), (r'\bfinal\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), 
+        (r'\bfloat\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimplements\b', '#c77a5a'),
+        (r'\bimport\b', '#c77a5a'), (r'\binstanceof\b', '#c77a5a'), (r'\bint\b', '#c77a5a'), (r'\binterface\b', '#c77a5a'), (r'\blong\b', '#c77a5a'), 
+        (r'\bnative\b', '#c77a5a'), (r'\bnew\b', '#c77a5a'), (r'\bpackage\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), 
+        (r'\bpublic\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bshort\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bstrictfp\b', '#c77a5a'), 
+        (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bsynchronized\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), 
+        (r'\bthrows\b', '#c77a5a'), (r'\btransient\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), (r'\bvolatile\b', '#c77a5a'), 
+        (r'\bwhile\b', '#c77a5a')
+    }, 
+
+    "javascript" : {
+        (r'\bawait\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'), 
+        (r'\bclass\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bdebugger\b', '#c77a5a'), 
+        (r'\bdefault\b', '#c77a5a'), (r'\bdelete\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), 
+        (r'\bexport\b', '#c77a5a'), (r'\bextends\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), 
+        (r'\bfunction\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimplements\b', '#c77a5a'), (r'\bimport\b', '#c77a5a'), (r'\bin\b', '#c77a5a'), 
+        (r'\binstanceof\b', '#c77a5a'), (r'\binterface\b', '#c77a5a'), (r'\blet\b', '#c77a5a'), (r'\bnew\b', '#c77a5a'), (r'\bnull\b', '#c77a5a'), 
+        (r'\bpackage\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), 
+        (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), 
+        (r'\btry\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), (r'\bvolatile\b', '#c77a5a'), 
+        (r'\bwhile\b', '#c77a5a'), (r'\bwith\b', '#c77a5a'), (r'\byield\b', '#c77a5a') 
+    }, 
+
+    "kotlin" : {
+        (r'\babstract\b', '#c77a5a'), (r'\bannotation\b', '#c77a5a'), (r'\bas\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bby\b', '#c77a5a'), 
+        (r'\bcatch\b', '#c77a5a'), (r'\bclass\b', '#c77a5a'), (r'\bcompanion\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bconstructor\b', '#c77a5a'), 
+        (r'\bcontinue\b', '#c77a5a'), (r'\bcrossinline\b', '#c77a5a'), (r'\bdata\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\bdynamic\b', '#c77a5a'), 
+        (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), (r'\bexternal\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfile\b', '#c77a5a'), 
+        (r'\bfinal\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bfun\b', '#c77a5a'), (r'\bget\b', '#c77a5a'), 
+        (r'\bif\b', '#c77a5a'), (r'\bimport\b', '#c77a5a'), (r'\bin\b', '#c77a5a'), (r'\binfix\b', '#c77a5a'), (r'\binit\b', '#c77a5a'),
+        (r'\binline\b', '#c77a5a'), (r'\binner\b', '#c77a5a'), (r'\binterface\b', '#c77a5a'), (r'\binternal\b', '#c77a5a'), (r'\bis\b', '#c77a5a'), 
+        (r'\bit\b', '#c77a5a'), (r'\blateinit\b', '#c77a5a'), (r'\bnoinline\b', '#c77a5a'), (r'\bnull\b', '#c77a5a'), (r'\bobject\b', '#c77a5a'), 
+        (r'\bopen\b', '#c77a5a'), (r'\boperator\b', '#c77a5a'), (r'\bout\b', '#c77a5a'), (r'\boverride\b', '#c77a5a'), (r'\bpackage\b', '#c77a5a'), 
+        (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), (r'\breified\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), 
+        (r'\bsealed\b', '#c77a5a'), (r'\bset\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), (r'\btailrec\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), 
+        (r'\bthrow\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\btypealias\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), 
+        (r'\bval\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bwhen\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a')
+    }, 
+
+    "php" : {
+        (r'\b__halt_compiler\b', '#c77a5a'), (r'\b__CLASS__\b', '#c77a5a'), (r'\b__DIR__\b', '#c77a5a'), (r'\b__EXIT__\b', '#c77a5a'), 
+        (r'\b__FILE__\b', '#c77a5a'), (r'\b__FUNCTION__\b', '#c77a5a'), (r'\b__LINE__\b', '#c77a5a'), (r'\b__METHOD__\b', '#c77a5a'), 
+        (r'\b__NAMESPACE__\b', '#c77a5a'), (r'\b__TRAIT__\b', '#c77a5a'), (r'\babstract\b', '#c77a5a'), (r'\band\b', '#c77a5a'), (r'\barray\b', '#c77a5a'), 
+        (r'\bas\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bcallable\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'), 
+        (r'\bclass\b', '#c77a5a'), (r'\bclone\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bdeclare\b', '#c77a5a'), 
+        (r'\bdefault\b', '#c77a5a'), (r'\bdie\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\becho\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), 
+        (r'\belseif\b', '#c77a5a'), (r'\bempty\b', '#c77a5a'), (r'\benddeclare\b', '#c77a5a'), (r'\bendfor\b', '#c77a5a'), (r'\bendforeach\b', '#c77a5a'), 
+        (r'\bendif\b', '#c77a5a'), (r'\bendswitch\b', '#c77a5a'), (r'\bendwhile\b', '#c77a5a'), (r'\beval\b', '#c77a5a'), (r'\bexit\b', '#c77a5a'), 
+        (r'\bextends\b', '#c77a5a'), (r'\bfinal\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bforeach\b', '#c77a5a'), 
+        (r'\bfunction\b', '#c77a5a'), (r'\bglobal\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimplements\b', '#c77a5a'), 
+        (r'\binclude\b', '#c77a5a'), (r'\binclude_once\b', '#c77a5a'), (r'\binstanceof\b', '#c77a5a'), (r'\binsteadof\b', '#c77a5a'), 
+        (r'\binterface\b', '#c77a5a'), (r'\bisset\b', '#c77a5a'), (r'\blist\b', '#c77a5a'), (r'\bnamespace\b', '#c77a5a'), (r'\bnew\b', '#c77a5a'), 
+        (r'\bor\b', '#c77a5a'), (r'\bprint\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), 
+        (r'\brequire\b', '#c77a5a'), (r'\brequire_once\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'),
+        (r'\bthrow\b', '#c77a5a'), (r'\btrait\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\bunset\b', '#c77a5a'), (r'\buse\b', '#c77a5a'), 
+        (r'\bvar\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), (r'\bxor\b', '#c77a5a'), (r'\byield\b', '#c77a5a'), (r'\byield from\b', '#c77a5a')
+    }, 
+
+    "kt" : {
+        (r'\babstract\b', '#c77a5a'), (r'\bany\b', '#c77a5a'), (r'\bas\b', '#c77a5a'), (r'\basync\b', '#c77a5a'), (r'\bawait\b', '#c77a5a'), 
+        (r'\bboolean\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'), (r'\bclass\b', '#c77a5a'), 
+        (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bdebugger\b', '#c77a5a'), (r'\bdeclare\b', '#c77a5a'), (r'\bdefault\b', '#c77a5a'), 
+        (r'\bdelete\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), (r'\bexport\b', '#c77a5a'), 
+        (r'\bextends\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bfrom\b', '#c77a5a'), 
+        (r'\bfunction\b', '#c77a5a'), (r'\bget\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimplements\b', '#c77a5a'), (r'\bimport\b', '#c77a5a'), 
+        (r'\bin\b', '#c77a5a'), (r'\binstanceof\b', '#c77a5a'), (r'\binterface\b', '#c77a5a'), (r'\blet\b', '#c77a5a'), (r'\bmodule\b', '#c77a5a'), 
+        (r'\bnew\b', '#c77a5a'), (r'\bnull\b', '#c77a5a'), (r'\bnumber\b', '#c77a5a'), (r'\bof\b', '#c77a5a'), (r'\bpackage\b', '#c77a5a'), 
+        (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bset\b', '#c77a5a'), 
+        (r'\bstatic\b', '#c77a5a'), (r'\bstring\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bsymbol\b', '#c77a5a'), 
+        (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), 
+        (r'\btypeof\b', '#c77a5a'), (r'\bundefined\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), 
+        (r'\bwith\b', '#c77a5a'), (r'\byield\b', '#c77a5a')
+    }, 
+
+    "cs" : {
+        (r'\babstract\b', '#c77a5a'), (r'\bas\b', '#c77a5a'), (r'\bbase\b', '#c77a5a'), (r'\bbool\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), 
+        (r'\bbyte\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'), (r'\bchar\b', '#c77a5a'), (r'\bchecked\b', '#c77a5a'), 
+        (r'\bclass\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bdecimal\b', '#c77a5a'), (r'\bdefault\b', '#c77a5a'), 
+        (r'\bdelegate\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\bdouble\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), 
+        (r'\bevent\b', '#c77a5a'), (r'\bexplicit\b', '#c77a5a'), (r'\bextern\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), 
+        (r'\bfixed\b', '#c77a5a'), (r'\bfloat\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bforeach\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), 
+        (r'\bif\b', '#c77a5a'), (r'\bimplicit\b', '#c77a5a'), (r'\bin\b', '#c77a5a'), (r'\bint\b', '#c77a5a'), (r'\binterface\b', '#c77a5a'), 
+        (r'\binternal\b', '#c77a5a'), (r'\bis\b', '#c77a5a'), (r'\block\b', '#c77a5a'), (r'\blong\b', '#c77a5a'), (r'\bnamespace\b', '#c77a5a'), 
+        (r'\bnew\b', '#c77a5a'), (r'\bnull\b', '#c77a5a'), (r'\bobject\b', '#c77a5a'), (r'\boperator\b', '#c77a5a'), (r'\bout\b', '#c77a5a'), 
+        (r'\boverride\b', '#c77a5a'), (r'\bparams\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), 
+        (r'\breadonly\b', '#c77a5a'), (r'\bref\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bsbyte\b', '#c77a5a'), (r'\bsealed\b', '#c77a5a'), 
+        (r'\bshort\b', '#c77a5a'), (r'\bsizeof\b', '#c77a5a'), (r'\bstackalloc\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bstring\b', '#c77a5a'), 
+        (r'\bstruct\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), 
+        (r'\btry\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), (r'\buint\b', '#c77a5a'), (r'\bulong\b', '#c77a5a'), (r'\bunchecked\b', '#c77a5a'), 
+        (r'\bunsafe\b', '#c77a5a'), (r'\bushort\b', '#c77a5a'), (r'\busing\b', '#c77a5a'), (r'\bvirtual\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), 
+        (r'\bvolatile\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a')
+    }, 
+
+    "go" : {
+        (r'\bbreak\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bchan\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), 
+        (r'\bdefault\b', '#c77a5a'), (r'\bdefer\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\bfallthrough\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), 
+        (r'\bfunc\b', '#c77a5a'), (r'\bgo\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimport\b', '#c77a5a'), 
+        (r'\binterface\b', '#c77a5a'), (r'\bmap\b', '#c77a5a'), (r'\bpackage\b', '#c77a5a'), (r'\brange\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), 
+        (r'\bselect\b', '#c77a5a'), (r'\bstruct\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), (r'\bvar\b', '#c77a5a')
+    }, 
+
+    "lua" : {
+        (r'\band\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\belseif\b', '#c77a5a'), 
+        (r'\bend\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bfunction\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), 
+        (r'\bin\b', '#c77a5a'), (r'\blocal\b', '#c77a5a'), (r'\bnil\b', '#c77a5a'), (r'\bnot\b', '#c77a5a'), (r'\bor\b', '#c77a5a'), 
+        (r'\brepeat\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bthen\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\buntil\b', '#c77a5a'), 
+        (r'\bwhile\b', '#c77a5a')
+    }, 
+
+    "rust" : {
+        (r'\bas\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bcrate\b', '#c77a5a'), 
+        (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), (r'\bextern\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfn\b', '#c77a5a'), 
+        (r'\bfor\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimpl\b', '#c77a5a'), (r'\bin\b', '#c77a5a'), (r'\blet\b', '#c77a5a'), (r'\bloop\b', '#c77a5a'), 
+        (r'\bmatch\b', '#c77a5a'), (r'\bmod\b', '#c77a5a'), (r'\bmove\b', '#c77a5a'), (r'\bmut\b', '#c77a5a'), (r'\bpub\b', '#c77a5a'), 
+        (r'\breturn\b', '#c77a5a'), (r'\bself\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bstruct\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), 
+        (r'\btrait\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), (r'\bunsafe\b', '#c77a5a'), (r'\buse\b', '#c77a5a'), 
+        (r'\bwhere\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a')
+    },
 }
 
 
@@ -153,18 +359,17 @@ class CodeTextEdit(QPlainTextEdit):
     def analyzeAndHighlightErrors(self):
         code = self.toPlainText()
 
-        # Создаем временный файл для кода
+        # Create temporary file for code
         with open("temp_file.py", "w") as temp_file:
             temp_file.write(code)
 
-        # Запускаем процесс flake8 на временном файле
+        # Run flake8 on temporary file
         try:
-            result = subprocess.check_output(["python -m flake8 temp_file.py"], shell=True)
-            output = result.stdout
-            errors = self.parseFlake8Output(output)
+            result = subprocess.check_output(["python", "-m", "flake8", "temp_file.py"])
+            errors = self.parseFlake8Output(result.decode())
             self.highlightCodeErrors(errors)
-        except subprocess.CalledProcessError as e:
-            print("Error while running flake8:", e.stderr)
+        except subprocess.CalledProcessError:
+            pass
         remove("temp_file.py")
 
     def parseFlake8Output(self, output):
@@ -223,7 +428,7 @@ class CodeTextEdit(QPlainTextEdit):
             hex_string += f"{byte:02X} "
         return hex_string.strip()
 
-    def addText(self, text):
+    def addText(self, text: str):
         try:
             self.insertPlainText(text)
         except TypeError:
