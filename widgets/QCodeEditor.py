@@ -407,11 +407,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.languages = self.settings["languages"]
         self.font_size = int(self.settings["settings"]["fontsize"])
         self.dict = d
-        self.analyzer = CodeAnalyzer(self.language)
-        self.blockCountChanged.connect(self.analyzeCode)
-        self.completer = MyCompleter(self.dict, self.first_color, self.font_size)
-        self.completer.setWidget(self)
-        self.completer.insertText.connect(self.insertCompletion)
+        
         self.tabWidth = 4
         self.setFont(QFont("Courier New", self.font_size))
         self.setStyleSheet(
@@ -423,13 +419,17 @@ class CodeTextEdit(QPlainTextEdit):
             "width: 0px;\n"
             "border: none"
             )
-        self.highlighter = WordHighlighter(self.document(), self.language)
-        self.highlighter.rehighlight()
-        if self.language == "python":
-            self.textChanged.connect(self.analyzeAndHighlightErrors)
         if self.language == "bin" or self.language == "out" or self.language == "exe":
             self.setReadOnly(True)
             self.setFont(QFont("Courier New", self.font_size)) 
+        else:
+            self.analyzer = CodeAnalyzer(self.language)
+            self.blockCountChanged.connect(self.analyzeCode)
+            self.completer = MyCompleter(self.dict, self.first_color, self.font_size)
+            self.completer.setWidget(self)
+            self.completer.insertText.connect(self.insertCompletion)
+            self.highlighter = WordHighlighter(self.document(), self.language)
+            self.highlighter.rehighlight()
 
     def analyzeAndHighlightErrors(self):
         code = self.toPlainText()
@@ -483,8 +483,9 @@ class CodeTextEdit(QPlainTextEdit):
         self.completer.popup().hide()
 
     def focusInEvent(self, event):
-        if self.completer:
-            self.completer.setWidget(self)
+        if self.language != "bin" and self.language != "out" and self.language != "exe":
+            if self.completer:
+                self.completer.setWidget(self)
         QPlainTextEdit.focusInEvent(self, event)
 
     def convert_to_hex(self, content):
@@ -514,96 +515,97 @@ class CodeTextEdit(QPlainTextEdit):
         self.highlighter.set_patterns(words, color)
 
     def keyPressEvent(self, event):
-        tc = self.textCursor()
-        if event.key() == Qt.Key_Tab:
-            if self.completer.popup().isVisible():  # Если виджет автодополнения видим
-                inserted_text = self.completer.getSelected()  # Получаем выбранный текст из виджета автодополнения
-                if inserted_text:
-                    cursor_position = tc.position()  # Получаем начальное положение курсора
-                    tc.select(QTextCursor.WordUnderCursor)  # Выбираем слово, над которым находится курсор
-                    tc.removeSelectedText()  # Удаляем текст, над которым находится курсор
-                    self.setTextCursor(tc)  # Устанавливаем обновленное положение курсора
-                    self.insertPlainText(inserted_text)  # Вставляем выбранный текст
-                    self.completer.popup().hide()
-                    return
-            else:
-                self.insertPlainText(" "*self.tabWidth)
-        
-
-        if event.text() in  ["'", '"', "(", "{", "["]:
-            if event.text() == '"':
-                self.insertPlainText('""')
-            elif event.text() == "'":
-                self.insertPlainText("''")
-            elif event.text() == "(":
-                self.insertPlainText("()")
-            elif event.text() == "[":
-                self.insertPlainText("[]")
-            elif event.text() == "{":
-                self.insertPlainText("{}")
-            elif event.text() == "<":
-                self.insertPlainText("<>")
-
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
-            self.setTextCursor(cursor)
-
-
-        elif event.key() in [Qt.Key_Enter, Qt.Key_Return] and self.language in ["python", "c", "cpp"]:
-            self.completer.popup().hide()
-            if self.language == "python":
-                # Вставляем новую строку
-                cursor = self.textCursor()
-                line = cursor.block().text()
-
-                # Считаем количество пробелов в начале текущей строки
-                spaces = len(line) - len(line.lstrip(' '))
-                indentation = ' ' * spaces
-
-                # Проверяем, заканчивается ли предыдущая строка на особые слова
-                if line.strip().endswith(('if', 'for', 'while', 'else', 'elif', ':')):
-                    indentation += ' ' * self.tabWidth  # Добавляем отступ
-                self.insertPlainText('\n')
-                self.insertPlainText(indentation)
-            elif self.language in ["c", "cpp"]:
-                cursor = self.textCursor()
-                line = cursor.block().text()
-
-                # Считаем количество пробелов в начале текущей строки
-                spaces = len(line) - len(line.lstrip(' '))
-                indentation = ' ' * spaces
-                cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 1)
-
-                cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, 1)
-
-                symbol = cursor.selectedText()
-                if symbol == "{":
-                    indentation += ' ' * self.tabWidth
-                    self.insertPlainText("\n\n")  # Добавляем отступ
-                    cursor.movePosition(QTextCursor.Up)
-                    self.setTextCursor(cursor)
-                    self.insertPlainText(indentation)
+        if self.language == "bin" or self.language == "out" or self.language == "exe":
+            tc = self.textCursor()
+            if event.key() == Qt.Key_Tab:
+                if self.completer.popup().isVisible():  # Если виджет автодополнения видим
+                    inserted_text = self.completer.getSelected()  # Получаем выбранный текст из виджета автодополнения
+                    if inserted_text:
+                        cursor_position = tc.position()  # Получаем начальное положение курсора
+                        tc.select(QTextCursor.WordUnderCursor)  # Выбираем слово, над которым находится курсор
+                        tc.removeSelectedText()  # Удаляем текст, над которым находится курсор
+                        self.setTextCursor(tc)  # Устанавливаем обновленное положение курсора
+                        self.insertPlainText(inserted_text)  # Вставляем выбранный текст
+                        self.completer.popup().hide()
+                        return
                 else:
-                    self.insertPlainText("\n"+indentation)
-        else:
-            if event.key() == Qt.Key_Backspace:
-                self.completer.popup().hide()  # Скрываем popup при удалении последнего символа
-            if event.key() not in [Qt.Key_Up, Qt.Key_Down] and event.modifiers() not in [Qt.ControlModifier, Qt.ShiftModifier]: 
-                tc.select(QTextCursor.WordUnderCursor)
-                cr = self.cursorRect()
-                if event.text() not in [".", "[", "{", "("]:
-                    if len(tc.selectedText()) > 0:
-                        prefix = tc.selectedText()  # Получаем выбранный текст для установки в качестве префикса автодополнения
-                        if "." in prefix:
-                            prefix = prefix.split(".")[-1]
-                        self.completer.setCompletionPrefix(prefix)
-                        popup = self.completer.popup()
-                        popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
-                        cr.setWidth(self.completer.popup().sizeHintForColumn(0) + self.completer.popup().verticalScrollBar().sizeHint().width()) 
-                        self.completer.complete(cr)  # Запускаем автодополнение
+                    self.insertPlainText(" "*self.tabWidth)
+            
+
+            if event.text() in  ["'", '"', "(", "{", "["]:
+                if event.text() == '"':
+                    self.insertPlainText('""')
+                elif event.text() == "'":
+                    self.insertPlainText("''")
+                elif event.text() == "(":
+                    self.insertPlainText("()")
+                elif event.text() == "[":
+                    self.insertPlainText("[]")
+                elif event.text() == "{":
+                    self.insertPlainText("{}")
+                elif event.text() == "<":
+                    self.insertPlainText("<>")
+
+                cursor = self.textCursor()
+                cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
+                self.setTextCursor(cursor)
+
+
+            elif event.key() in [Qt.Key_Enter, Qt.Key_Return] and self.language in ["python", "c", "cpp"]:
+                self.completer.popup().hide()
+                if self.language == "python":
+                    # Вставляем новую строку
+                    cursor = self.textCursor()
+                    line = cursor.block().text()
+
+                    # Считаем количество пробелов в начале текущей строки
+                    spaces = len(line) - len(line.lstrip(' '))
+                    indentation = ' ' * spaces
+
+                    # Проверяем, заканчивается ли предыдущая строка на особые слова
+                    if line.strip().endswith(('if', 'for', 'while', 'else', 'elif', ':')):
+                        indentation += ' ' * self.tabWidth  # Добавляем отступ
+                    self.insertPlainText('\n')
+                    self.insertPlainText(indentation)
+                elif self.language in ["c", "cpp"]:
+                    cursor = self.textCursor()
+                    line = cursor.block().text()
+
+                    # Считаем количество пробелов в начале текущей строки
+                    spaces = len(line) - len(line.lstrip(' '))
+                    indentation = ' ' * spaces
+                    cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 1)
+
+                    cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, 1)
+
+                    symbol = cursor.selectedText()
+                    if symbol == "{":
+                        indentation += ' ' * self.tabWidth
+                        self.insertPlainText("\n\n")  # Добавляем отступ
+                        cursor.movePosition(QTextCursor.Up)
+                        self.setTextCursor(cursor)
+                        self.insertPlainText(indentation)
+                    else:
+                        self.insertPlainText("\n"+indentation)
             else:
-                self.completer.popup().hide()  # Если ничего не выбрано, скрываем всплывающий список
-            super().keyPressEvent(event)
+                if event.key() == Qt.Key_Backspace:
+                    self.completer.popup().hide()  # Скрываем popup при удалении последнего символа
+                if event.key() not in [Qt.Key_Up, Qt.Key_Down] and event.modifiers() not in [Qt.ControlModifier, Qt.ShiftModifier]: 
+                    tc.select(QTextCursor.WordUnderCursor)
+                    cr = self.cursorRect()
+                    if event.text() not in [".", "[", "{", "("]:
+                        if len(tc.selectedText()) > 0:
+                            prefix = tc.selectedText()  # Получаем выбранный текст для установки в качестве префикса автодополнения
+                            if "." in prefix:
+                                prefix = prefix.split(".")[-1]
+                            self.completer.setCompletionPrefix(prefix)
+                            popup = self.completer.popup()
+                            popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
+                            cr.setWidth(self.completer.popup().sizeHintForColumn(0) + self.completer.popup().verticalScrollBar().sizeHint().width()) 
+                            self.completer.complete(cr)  # Запускаем автодополнение
+                else:
+                    self.completer.popup().hide()  # Если ничего не выбрано, скрываем всплывающий список
+        super().keyPressEvent(event)
 
 
 class CodeEdit(QWidget):
@@ -624,7 +626,7 @@ class CodeEdit(QWidget):
         self.labelCount.setReadOnly(True)
         self.labelCount.setStyleSheet(f"padding-left: 12px; color: #ABB2BF; width: 0px;\n padding-top: 10px;\n" 
                                         f"background-color: {self.first_color}; padding-bottom: 20px; letter-spacing:1px; border: 2px solid {self.first_color}; border-right-color: #282C34;")
-        self.labelCount.setFixedWidth(70)
+        self.labelCount.setFixedWidth(103)
         self.labelCount.setFont(QFont("Courier New", self.fontSize))
         self.changeCount(1)
         self.textedit.blockCountChanged.connect(self.changeCount)
@@ -648,7 +650,7 @@ class CodeEdit(QWidget):
 
     def changeCount(self, value):
         self.labelCount.setPlainText("")
-        self.labelCount.insertPlainText("\n".join([f"{round(i+1, 2):>3}" for i in range(self.textedit.blockCount())]))
+        self.labelCount.insertPlainText("\n".join([f"{round(i+1, 2):>4}" for i in range(self.textedit.blockCount())]))
         self.labelCount.verticalScrollBar().setValue(value)
 
     def addText(self, text):

@@ -4,6 +4,7 @@ from os import path, chdir, remove, system, name
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QPalette, QColor
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 
 from utils.FabricRunCode import *
 from utils.programs import *
@@ -12,6 +13,7 @@ from widgets.QCodeEditor import CodeEdit
 from widgets.SettingsWidget import SettingsWidget
 from widgets.Dialog import CustomDialog
 from widgets.DialogSave import CustomDialogSave
+from widgets.PdfReader import PdfReader
 from widgets.WelcomeWidget import Ui_Welcome
 
 if name == "nt":
@@ -426,6 +428,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 try:
                     if path.basename(file).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
                         self.createTab(open(rf"{file}", "r").readlines(), file)
+                    elif path.basename(file).split('/')[-1].split('.')[-1] == "pdf":
+                        self.createTab("", file)
                     else:
                         self.createTab(open(rf"{file}", "rb").read(), file)
                 except Exception as e:
@@ -517,14 +521,14 @@ class UiMainWindow(QtWidgets.QMainWindow):
         fileDialog.setNameFilter("All files(*.*)")
         if fileDialog.exec_():
             file_path = fileDialog.selectedFiles()[0]
-            if languages[file_path.split('/')[-1].split('.')[-1]] != "bin" and languages[
-                file_path.split('/')[-1].split('.')[-1]] != "out" and languages[
-                file_path.split('/')[-1].split('.')[-1]] != "exe":
-                file = open(file_path, "r")
-                text = "".join(file.readlines())
-            else:
+            if languages[file_path.split('/')[-1].split('.')[-1]]  in ["bin", "exe", "out"]:
                 file = open(file_path, "rb")
                 text = file.read()
+            elif languages[file_path.split('/')[-1].split('.')[-1]] == "pdf":
+                text = ""
+            else:
+                file = open(file_path, "r")
+                text = "".join(file.readlines())
             self.files.append(file_path)
             self.createTab(text, file_path)
 
@@ -555,17 +559,21 @@ class UiMainWindow(QtWidgets.QMainWindow):
             self.tabWidget.removeTab(0)
         self.popRecentFile(fileName)
         lang = fileName.split('/')[-1].split('.')[-1]
-        self.CodeEdit = CodeEdit(self, languages[lang],[], settings)
-        self.CodeEdit.filename = path.basename(fileName)
-        self.CodeEdit.fullfilepath = rf"{fileName}"
-        self.CodeEdit.setObjectName("CodeEdit")
-        if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
-            self.CodeEdit.addText(text)
+        if lang != "pdf":
+            self.CodeEdit = CodeEdit(self, languages[lang],[], settings)
+            self.CodeEdit.filename = path.basename(fileName)
+            self.CodeEdit.fullfilepath = rf"{fileName}"
+            self.CodeEdit.setObjectName("CodeEdit")
+            if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
+                self.CodeEdit.addText(text)
+            else:
+                self.CodeEdit.setPlainText("".join(text))
+            if not self.CodeEdit.welcome:
+                self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
+            self.tabWidget.addTab(self.CodeEdit, f"       {fileName.split('/')[-1]}        ")
         else:
-            self.CodeEdit.setPlainText("".join(text))
-        if not self.CodeEdit.welcome:
-            self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
-        self.tabWidget.addTab(self.CodeEdit, f"       {fileName.split('/')[-1]}        ")
+            self.web = PdfReader("", fileName)
+            self.tabWidget.addTab(self.web, f"       {fileName.split('/')[-1]}        ")
 
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):
