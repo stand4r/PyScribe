@@ -142,9 +142,8 @@ patterns = {
             (r'\bFalse\b', "#c77a5a"), (r'\bauto\b', "#c77a5a"), (r'\bbreak\b', "#c77a5a"), (r'\bcase\b', "#c77a5a"), 
             (r'\bchar\b', "#c77a5a"), (r'\bconst\b', "#c77a5a"),
             (r'#.*$', "#FFFF9C"), (rf'"([^"]+)"', "#FFFF9C"), (rf"''", "#FFFF9C"), (rf'""', "#FFFF9C"), 
-            (r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(:]', "#7777FF"),
-            (r'[A-Za-z_][A-Za-z0-9_]*\s*\('), (r'\b\d+\b', "#00C200"), 
-            (r'\b\d+\b', "#7777FF"), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+            (r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(:]', "#FFFF9C"),
+            (r'[A-Za-z_][A-Za-z0-9_]*\s*\(', '#FFFF9C'), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
             (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
             (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
             (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
@@ -177,9 +176,15 @@ patterns = {
         (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     },
     "ruby": {
-        (r'\bif\b|\belse\b|\belsif\b|\bend\b|\bwhile\b|\bdo\b|\bbegin\b|\brescue\b|\bensure\b|\bcase\b|\bwhen\b|\bthen\b|\bunless\b|\
-         \buntil\b|\bdef\b|\bclass\b|\bmodule\b|\brequire\b|\binclude\b|\
-         \bextend\b|\bself\b|\breturn\b|\bsuper\b\bfalse\b|\btrue\b|', "#c77a5a"),
+        (r'\balias\b', '#c77a5a'), (r'\band\b', '#c77a5a'), (r'\bbegin\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), 
+        (r'\bcase\b', '#c77a5a'), (r'\bclass\b', '#c77a5a'), (r'\bdef\b', '#c77a5a'), (r'\bdefined?\b', '#c77a5a'), 
+        (r'\bdo\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\belsif\b', '#c77a5a'), (r'\bend\b', '#c77a5a'), 
+        (r'\bensure\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), 
+        (r'\bin\b', '#c77a5a'), (r'\bmodule\b', '#c77a5a'), (r'\bnext\b', '#c77a5a'), (r'\bnil\b', '#c77a5a'), 
+        (r'\bnot\b', '#c77a5a'), (r'\bor\b', '#c77a5a'), (r'\bredo\b', '#c77a5a'), (r'\brescue\b', '#c77a5a'), 
+        (r'\bretry\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bself\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), 
+        (r'\bthen\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\bundef\b', '#c77a5a'), (r'\bunless\b', '#c77a5a'), 
+        (r'\buntil\b', '#c77a5a'), (r'\bwhen\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), (r'\byield\b', '#c77a5a'),
         (r'\b[A-Z]\w*\b', "#7777FF"),
         (r'\bclass\s+\w+', "#FFFF9C"),
         (r'\bdef\s+\w+', "#FFFF9C"), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
@@ -202,7 +207,14 @@ patterns = {
         (r'\bpublic\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bshort\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bstrictfp\b', '#c77a5a'), 
         (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bsynchronized\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), 
         (r'\bthrows\b', '#c77a5a'), (r'\btransient\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), (r'\bvolatile\b', '#c77a5a'), 
-        (r'\bwhile\b', '#c77a5a')
+        (r'\bwhile\b', '#c77a5a'), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "javascript" : {
@@ -215,7 +227,15 @@ patterns = {
         (r'\bpackage\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), 
         (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), 
         (r'\btry\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), (r'\bvolatile\b', '#c77a5a'), 
-        (r'\bwhile\b', '#c77a5a'), (r'\bwith\b', '#c77a5a'), (r'\byield\b', '#c77a5a') 
+        (r'\bwhile\b', '#c77a5a'), (r'\bwith\b', '#c77a5a'), (r'\byield\b', '#c77a5a'),
+        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "kotlin" : {
@@ -231,7 +251,15 @@ patterns = {
         (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), (r'\breified\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), 
         (r'\bsealed\b', '#c77a5a'), (r'\bset\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), (r'\btailrec\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), 
         (r'\bthrow\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\btypealias\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), 
-        (r'\bval\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bwhen\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a')
+        (r'\bval\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bwhen\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'),
+        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "php" : {
@@ -250,7 +278,15 @@ patterns = {
         (r'\bor\b', '#c77a5a'), (r'\bprint\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'), 
         (r'\brequire\b', '#c77a5a'), (r'\brequire_once\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'),
         (r'\bthrow\b', '#c77a5a'), (r'\btrait\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\bunset\b', '#c77a5a'), (r'\buse\b', '#c77a5a'), 
-        (r'\bvar\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), (r'\bxor\b', '#c77a5a'), (r'\byield\b', '#c77a5a'), (r'\byield from\b', '#c77a5a')
+        (r'\bvar\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), (r'\bxor\b', '#c77a5a'), (r'\byield\b', '#c77a5a'), (r'\byield from\b', '#c77a5a'),
+        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "kt" : {
@@ -266,7 +302,15 @@ patterns = {
         (r'\bstatic\b', '#c77a5a'), (r'\bstring\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bsymbol\b', '#c77a5a'), 
         (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), 
         (r'\btypeof\b', '#c77a5a'), (r'\bundefined\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), 
-        (r'\bwith\b', '#c77a5a'), (r'\byield\b', '#c77a5a')
+        (r'\bwith\b', '#c77a5a'), (r'\byield\b', '#c77a5a'),
+        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "cs" : {
@@ -285,7 +329,15 @@ patterns = {
         (r'\bstruct\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), 
         (r'\btry\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), (r'\buint\b', '#c77a5a'), (r'\bulong\b', '#c77a5a'), (r'\bunchecked\b', '#c77a5a'), 
         (r'\bunsafe\b', '#c77a5a'), (r'\bushort\b', '#c77a5a'), (r'\busing\b', '#c77a5a'), (r'\bvirtual\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'), 
-        (r'\bvolatile\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a')
+        (r'\bvolatile\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'),
+        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "go" : {
@@ -293,7 +345,15 @@ patterns = {
         (r'\bdefault\b', '#c77a5a'), (r'\bdefer\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\bfallthrough\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), 
         (r'\bfunc\b', '#c77a5a'), (r'\bgo\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimport\b', '#c77a5a'), 
         (r'\binterface\b', '#c77a5a'), (r'\bmap\b', '#c77a5a'), (r'\bpackage\b', '#c77a5a'), (r'\brange\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), 
-        (r'\bselect\b', '#c77a5a'), (r'\bstruct\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), (r'\bvar\b', '#c77a5a')
+        (r'\bselect\b', '#c77a5a'), (r'\bstruct\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'),
+        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "lua" : {
@@ -301,7 +361,14 @@ patterns = {
         (r'\bend\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bfunction\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), 
         (r'\bin\b', '#c77a5a'), (r'\blocal\b', '#c77a5a'), (r'\bnil\b', '#c77a5a'), (r'\bnot\b', '#c77a5a'), (r'\bor\b', '#c77a5a'), 
         (r'\brepeat\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bthen\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\buntil\b', '#c77a5a'), 
-        (r'\bwhile\b', '#c77a5a')
+        (r'\bwhile\b', '#c77a5a'), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     }, 
 
     "rust" : {
@@ -311,7 +378,15 @@ patterns = {
         (r'\bmatch\b', '#c77a5a'), (r'\bmod\b', '#c77a5a'), (r'\bmove\b', '#c77a5a'), (r'\bmut\b', '#c77a5a'), (r'\bpub\b', '#c77a5a'), 
         (r'\breturn\b', '#c77a5a'), (r'\bself\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bstruct\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), 
         (r'\btrait\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), (r'\bunsafe\b', '#c77a5a'), (r'\buse\b', '#c77a5a'), 
-        (r'\bwhere\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a')
+        (r'\bwhere\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'),
+        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"), 
+        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"), 
+        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"), 
+        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"), 
+        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"), 
+        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"), 
+        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"), 
+        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
     },
 }
 
@@ -513,18 +588,19 @@ class CodeTextEdit(QPlainTextEdit):
         else:
             if event.key() == Qt.Key_Backspace:
                 self.completer.popup().hide()  # Скрываем popup при удалении последнего символа
-            tc.select(QTextCursor.WordUnderCursor)
-            cr = self.cursorRect()
-            if event.text() not in [".", "[", "{", "("]:
-                if len(tc.selectedText()) > 0:
-                    prefix = tc.selectedText()  # Получаем выбранный текст для установки в качестве префикса автодополнения
-                    if "." in prefix:
-                        prefix = prefix.split(".")[-1]
-                    self.completer.setCompletionPrefix(prefix)
-                    popup = self.completer.popup()
-                    popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
-                    cr.setWidth(self.completer.popup().sizeHintForColumn(0) + self.completer.popup().verticalScrollBar().sizeHint().width()) 
-                    self.completer.complete(cr)  # Запускаем автодополнение
+            if event.key() not in [Qt.Key_Up, Qt.Key_Down] and event.modifiers() not in [Qt.ControlModifier, Qt.ShiftModifier]: 
+                tc.select(QTextCursor.WordUnderCursor)
+                cr = self.cursorRect()
+                if event.text() not in [".", "[", "{", "("]:
+                    if len(tc.selectedText()) > 0:
+                        prefix = tc.selectedText()  # Получаем выбранный текст для установки в качестве префикса автодополнения
+                        if "." in prefix:
+                            prefix = prefix.split(".")[-1]
+                        self.completer.setCompletionPrefix(prefix)
+                        popup = self.completer.popup()
+                        popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
+                        cr.setWidth(self.completer.popup().sizeHintForColumn(0) + self.completer.popup().verticalScrollBar().sizeHint().width()) 
+                        self.completer.complete(cr)  # Запускаем автодополнение
             else:
                 self.completer.popup().hide()  # Если ничего не выбрано, скрываем всплывающий список
             super().keyPressEvent(event)
@@ -550,6 +626,7 @@ class CodeEdit(QWidget):
                                         f"background-color: {self.first_color}; padding-bottom: 20px; letter-spacing:1px; border: 2px solid {self.first_color}; border-right-color: #282C34;")
         self.labelCount.setFixedWidth(70)
         self.labelCount.setFont(QFont("Courier New", self.fontSize))
+        self.changeCount(1)
         self.textedit.blockCountChanged.connect(self.changeCount)
         self.textedit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
         self.labelCount.verticalScrollBar().valueChanged.connect(self.sync_scroll)
@@ -571,7 +648,7 @@ class CodeEdit(QWidget):
 
     def changeCount(self, value):
         self.labelCount.setPlainText("")
-        self.labelCount.insertPlainText("\n".join([f"{round(i, 2):>3}" for i in range(self.textedit.blockCount())]))
+        self.labelCount.insertPlainText("\n".join([f"{round(i+1, 2):>3}" for i in range(self.textedit.blockCount())]))
         self.labelCount.verticalScrollBar().setValue(value)
 
     def addText(self, text):

@@ -1,5 +1,5 @@
 import pickle
-from os import path, getlogin, name, environ
+from os import path, getlogin, name, environ, remove
 import ast
 
 try:
@@ -38,19 +38,38 @@ def loadSession() -> list:
         files_array = []
     return files_array
 
-def saveRecent(recent_file: str):
+def saveRecent(recent_files: list):
+    recent_files = list(set(recent_files))
     if name == 'nt':
         temp_dir = environ.get('TEMP', None)
-
         if temp_dir:
             file_path = path.join(temp_dir, "recent.pkl")
     else:
         file_path = "recent.pkl"
-    with open(file_path, 'rb') as f:
-        files_array = pickle.load(f)
     with open(file_path, 'wb') as f:
-        pickle.dump((files_array.append(recent_file)), f)
+        pickle.dump((recent_files), f)
 
+def removeRecentFile():
+    recent_files = list(set(recent_files))
+    if name == 'nt':
+        temp_dir = environ.get('TEMP', None)
+        if temp_dir:
+            file_path = path.join(temp_dir, "recent.pkl")
+    else:
+        file_path = "recent.pkl"
+    remove(file_path)
+
+def clearCache():
+    if name == 'nt':
+        temp_dir = environ.get('TEMP', None)
+        if temp_dir:
+            file_path_recent = path.join(temp_dir, "recent.pkl")
+            file_path_session = path.join(temp_dir, "session.pkl")
+    else:
+        file_path_recent = "recent.pkl"
+        file_path_session = "session.pkl"
+    remove(file_path_recent)
+    remove(file_path_session)
 
 def loadRecent() -> list:
     if name == 'nt':
@@ -62,11 +81,12 @@ def loadRecent() -> list:
     try:
         with open(file_path, 'rb') as f:
             files_array = pickle.load(f)
+            files_array = list(set(files_array))
+            return files_array    
     except FileNotFoundError:
         with open(file_path, 'wb') as f:
             pickle.dump([], f)
-        files_array = []
-    return files_array
+        return []
 
 
 def exist_config(file_path):

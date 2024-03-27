@@ -1,3 +1,4 @@
+from functools import partial
 from sys import exit, argv
 from os import path, chdir, remove, system, name
 
@@ -20,6 +21,8 @@ else:
 
 path_settings = path.dirname(path.realpath(__file__))
 settings = load_settings(path_settings)
+list_recent_files = loadRecent()
+print(list_recent_files)
 main_color = settings["settings"]['main_color']#013B81
 text_color = settings["settings"]["text_color"]#ABB2BF
 first_color = settings["settings"]['first_color']#16171D
@@ -42,6 +45,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
             self.setBaseSize(QtCore.QSize(1920,1080))
         self.setStyleSheet(f"background-color:  {first_color};\n"
                         "color: #ffffff")
+        self.unsavedfiles = 0
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setStyleSheet(f"background-color: {first_color}")
         self.centralwidget.setObjectName("centralwidget")
@@ -151,6 +155,9 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionExit = QtWidgets.QAction(self)
         self.actionExit.setFont(font)
         self.actionExit.setObjectName("actionExit")
+        self.actionCache = QtWidgets.QAction(self)
+        self.actionCache.setFont(font)
+        self.actionCache.setObjectName("actionExit")
         self.actionSettings = QtWidgets.QAction(self)
         self.actionSettings.setFont(font)
         self.actionSettings.setObjectName("actionSettings")
@@ -183,6 +190,9 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menuFile.addAction(self.actionNew)
         self.menuFile.addAction(self.actionOpen)
         self.actionRecent = self.menuFile.addMenu("Recent")
+        self.actionClearRecent = QtWidgets.QAction("   Clear", self)
+        self.actionClearRecent.triggered.connect(self.clearMenuRecent)
+        self.actionRecent.addAction(self.actionClearRecent)
         self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionClose)
         self.menuFile.addAction(self.actionCloseAll)
@@ -190,6 +200,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.menuFile.addAction(self.actionSave)
         self.menuFile.addAction(self.actionSaveAll)
         self.menuFile.addAction(self.actionSaveAs)
+        self.menuFile.addSeparator()
+        self.menuFile.addAction(self.actionCache)
         self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionExit)
         self.menuEdit.addAction(self.actionReturn)
@@ -225,6 +237,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionNew.triggered.connect(self.actionNewFile)
         self.actionSettings.triggered.connect(self.actionSettingsLaunch)
         self.actionReturn.triggered.connect(self.actionReturnText)
+        self.actionCache.triggered.connect(self.actionClearCache)
         self.actionRepeat.triggered.connect(self.actionRepeatText)
         self.actionCut.triggered.connect(self.actionCutText)
         self.actionCopy.triggered.connect(self.actionCopyText)
@@ -233,8 +246,14 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionExit.triggered.connect(self.actionExitProgram)
         self.actionShell.triggered.connect(self.actionShellChoice)
         self.actionGit.triggered.connect(self.actionGitOpen)
+        self.actionRecent_0 = None
+        self.actionRecent_1 = None
+        self.actionRecent_2 = None
+        self.actionRecent_3 = None
+        self.actionRecent_4 = None
         self.tabWidget.tabCloseRequested.connect(self.closeTab)
         self.files = loadSession()
+        self.actionLoadRecent()
         self.loadSession(self.files)
 
     def retranslateUi(self):
@@ -277,20 +296,37 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.actionRun.setText(_translate("MainWindow", "Run"))
         self.actionRun.setShortcut(_translate("MainWindow", "Ctrl+Shift+X"))
         self.actionExit.setText(_translate("MainWindow", "Exit"))
+        self.actionCache.setText(_translate("MainWindow", "Clear cache"))
+        self.actionCache.setShortcut(_translate("MainWindow", "Ctrl+Del"))
         self.actionExit.setShortcut(_translate("MainWindow", "Alt+F4"))
         self.actionSettings.setText(_translate("MainWindow", "Settings"))
         self.actionShell.setText(_translate("MainWindow", "Set shell"))
         self.actionGit.setText(_translate("MainWindow", "Github Issues"))
 
     def actionLoadRecent(self):
-        list_files = loadRecent()
-        if list_files.count() != 0:
-            for i in loadRecent():
-                if path.basename(i).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
-                    text = open(rf"{i}", "r").readlines()
+        list_recent_files = loadRecent()
+        if len(list_recent_files) != 0:
+            self.actionRecent.clear()
+            for i in range(len(list_recent_files)):
+                if path.basename(list_recent_files[i]).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
+                    text = open(rf"{list_recent_files[i]}", "r").readlines()
                 else:
-                    text = open(rf"{i}", "rb").read()
-                self.actionRecent.addAction(i).triggered.connect(self.createTab, text, i)
+                    text = open(rf"{list_recent_files[i]}", "rb").read()
+                locals()["self.actionRecent_"+str(i)] = QtWidgets.QAction("   "+list_recent_files[i], self)
+                locals()["self.actionRecent_"+str(i)].triggered.connect(partial(self.createTabRecent, text=text, fileName=list_recent_files[i]))
+                self.actionRecent.addAction(locals()["self.actionRecent_"+str(i)])
+        self.actionRecent.addSeparator()
+        self.actionRecent.addAction(self.actionClearRecent)
+
+    def clearMenuRecent(self):
+        self.actionRecent.clear()
+        self.actionRecent.addAction(self.actionClearRecent)
+        removeRecentFile()
+        self.actionLoadRecent()
+
+    def createTabRecent(self, text, fileName):
+        self.popRecentFile(fileName)
+        self.createTab(text, fileName)
 
     def actionExitProgram(self):
         self.saveOpenFiles()
@@ -308,23 +344,37 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def setAsterisk(self):
         index = self.tabWidget.currentIndex()
         text = self.tabWidget.tabText(index)
-        if "*" not in text:
+        widget = self.tabWidget.currentWidget(index)
+        if "*" not in text and not widget.welcome:
+            self.unsavedfiles += 1
             self.tabWidget.setTabText(index, f"      {text.strip(' ')}     *    ")
 
     def setTabText(self, index, text):
         self.tabWidget.setTabText(index, text)
 
     def removeAsterisk(self, index):
-        text = self.tabWidget.tabText(index)
+        index_tab = self.tabWidget.currentIndex()
+        text = self.tabWidget.tabText(index_tab)
         if "*" in text:
+            self.unsavedfiles -= 1
             text = text.replace("*", " ")
-            self.tabWidget.setTabText(index, text)
+            self.tabWidget.setTabText(index_tab, text)
 
     def actionCloseAllFiles(self):
         for i in range(self.tabWidget.count()):
             tab = self.tabWidget.widget(i)
             self.files.remove(tab.fullfilepath)
             self.tabWidget.removeTab(i)
+
+    def actionClearCache(self):
+        try:
+            CustomDialog("Cache is cleared")
+            clearCache()
+            self.actionClearRecent()
+            self.actionCloseAllFiles()
+            self.welcomeWidget()
+        except:
+            CustomDialog("Cache is not cleared")
 
     def actionSaveAsFile(self):
         active_tab_widget = self.tabWidget.widget(self.tabWidget.currentIndex())
@@ -391,16 +441,42 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def closeTab(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
+        path = active_tab_widget.fullfilepath
         try:
-            self.files.remove(active_tab_widget.fullfilepath)
+            self.files.remove(path)
         except:
             pass
-        self.tabWidget.removeTab(currentIndex)
         try:
-            if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
-                self.actionSaveFile(currentIndex)
-        except:
-            pass
+            if "*" in self.tabWidget.tabText(currentIndex):
+                reply = QtWidgets.QMessageBox.question(self, '', 'Сохранить файл перед закрытием?',
+                                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+                if reply == QtWidgets.QMessageBox.Yes:
+                    if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
+                        self.actionSaveFile(currentIndex)
+                    self.addRecentFile(path)
+                elif reply == QtWidgets.QMessageBox.No:
+                    self.addRecentFile(path)
+                    self.tabWidget.removeTab(currentIndex)
+                elif reply == QtWidgets.QMessageBox.Cancel:
+                    pass
+            else:
+                self.addRecentFile(path)
+                self.tabWidget.removeTab(currentIndex)
+        except Exception as e:
+            print(e)
+            CustomDialog("Tab closing error").exec()
+
+    def addRecentFile(self, pathfile: str):
+        if pathfile not in list_recent_files:
+            list_recent_files.append(pathfile)
+            saveRecent(list_recent_files)
+            self.actionLoadRecent()
+
+    def popRecentFile(self, pathfile: str):
+        if pathfile in list_recent_files:
+            list_recent_files.append(pathfile)
+            saveRecent(list_recent_files)
+            self.actionLoadRecent()
 
     def actionRunCode(self):
         active_tab_index = self.tabWidget.currentIndex()
@@ -414,7 +490,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 elif self.CodeEdit.language == "cpp":
                     compile_program_cpp(CodeEdit.fullfilepath)
                 try:
-                    RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language).process()
+                    proc = RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language)
+                    if proc.command == None:
+                        CustomDialog("Language not supported for launch").exec()
+                    else:
+                        proc.process()
                 except Exception as e:
                     print(e)
                     CustomDialog("Error running code").exec()
@@ -422,7 +502,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 print(e)
                 CustomDialog("Compilation error").exec()
         else:
-            pass
+            print("Welcome widget not supported for launch")
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
@@ -471,17 +551,20 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.tabWidget.addTab(window, "         Settings         ")
 
     def createTab(self, text, fileName):
+        if "Welcome" in self.tabWidget.tabText(0):
+            self.tabWidget.removeTab(0)
+        self.popRecentFile(fileName)
         lang = fileName.split('/')[-1].split('.')[-1]
         self.CodeEdit = CodeEdit(self, languages[lang],[], settings)
         self.CodeEdit.filename = path.basename(fileName)
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.setObjectName("CodeEdit")
-        if not self.CodeEdit.welcome:
-            self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
         if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
             self.CodeEdit.addText(text)
         else:
             self.CodeEdit.setPlainText("".join(text))
+        if not self.CodeEdit.welcome:
+            self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
         self.tabWidget.addTab(self.CodeEdit, f"       {fileName.split('/')[-1]}        ")
 
     def saveOpenFiles(self):
@@ -494,13 +577,23 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 pass
 
     def closeEvent(self, event):
-        '''self.dialog = CustomDialogSave()
-        self.dialog.buttonBox.accepted.connect(self.accept)  
-        self.dialog.show() '''   
-        self.saveOpenFiles()
-        saveSession(self.files)
-        event.accept()
-    
+        if self.unsavedfiles > 0:
+            reply = QtWidgets.QMessageBox.question(self, '', 'Сохранить файлы перед закрытием?',
+                                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+            if reply == QtWidgets.QMessageBox.Yes:
+                saveRecent(list_recent_files)
+                self.saveOpenFiles()
+                saveSession(self.files)
+                event.accept()
+            elif reply == QtWidgets.QMessageBox.No:
+                saveRecent(list_recent_files)
+                event.accept()
+            elif reply == QtWidgets.QMessageBox.Cancel:
+                pass
+        else:
+            saveRecent(list_recent_files)
+            event.accept()
+
     def accept(self):
         self.saveOpenFiles()
         saveSession(self.files)

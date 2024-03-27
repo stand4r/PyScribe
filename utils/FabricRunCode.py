@@ -102,8 +102,10 @@ class RunCodeClass:
                     self.command = choice_env(exe)
                 except ValueError:
                     raise ValueError
+            case "ruby":
+                self.command = choice_env(rf"ruby {self._path}")
             case _:
-                self.command = ""
+                self.command = None
 
     def process(self):
         Popen(self.command, shell=True)
