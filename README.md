@@ -27,6 +27,7 @@ PyScribe is a sleek IDE built with PyQt5, designed to streamline your coding exp
 - Go
 - C#
 - Kotlin
+- Php
 
 ## Get Started
 
