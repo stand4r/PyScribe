@@ -1,6 +1,6 @@
 # PyScribe
 
-PyScribe is a sleek IDE built with PyQt5, designed to streamline your coding experience. With support for C, C++, and Python, PyScribe offers powerful features to enhance your workflow.
+PyScribe is a sleek IDE built with PyQt5, designed to streamline your coding experience. PyScribe offers powerful features to enhance your workflow.
 
 ![image](https://github.com/stand4r/PyScribe/assets/82241829/084b4f12-f573-4204-bf67-2f133b94840c)
 
@@ -19,6 +19,14 @@ PyScribe is a sleek IDE built with PyQt5, designed to streamline your coding exp
 - C
 - C++
 - Python
+- Lua
+- Js
+- Java
+- Ruby
+- Rust
+- Go
+- C#
+- Kotlin
 
 ## Get Started
 
@@ -36,6 +44,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-Have questions or suggestions? Feel free to reach out to us at [email](mailto:sahojko.dima2018@gmail.com). We'd love to hear from you!
+Have questions or suggestions? Feel free to reach out to us at [email](mailto:sahojkodima888@gmail.com). We'd love to hear from you!
 
 Start coding smarter with PyScribe!
