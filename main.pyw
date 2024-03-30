@@ -31,6 +31,7 @@ first_color = settings["settings"]['first_color']#16171D
 second_color = settings["settings"]['second_color']#131313
 tab_color = settings["settings"]['tab_color']#1F2228
 languages = settings["languages"]
+languages_type = settings["languages_type"]
 font_size = int(settings["settings"]["fontsize"])
 font_size_tab = settings["settings"]["font_size_tab"]
 
@@ -310,10 +311,14 @@ class UiMainWindow(QtWidgets.QMainWindow):
         if len(list_recent_files) != 0:
             self.actionRecent.clear()
             for i in range(len(list_recent_files)):
-                if path.basename(list_recent_files[i]).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
-                    text = open(rf"{list_recent_files[i]}", "r").readlines()
+                lang = path.basename(list_recent_files[i]).split('/')[-1].split('.')[-1] 
+                if lang in languages:
+                    if settings["languages_type"][lang] != 0:
+                        text = "".join(open(rf"{list_recent_files[i]}", "r").readlines())
+                    else:
+                        text = open(rf"{list_recent_files[i]}", "rb").read()
                 else:
-                    text = open(rf"{list_recent_files[i]}", "rb").read()
+                    text = "".join(open(rf"{list_recent_files[i]}", "r").readlines())
                 locals()["self.actionRecent_"+str(i)] = QtWidgets.QAction("   "+list_recent_files[i], self)
                 locals()["self.actionRecent_"+str(i)].triggered.connect(partial(self.createTabRecent, text=text, fileName=list_recent_files[i]))
                 self.actionRecent.addAction(locals()["self.actionRecent_"+str(i)])
@@ -340,7 +345,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         active_tab_widget = self.tabWidget.widget(currentIndex)
         self.files.remove(active_tab_widget.fullfilepath)
         self.tabWidget.removeTab(currentIndex)
-        if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
+        if active_tab_widget.mode != 0:
             self.actionSaveFile(currentIndex)
     
     def setAsterisk(self):
@@ -381,7 +386,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def actionSaveAsFile(self):
         active_tab_widget = self.tabWidget.widget(self.tabWidget.currentIndex())
         if active_tab_widget:
-            if not active_tab_widget.welcome:
+            if not active_tab_widget.welcome and active_tab_widget.mode != 0:
                 old_name = active_tab_widget.fullfilepath
                 options = QtWidgets.QFileDialog.Options()
                 fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save As", "", "All Files (*);;Text Files (*.txt)", options=options)
@@ -401,7 +406,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         for i in range(self.tabWidget.count()):
             tab = self.tabWidget.widget(i)
             self.removeAsterisk(i)
-            if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
+            if tab.mode != 0:
                 open(tab.fullfilepath, "w").write(tab.toPlainText())
     
     def actionReturnText(self):
@@ -423,15 +428,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
         pass
 
     def loadSession(self, files):
-        if files != []:
+        if len(files) > 0:
             for file in files:
                 try:
-                    if path.basename(file).split('/')[-1].split('.')[-1] not in ["bin", "exe", "out"]:
+                    if path.basename(file).split('/')[-1].split('.')[-1] not in settings["languages"]:
                         self.createTab(open(rf"{file}", "r").readlines(), file)
-                    elif path.basename(file).split('/')[-1].split('.')[-1] == "pdf":
-                        self.createTab("", file)
                     else:
-                        self.createTab(open(rf"{file}", "rb").read(), file)
+                        if settings["languages_type"][path.basename(file).split('/')[-1].split('.')[-1]] == 1:
+                            self.createTab(open(rf"{file}", "r").readlines(), file)
+                        else:
+                            self.createTab(open(rf"{file}", "rb").read(), file)
                 except Exception as e:
                     print(e)
         else:
@@ -455,7 +461,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 reply = QtWidgets.QMessageBox.question(self, '', 'Сохранить файл перед закрытием?',
                                         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
                 if reply == QtWidgets.QMessageBox.Yes:
-                    if active_tab_widget.language != "bin" and active_tab_widget.language != "out" and active_tab_widget.language != "exe":
+                    if active_tab_widget.mode != 0:
                         self.actionSaveFile(currentIndex)
                     self.addRecentFile(path)
                 elif reply == QtWidgets.QMessageBox.No:
@@ -485,28 +491,29 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def actionRunCode(self):
         active_tab_index = self.tabWidget.currentIndex()
         CodeEdit = self.tabWidget.widget(active_tab_index)
-        if not CodeEdit.welcome:
-            with open(CodeEdit.fullfilepath, 'w') as codefile:
-                codefile.write(CodeEdit.toPlainText())
-            try:
-                if self.CodeEdit.language == "c":
-                    compile_program_c(CodeEdit.fullfilepath)
-                elif self.CodeEdit.language == "cpp":
-                    compile_program_cpp(CodeEdit.fullfilepath)
+        if CodeEdit.mode != 1:
+            if not CodeEdit.welcome:
+                with open(CodeEdit.fullfilepath, 'w') as codefile:
+                    codefile.write(CodeEdit.toPlainText())
                 try:
-                    proc = RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language)
-                    if proc.command == None:
-                        CustomDialog("Language not supported for launch").exec()
-                    else:
-                        proc.process()
+                    if self.CodeEdit.language == "c":
+                        compile_program_c(CodeEdit.fullfilepath)
+                    elif self.CodeEdit.language == "cpp":
+                        compile_program_cpp(CodeEdit.fullfilepath)
+                    try:
+                        proc = RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language)
+                        if proc.command == None:
+                            CustomDialog("Language not supported for launch").exec()
+                        else:
+                            proc.process()
+                    except Exception as e:
+                        print(e)
+                        CustomDialog("Error running code").exec()
                 except Exception as e:
                     print(e)
-                    CustomDialog("Error running code").exec()
-            except Exception as e:
-                print(e)
-                CustomDialog("Compilation error").exec()
-        else:
-            print("Welcome widget not supported for launch")
+                    CustomDialog("Compilation error").exec()
+            else:
+                print("Welcome widget not supported for launch")
 
     def actionSaveFile(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
@@ -521,11 +528,13 @@ class UiMainWindow(QtWidgets.QMainWindow):
         fileDialog.setNameFilter("All files(*.*)")
         if fileDialog.exec_():
             file_path = fileDialog.selectedFiles()[0]
-            if languages[file_path.split('/')[-1].split('.')[-1]]  in ["bin", "exe", "out"]:
-                file = open(file_path, "rb")
-                text = file.read()
-            elif languages[file_path.split('/')[-1].split('.')[-1]] == "pdf":
-                text = ""
+            if file_path.split('/')[-1].split('.')[-1] in settings["languages"]:
+                if settings["languages_type"][file_path.split('/')[-1].split('.')[-1]] == 0:
+                    file = open(file_path, "rb")
+                    text = file.read()
+                else:
+                    file = open(file_path, "r")
+                    text = "".join(file.readlines())
             else:
                 file = open(file_path, "r")
                 text = "".join(file.readlines())
@@ -536,11 +545,21 @@ class UiMainWindow(QtWidgets.QMainWindow):
         options = QtWidgets.QFileDialog.Options()
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "", "All Files (*);", options=options)
         if fileName:
-            with open(fileName, "w") as file:               
-                file.write('')
-                with open(fileName, "r") as file_read:
-                    text = file_read.readlines()
-                    self.createTab(text, fileName)
+            if fileName.split('/')[-1].split('.')[-1] not in settings["languages"]:
+                with open(fileName, "w") as file:               
+                    file.write('')
+                    with open(fileName, "r") as file_read:
+                        text = file_read.readlines()
+                        self.createTab(text, fileName)
+            else:
+                if settings["languages_type"][fileName.split('/')[-1].split('.')[-1]] != 1:
+                    with open(fileName, "w") as file:               
+                        file.write('')
+                        with open(fileName, "r") as file_read:
+                            text = file_read.readlines()
+                            self.createTab(text, fileName)
+                else:
+                    CustomDialog("Binary files not writable")
 
     def actionArgsLaunch(self):
         active_tab_index = self.tabWidget.currentIndex()
@@ -559,27 +578,23 @@ class UiMainWindow(QtWidgets.QMainWindow):
             self.tabWidget.removeTab(0)
         self.popRecentFile(fileName)
         lang = fileName.split('/')[-1].split('.')[-1]
-        if lang != "pdf":
-            self.CodeEdit = CodeEdit(self, languages[lang],[], settings)
-            self.CodeEdit.filename = path.basename(fileName)
-            self.CodeEdit.fullfilepath = rf"{fileName}"
-            self.CodeEdit.setObjectName("CodeEdit")
-            if self.CodeEdit.language == "bin" or self.CodeEdit.language == "out" or self.CodeEdit.language == "exe":
-                self.CodeEdit.addText(text)
-            else:
-                self.CodeEdit.setPlainText("".join(text))
-            if not self.CodeEdit.welcome:
-                self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
-            self.tabWidget.addTab(self.CodeEdit, f"       {fileName.split('/')[-1]}        ")
+        self.CodeEdit = CodeEdit(self, lang, [], settings)
+        self.CodeEdit.filename = path.basename(fileName)
+        self.CodeEdit.fullfilepath = rf"{fileName}"
+        self.CodeEdit.setObjectName("CodeEdit")
+        if self.CodeEdit.mode != 0:
+            self.CodeEdit.addText(text)
         else:
-            self.web = PdfReader("", fileName)
-            self.tabWidget.addTab(self.web, f"       {fileName.split('/')[-1]}        ")
+            self.CodeEdit.setPlainText("".join(text))
+        if not self.CodeEdit.welcome:
+            self.CodeEdit.textedit.textChanged.connect(self.setAsterisk)
+        self.tabWidget.addTab(self.CodeEdit, f"       {fileName.split('/')[-1]}        ")
 
     def saveOpenFiles(self):
         for i in range(self.tabWidget.count()):
             tab = self.tabWidget.widget(i)
             try:
-                if tab.language != "bin" and tab.language != "out" and tab.language != "exe":
+                if tab.mode != 0:
                     open(tab.fullfilepath, "w").write(tab.toPlainText())
             except:
                 pass
