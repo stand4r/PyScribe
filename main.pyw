@@ -4,7 +4,6 @@ from os import path, chdir, remove, system, name
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QPalette, QColor
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 
 from utils.FabricRunCode import *
 from utils.programs import *
@@ -12,8 +11,6 @@ from widgets.QArgsEditor import ArgsWindow
 from widgets.QCodeEditor import CodeEdit
 from widgets.SettingsWidget import SettingsWidget
 from widgets.Dialog import CustomDialog
-from widgets.DialogSave import CustomDialogSave
-from widgets.PdfReader import PdfReader
 from widgets.WelcomeWidget import Ui_Welcome
 
 if name == "nt":
