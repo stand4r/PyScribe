@@ -88,7 +88,7 @@ class RunCodeClass:
         self._args = args
         self.command = ""
         match lang:
-            case "python":
+            case "py":
                 self.command = choice_env(rf"python {self._path}")
             case "c":
                 try:
@@ -102,7 +102,7 @@ class RunCodeClass:
                     self.command = choice_env(exe)
                 except ValueError:
                     raise ValueError
-            case "ruby":
+            case "rи":
                 self.command = choice_env(rf"ruby {self._path}")
             case _:
                 self.command = None

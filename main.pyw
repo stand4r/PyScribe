@@ -488,7 +488,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def actionRunCode(self):
         active_tab_index = self.tabWidget.currentIndex()
         CodeEdit = self.tabWidget.widget(active_tab_index)
-        if CodeEdit.mode != 1:
+        if CodeEdit.mode == 1:
             if not CodeEdit.welcome:
                 with open(CodeEdit.fullfilepath, 'w') as codefile:
                     codefile.write(CodeEdit.toPlainText())
@@ -500,7 +500,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
                     try:
                         proc = RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language)
                         if proc.command == None:
-                            CustomDialog("Language not supported for launch").exec()
+                            CustomDialog("Launch error").exec()
                         else:
                             proc.process()
                     except Exception as e:
@@ -607,6 +607,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 event.accept()
             elif reply == QtWidgets.QMessageBox.No:
                 saveRecent(list_recent_files)
+                saveSession(self.files)
                 event.accept()
             elif reply == QtWidgets.QMessageBox.Cancel:
                 pass

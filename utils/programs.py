@@ -1,5 +1,6 @@
 import pickle
-from os import path, getlogin, name, environ, remove
+from os import path, getlogin, name, environ, remove, makedirs, walk
+import shutil
 import ast
 
 try:
@@ -150,3 +151,43 @@ def update_settings(scriptPath, data):
         f.seek(0)
         f.write(dumps(data))
         f.truncate()
+
+def backup(file):
+    backup_folder = 'backups_pyscribe'
+    backup_name = file.split('.')[0] + '_backup.txt'
+    if name == 'nt':
+        temp_dir = environ.get('TEMP', None)
+        if temp_dir:
+            file_path = path.join(temp_dir, backup_folder)
+    else:
+        file_path = backup_folder
+    if not path.exists(file_path):
+        makedirs(file_path)
+    shutil.copyfile(file, path.join(file_path, backup_name))
+
+def clear_backup():
+    backup_folder = 'backups'
+    if name == 'nt':
+        temp_dir = environ.get('TEMP', None)
+        if temp_dir:
+            file_path = path.join(temp_dir, backup_folder)
+    else:
+        file_path = backup_folder
+    if path.exists(file_path):
+        for _, _, name in walk(file_path):
+            remove(name)
+
+def check_backups():
+    files = list()
+    backup_folder = 'backups'
+    if name == 'nt':
+        temp_dir = environ.get('TEMP', None)
+        if temp_dir:
+            file_path = path.join(temp_dir, backup_folder)
+    else:
+        file_path = backup_folder
+    if path.exists(file_path):
+        for path, _, name in walk(file_path):
+            files.append((path.join(path, name), name.strip("_backups.txt")))
+        return files
+    return []
