@@ -1,7 +1,6 @@
 import pickle
-from os import path, getlogin, name, environ, remove, makedirs, walk
+from os import path, getlogin, name, environ, remove, makedirs, listdir
 import shutil
-import ast
 
 try:
     from os import getuid
@@ -153,8 +152,8 @@ def update_settings(scriptPath, data):
         f.truncate()
 
 def backup(file):
-    backup_folder = 'backups_pyscribe'
-    backup_name = file.split('.')[0] + '_backup.txt'
+    backup_folder = 'backups'
+    backup_name = path.basename(file.split('.')[0]) + '_backup.txt'
     if name == 'nt':
         temp_dir = environ.get('TEMP', None)
         if temp_dir:
@@ -164,6 +163,8 @@ def backup(file):
     if not path.exists(file_path):
         makedirs(file_path)
     shutil.copyfile(file, path.join(file_path, backup_name))
+    with open(path.join(file_path, backup_name), "a") as f:
+        f.write("\n"+file)
 
 def clear_backup():
     backup_folder = 'backups'
@@ -174,8 +175,8 @@ def clear_backup():
     else:
         file_path = backup_folder
     if path.exists(file_path):
-        for _, _, name in walk(file_path):
-            remove(name)
+        for name_file in listdir(file_path):
+            remove(path.join(file_path, name_file))
 
 def check_backups():
     files = list()
@@ -187,7 +188,16 @@ def check_backups():
     else:
         file_path = backup_folder
     if path.exists(file_path):
-        for path, _, name in walk(file_path):
-            files.append((path.join(path, name), name.strip("_backups.txt")))
+        for name_file in listdir(file_path):
+            files.append(path.join(file_path, name_file))
         return files
     return []
+
+def restore_backup():
+    files = check_backups()
+    for file in files:
+        with open(file, "r") as f:
+            text = f.readlines()
+        with open(text[-1], "w") as f:
+            f.write("".join(text[0:-1]))
+    clear_backup()

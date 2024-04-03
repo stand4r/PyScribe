@@ -21,7 +21,6 @@ else:
 path_settings = path.dirname(path.realpath(__file__))
 settings = load_settings(path_settings)
 list_recent_files = loadRecent()
-print(list_recent_files)
 main_color = settings["settings"]['main_color']#013B81
 text_color = settings["settings"]["text_color"]#ABB2BF
 first_color = settings["settings"]['first_color']#16171D
@@ -254,6 +253,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.tabWidget.tabCloseRequested.connect(self.closeTab)
         self.files = loadSession()
         self.actionLoadRecent()
+        restore_backup()
         self.loadSession(self.files)
 
     def retranslateUi(self):
@@ -535,6 +535,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
             else:
                 file = open(file_path, "r")
                 text = "".join(file.readlines())
+            if settings["languages_type"][file_path.split('/')[-1].split('.')[-1]] != 0:
+                backup(file_path)
             self.files.append(file_path)
             self.createTab(text, file_path)
 
@@ -604,14 +606,17 @@ class UiMainWindow(QtWidgets.QMainWindow):
                 saveRecent(list_recent_files)
                 self.saveOpenFiles()
                 saveSession(self.files)
+                clear_backup()
                 event.accept()
             elif reply == QtWidgets.QMessageBox.No:
                 saveRecent(list_recent_files)
                 saveSession(self.files)
+                clear_backup()
                 event.accept()
             elif reply == QtWidgets.QMessageBox.Cancel:
                 pass
         else:
+            clear_backup()
             saveRecent(list_recent_files)
             event.accept()
 
@@ -620,6 +625,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
         saveSession(self.files)
         self.dialog.close()
 
+    def __del__(self):
+        self.closeEvent()
 
 if __name__ == "__main__":
     scriptDir = path.dirname(path.realpath(__file__))
