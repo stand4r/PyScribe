@@ -348,7 +348,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def setAsterisk(self):
         index = self.tabWidget.currentIndex()
         text = self.tabWidget.tabText(index)
-        widget = self.tabWidget.currentWidget(index)
+        widget = self.tabWidget.widget(index)
         if "*" not in text and not widget.welcome:
             self.unsavedfiles += 1
             self.tabWidget.setTabText(index, f"      {text.strip(' ')}     *    ")

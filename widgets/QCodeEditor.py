@@ -538,6 +538,7 @@ class CodeTextEdit(QPlainTextEdit):
                 cursor = self.textCursor()
                 cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
                 self.setTextCursor(cursor)
+                return
             elif event.key() in [Qt.Key_Enter, Qt.Key_Return] and self.language in ["python", "c", "cpp"]:
                 self.completer.popup().hide()
                 if self.language == "python":
@@ -569,6 +570,7 @@ class CodeTextEdit(QPlainTextEdit):
                         self.insertPlainText(indentation)
                     else:
                         self.insertPlainText("\n"+indentation)
+                return
             else:
                 if event.key() == Qt.Key_Backspace:
                     self.completer.popup().hide()  # Скрываем popup при удалении последнего символа
@@ -587,6 +589,8 @@ class CodeTextEdit(QPlainTextEdit):
                             self.completer.complete(cr)  # Запускаем автодополнение
                 else:
                     self.completer.popup().hide()  # Если ничего не выбрано, скрываем всплывающий список
+                super().keyPressEvent(event)
+                return
         super().keyPressEvent(event)
 
 
