@@ -25,7 +25,7 @@ class LinuxFoundTerminalClass(FabricFoundTerminalClass):
             'xfce4-terminal': '-e',
             'kitty': '-e',
         }
-        
+
         for terminal, param in terminals.items():
             try:
                 term = str(check_output(['which', terminal]))

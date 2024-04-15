@@ -1,6 +1,8 @@
-from os import path
-from PyQt5 import QtCore, QtWidgets, QtGui
 from json import load, dumps
+from os import path
+
+from PyQt5 import QtCore, QtWidgets, QtGui
+
 
 class ArgsWindow(QtWidgets.QWidget):
     def __init__(self, filename, filepath, lang):
@@ -12,7 +14,7 @@ class ArgsWindow(QtWidgets.QWidget):
         self.config_path = self.scriptDir + r"\config\launchArgs.json"
         self.exist_args = self.load_args(self.config_path, self.filepath)
         self.setupUi()
-        
+
     def setupUi(self):
         self.setObjectName("ArgsWindow")
         self.resize(634, 224)
@@ -90,7 +92,7 @@ class ArgsWindow(QtWidgets.QWidget):
         font.setPointSize(12)
         self.args_edit.setFont(font)
         self.args_edit.setStyleSheet("border: 1px solid white;\n"
-        "color: white;")
+                                     "color: white;")
         self.args_edit.setObjectName("args_edit")
         self.args_edit.setText(self.exist_args)
         self.pushButton = QtWidgets.QPushButton(self)
@@ -105,8 +107,8 @@ class ArgsWindow(QtWidgets.QWidget):
         font.setPointSize(10)
         self.pushButton.setFont(font)
         self.pushButton.setStyleSheet("color: white;\n"
-        "background-color: blue;\n"
-        "border-radius: 15px")
+                                      "background-color: blue;\n"
+                                      "border-radius: 15px")
         self.pushButton.setObjectName("pushButton")
         self.pushButton.clicked.connect(self.saveSettings)
 
@@ -128,7 +130,6 @@ class ArgsWindow(QtWidgets.QWidget):
         self.dump_args(self.config_path, self.filepath, flags)
         self.close()
 
-
     def exist_config(self, config):
         return path.exists(config)
 
@@ -139,9 +140,9 @@ class ArgsWindow(QtWidgets.QWidget):
         return open(config, "r").readline() == ""
 
     def dump_args(self, config, filepath, args):
-        jsonFile = open(config, "r") # Open the JSON file for reading
-        data = load(jsonFile) # Read the JSON into the buffer
-        jsonFile.close() # Close the JSON file
+        jsonFile = open(config, "r")  # Open the JSON file for reading
+        data = load(jsonFile)  # Read the JSON into the buffer
+        jsonFile.close()  # Close the JSON file
 
         ## Working with buffered content
         data[filepath] = args

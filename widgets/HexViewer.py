@@ -1,7 +1,6 @@
-from PyQt5.QtWidgets import QGridLayout, QLabel, QPlainTextEdit, QWidget, QShortcut 
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtGui import QKeySequence, QFont
-
+from PyQt5.QtWidgets import QGridLayout, QLabel, QPlainTextEdit, QWidget, QShortcut
 
 
 class HexViewer(QWidget):
@@ -47,31 +46,31 @@ class HexViewer(QWidget):
         self.address_widget.verticalScrollBar().setValue(value)
         self.byte_widget.verticalScrollBar().setValue(value)
         self.ascii_widget.verticalScrollBar().setValue(value)
- 
+
     @pyqtSlot()
     def addFontSize(self):
-        self.fontSize+=1
+        self.fontSize += 1
         self.setFont(QFont("Courier New", self.fontSize))
 
     @pyqtSlot()
     def popFontSize(self):
-        self.fontSize-=1
+        self.fontSize -= 1
         self.setFont(QFont("Courier New", self.fontSize))
 
     def load_file(self, data):
         self.address_widget.clear()
         self.byte_widget.clear()
         self.ascii_widget.clear()
-    
+
         for i, byte in enumerate(data):
             if i % 8 == 0 or i == 0:
-                self.address_widget.insertPlainText("{:08X}\n".format(i)) 
+                self.address_widget.insertPlainText("{:08X}\n".format(i))
                 self.byte_widget.insertPlainText("\n")
                 self.ascii_widget.insertPlainText("\n")
-    
+
             self.byte_widget.insertPlainText("{:02X} ".format(byte))
-    
+
             if byte >= 32 and byte <= 126:
-                self.ascii_widget.insertPlainText(chr(byte)+" ")
+                self.ascii_widget.insertPlainText(chr(byte) + " ")
             else:
                 self.ascii_widget.insertPlainText(".")

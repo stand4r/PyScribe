@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QLabel
 
+
 class CustomDialogSave(QDialog):
     def __init__(self):
         super().__init__()
@@ -16,7 +17,6 @@ class CustomDialogSave(QDialog):
         self.layout.addWidget(message)
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)
-        
 
     def reject(self):
         self.close()

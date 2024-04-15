@@ -1,8 +1,8 @@
-
 from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QLabel
 
+
 class CustomDialog(QDialog):
-    def __init__(self, text = ""):
+    def __init__(self, text=""):
         super().__init__()
 
         self.setWindowTitle("Error")

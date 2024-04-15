@@ -1,13 +1,12 @@
 import pickle
-from os import path, getlogin, name, environ, remove, makedirs, listdir
 import shutil
+from os import path, getlogin, name, environ, remove, makedirs, listdir
 
 try:
     from os import getuid
 except:
     pass
 from json import load, dumps
-
 
 
 def saveSession(files_array: list):
@@ -38,6 +37,7 @@ def loadSession() -> list:
         files_array = []
     return files_array
 
+
 def saveRecent(recent_files: list):
     recent_files = list(set(recent_files))
     if name == 'nt':
@@ -49,6 +49,7 @@ def saveRecent(recent_files: list):
     with open(file_path, 'wb') as f:
         pickle.dump((recent_files), f)
 
+
 def removeRecentFile():
     recent_files = list(set(recent_files))
     if name == 'nt':
@@ -58,6 +59,7 @@ def removeRecentFile():
     else:
         file_path = "recent.pkl"
     remove(file_path)
+
 
 def clearCache():
     if name == 'nt':
@@ -71,6 +73,7 @@ def clearCache():
     remove(file_path_recent)
     remove(file_path_session)
 
+
 def loadRecent() -> list:
     if name == 'nt':
         temp_dir = environ.get('TEMP', None)
@@ -82,7 +85,7 @@ def loadRecent() -> list:
         with open(file_path, 'rb') as f:
             files_array = pickle.load(f)
             files_array = list(set(files_array))
-            return files_array    
+            return files_array
     except FileNotFoundError:
         with open(file_path, 'wb') as f:
             pickle.dump([], f)
@@ -151,6 +154,7 @@ def update_settings(scriptPath, data):
         f.write(dumps(data))
         f.truncate()
 
+
 def backup(file):
     backup_folder = 'backups'
     backup_name = path.basename(file.split('.')[0]) + '_backup.txt'
@@ -164,7 +168,8 @@ def backup(file):
         makedirs(file_path)
     shutil.copyfile(file, path.join(file_path, backup_name))
     with open(path.join(file_path, backup_name), "a") as f:
-        f.write("\n"+file)
+        f.write("\n" + file)
+
 
 def clear_backup():
     backup_folder = 'backups'
@@ -177,6 +182,7 @@ def clear_backup():
     if path.exists(file_path):
         for name_file in listdir(file_path):
             remove(path.join(file_path, name_file))
+
 
 def check_backups():
     files = list()
@@ -192,6 +198,7 @@ def check_backups():
             files.append(path.join(file_path, name_file))
         return files
     return []
+
 
 def restore_backup():
     files = check_backups()

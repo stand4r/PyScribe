@@ -1,16 +1,16 @@
 from functools import partial
+from os import chdir, system
 from sys import exit, argv
-from os import path, chdir, remove, system, name
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QPalette, QColor
 
 from utils.FabricRunCode import *
 from utils.programs import *
+from widgets.Dialog import CustomDialog
 from widgets.QArgsEditor import ArgsWindow
 from widgets.QCodeEditor import CodeEdit
 from widgets.SettingsWidget import SettingsWidget
-from widgets.Dialog import CustomDialog
 from widgets.WelcomeWidget import Ui_Welcome
 
 if name == "nt":
@@ -21,11 +21,11 @@ else:
 path_settings = path.dirname(path.realpath(__file__))
 settings = load_settings(path_settings)
 list_recent_files = loadRecent()
-main_color = settings["settings"]['main_color']#013B81
-text_color = settings["settings"]["text_color"]#ABB2BF
-first_color = settings["settings"]['first_color']#16171D
-second_color = settings["settings"]['second_color']#131313
-tab_color = settings["settings"]['tab_color']#1F2228
+main_color = settings["settings"]['main_color']  # 013B81
+text_color = settings["settings"]["text_color"]  # ABB2BF
+first_color = settings["settings"]['first_color']  # 16171D
+second_color = settings["settings"]['second_color']  # 131313
+tab_color = settings["settings"]['tab_color']  # 1F2228
 languages = settings["languages"]
 languages_type = settings["languages_type"]
 font_size = int(settings["settings"]["fontsize"])
@@ -39,11 +39,11 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.setObjectName("MainWindow")
         if name == 'nt':
             sizeObject = QtWidgets.QDesktopWidget().screenGeometry(-1)
-            self.setFixedSize(sizeObject.width(), sizeObject.height()-20)
+            self.setFixedSize(sizeObject.width(), sizeObject.height() - 20)
         else:
-            self.setBaseSize(QtCore.QSize(1920,1080))
+            self.setBaseSize(QtCore.QSize(1920, 1080))
         self.setStyleSheet(f"background-color:  {first_color};\n"
-                        "color: #ffffff")
+                           "color: #ffffff")
         self.unsavedfiles = 0
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setStyleSheet(f"background-color: {first_color}")
@@ -59,7 +59,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
         # Создаем кнопки
         self.button_run = QtWidgets.QPushButton("")
-        self.button_run.setStyleSheet("border:none; padding-right:10px; padding-left:10px; padding-top: 2px; padding-bottom: 5px;")
+        self.button_run.setStyleSheet(
+            "border:none; padding-right:10px; padding-left:10px; padding-top: 2px; padding-bottom: 5px;")
         self.button_run.setIcon(QtGui.QIcon('src/iconRun.png'))
         self.button_run.clicked.connect(self.actionRunCode)
         self.button_settings = QtWidgets.QPushButton("")
@@ -77,16 +78,16 @@ class UiMainWindow(QtWidgets.QMainWindow):
         # Помещаем виджет с кнопками в правую часть таба
         self.tabWidget.setCornerWidget(self.right_tab_widget)
         self.tabWidget.setStyleSheet(f"background-color: {main_color};\n"
-                                    "color: #000000;\n"
-                                    )
+                                     "color: #000000;\n"
+                                     )
         self.tabWidget.setTabsClosable(True)
         self.tabWidget.setObjectName("tabWidget")
         self.tabWidget.setDocumentMode(True)
         self.tabWidget.setStyleSheet(
             "QTabBar::close-button {image: url(src/close.png);}"
             "QTabBar {margin-left:10px;}"
-            "QTabBar::tab {padding: 1px; background-color: "+tab_color+"; height: 28px; font-size:"+font_size_tab+"px; border: 1px solid"+first_color+"; border-bottom-color:"+first_color+";}"
-            "QTabBar::tab:selected {background-color:"+first_color+"; color: #ffffff; border-top-color: #00FFFF; padding:1px;}"
+            "QTabBar::tab {padding: 1px; background-color: " + tab_color + "; height: 28px; font-size:" + font_size_tab + "px; border: 1px solid" + first_color + "; border-bottom-color:" + first_color + ";}"
+                                                                                                                                                                                                           "QTabBar::tab:selected {background-color:" + first_color + "; color: #ffffff; border-top-color: #00FFFF; padding:1px;}"
         )
         self.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(self)
@@ -308,7 +309,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         if len(list_recent_files) != 0:
             self.actionRecent.clear()
             for i in range(len(list_recent_files)):
-                lang = path.basename(list_recent_files[i]).split('/')[-1].split('.')[-1] 
+                lang = path.basename(list_recent_files[i]).split('/')[-1].split('.')[-1]
                 if lang in languages:
                     if settings["languages_type"][lang] != 0:
                         text = "".join(open(rf"{list_recent_files[i]}", "r").readlines())
@@ -316,9 +317,10 @@ class UiMainWindow(QtWidgets.QMainWindow):
                         text = open(rf"{list_recent_files[i]}", "rb").read()
                 else:
                     text = "".join(open(rf"{list_recent_files[i]}", "r").readlines())
-                locals()["self.actionRecent_"+str(i)] = QtWidgets.QAction("   "+list_recent_files[i], self)
-                locals()["self.actionRecent_"+str(i)].triggered.connect(partial(self.createTabRecent, text=text, fileName=list_recent_files[i]))
-                self.actionRecent.addAction(locals()["self.actionRecent_"+str(i)])
+                locals()["self.actionRecent_" + str(i)] = QtWidgets.QAction("   " + list_recent_files[i], self)
+                locals()["self.actionRecent_" + str(i)].triggered.connect(
+                    partial(self.createTabRecent, text=text, fileName=list_recent_files[i]))
+                self.actionRecent.addAction(locals()["self.actionRecent_" + str(i)])
         self.actionRecent.addSeparator()
         self.actionRecent.addAction(self.actionClearRecent)
 
@@ -344,7 +346,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.tabWidget.removeTab(currentIndex)
         if active_tab_widget.mode != 0:
             self.actionSaveFile(currentIndex)
-    
+
     def setAsterisk(self):
         index = self.tabWidget.currentIndex()
         text = self.tabWidget.tabText(index)
@@ -386,12 +388,13 @@ class UiMainWindow(QtWidgets.QMainWindow):
             if not active_tab_widget.welcome and active_tab_widget.mode != 0:
                 old_name = active_tab_widget.fullfilepath
                 options = QtWidgets.QFileDialog.Options()
-                fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save As", "", "All Files (*);;Text Files (*.txt)", options=options)
+                fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save As", "",
+                                                                    "All Files (*);;Text Files (*.txt)",
+                                                                    options=options)
                 open(fileName, "w").write(active_tab_widget.toPlainText())
                 self.removeAsterisk(self.tabWidget.currentIndex())
                 remove(old_name)
                 self.setTabText(self.tabWidget.currentIndex(), f"       {path.basename(fileName)}       ")
-
 
     def actionGitOpen(self):
         pass
@@ -405,7 +408,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
             self.removeAsterisk(i)
             if tab.mode != 0:
                 open(tab.fullfilepath, "w").write(tab.toPlainText())
-    
+
     def actionReturnText(self):
         pass
 
@@ -456,7 +459,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         try:
             if "*" in self.tabWidget.tabText(currentIndex):
                 reply = QtWidgets.QMessageBox.question(self, '', 'Сохранить файл перед закрытием?',
-                                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+                                                       QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
                 if reply == QtWidgets.QMessageBox.Yes:
                     if active_tab_widget.mode != 0:
                         self.actionSaveFile(currentIndex)
@@ -545,14 +548,14 @@ class UiMainWindow(QtWidgets.QMainWindow):
         fileName, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "", "All Files (*);", options=options)
         if fileName:
             if fileName.split('/')[-1].split('.')[-1] not in settings["languages"]:
-                with open(fileName, "w") as file:               
+                with open(fileName, "w") as file:
                     file.write('')
                     with open(fileName, "r") as file_read:
                         text = file_read.readlines()
                         self.createTab(text, fileName)
             else:
                 if settings["languages_type"][fileName.split('/')[-1].split('.')[-1]] != 1:
-                    with open(fileName, "w") as file:               
+                    with open(fileName, "w") as file:
                         file.write('')
                         with open(fileName, "r") as file_read:
                             text = file_read.readlines()
@@ -601,7 +604,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         if self.unsavedfiles > 0:
             reply = QtWidgets.QMessageBox.question(self, '', 'Сохранить файлы перед закрытием?',
-                                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+                                                   QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
             if reply == QtWidgets.QMessageBox.Yes:
                 saveRecent(list_recent_files)
                 self.saveOpenFiles()
@@ -627,6 +630,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def __del__(self):
         self.closeEvent()
+
 
 if __name__ == "__main__":
     scriptDir = path.dirname(path.realpath(__file__))
