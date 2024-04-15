@@ -584,7 +584,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.CodeEdit.filename = path.basename(fileName)
         self.CodeEdit.fullfilepath = rf"{fileName}"
         self.CodeEdit.setObjectName("CodeEdit")
-        if self.CodeEdit.mode != 0:
+        if self.CodeEdit.mode == 0:
             self.CodeEdit.addText(text)
         else:
             self.CodeEdit.setPlainText("".join(text))

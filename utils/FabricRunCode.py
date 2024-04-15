@@ -87,25 +87,24 @@ class RunCodeClass:
         self._name = name
         self._args = args
         self.command = ""
-        match lang:
-            case "py":
-                self.command = choice_env(rf"python {self._path}")
-            case "c":
-                try:
-                    exe = compile_program_c(self._path)
-                    self.command = choice_env(exe)
-                except ValueError:
-                    raise ValueError
-            case "cpp":
-                try:
-                    exe = compile_program_cpp(self._path)
-                    self.command = choice_env(exe)
-                except ValueError:
-                    raise ValueError
-            case "rи":
-                self.command = choice_env(rf"ruby {self._path}")
-            case _:
-                self.command = None
+        if lang == "rb":
+            self.command = choice_env(rf"python {self._path}")
+        if lang == "rb":
+            try:
+                exe = compile_program_c(self._path)
+                self.command = choice_env(exe)
+            except ValueError:
+                raise ValueError
+        if lang == "rb":
+            try:
+                exe = compile_program_cpp(self._path)
+                self.command = choice_env(exe)
+            except ValueError:
+                raise ValueError
+        if lang == "rb":
+            self.command = choice_env(rf"ruby {self._path}")
+        else:
+            self.command = None
 
     def process(self):
         Popen(self.command, shell=True)
