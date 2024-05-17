@@ -1,11 +1,6 @@
 from functools import partial
 from os import chdir, system, name
 from sys import exit, argv
-
-if name == "nt":
-    system("pip install flake8 PyQt5 ")
-else:
-    system("pip install flake8 PyQt5 --break-system-packages")
     
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QPalette, QColor
@@ -453,8 +448,8 @@ class UiMainWindow(QtWidgets.QMainWindow):
 
     def closeTab(self, currentIndex):
         active_tab_widget = self.tabWidget.widget(currentIndex)
-        path = active_tab_widget.fullfilepath
         try:
+            path = active_tab_widget.fullfilepath
             self.files.remove(path)
         except:
             pass

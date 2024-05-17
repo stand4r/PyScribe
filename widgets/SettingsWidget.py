@@ -10,6 +10,7 @@ class SettingsWidget(QtWidgets.QWidget):
         super().__init__()
         self.path_settings = pathSettings
         self.settings = settings
+        self.mode = -2
         self.settings_0 = settings["settings"]
         self.main_color = self.settings_0['main_color']  # 013B81
         self.text_color = self.settings_0["text_color"]  # ABB2BF

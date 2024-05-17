@@ -51,7 +51,6 @@ def saveRecent(recent_files: list):
 
 
 def removeRecentFile():
-    recent_files = list(set(recent_files))
     if name == 'nt':
         temp_dir = environ.get('TEMP', None)
         if temp_dir:
