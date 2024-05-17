@@ -468,6 +468,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.mode = settings["languages_type"][self.language]
         self.font_size = int(self.settings["settings"]["fontsize"])
         self.dict = d
+        self.flag = 0
         self.prev_key = ""
         self.executable = False
         self.tabWidth = 4
@@ -562,7 +563,6 @@ class CodeTextEdit(QPlainTextEdit):
 
     def keyPressEvent(self, event):
         if self.mode == 1:
-            prev_key = event.text()
             tc = self.textCursor()
             if event.key() == Qt.Key_Tab:
                 if self.completer.popup().isVisible():  # Если виджет автодополнения видим
@@ -581,17 +581,9 @@ class CodeTextEdit(QPlainTextEdit):
             if event.text() in ["'", '"', "(", "{", "[", ")", "}", "]"]:
                 cursor = self.textCursor()
                 if event.text() == '"':
-                    if prev_key == '"':
-                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                    else:
-                        self.insertPlainText('""')
+                    self.insertPlainText('""')
                 elif event.text() == "'":
-                    if prev_key == "'":
-                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                    else:
-                        self.insertPlainText("''")
+                    self.insertPlainText("''")
                 elif event.text() == "(":
                     self.insertPlainText("()")
                 elif event.text() == "[":

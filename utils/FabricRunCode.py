@@ -87,21 +87,21 @@ class RunCodeClass:
         self._name = name
         self._args = args
         self.command = ""
-        if lang == "rb":
+        if lang == "py":
             self.command = choice_env(rf"python {self._path}")
-        if lang == "rb":
+        elif lang == "c":
             try:
                 exe = compile_program_c(self._path)
                 self.command = choice_env(exe)
             except ValueError:
                 raise ValueError
-        if lang == "rb":
+        elif lang == "cpp":
             try:
                 exe = compile_program_cpp(self._path)
                 self.command = choice_env(exe)
             except ValueError:
                 raise ValueError
-        if lang == "rb":
+        elif lang == "rb":
             self.command = choice_env(rf"ruby {self._path}")
         else:
             self.command = None

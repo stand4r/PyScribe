@@ -1,7 +1,12 @@
 from functools import partial
-from os import chdir, system
+from os import chdir, system, name
 from sys import exit, argv
 
+if name == "nt":
+    system("pip install flake8 PyQt5 ")
+else:
+    system("pip install flake8 PyQt5 --break-system-packages")
+    
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QPalette, QColor
 
@@ -13,10 +18,7 @@ from widgets.QCodeEditor import CodeEdit
 from widgets.SettingsWidget import SettingsWidget
 from widgets.WelcomeWidget import Ui_Welcome
 
-if name == "nt":
-    system("pip install flake8 PyQt5 ")
-else:
-    system("pip install flake8 PyQt5 --break-system-packages")
+
 
 path_settings = path.dirname(path.realpath(__file__))
 settings = load_settings(path_settings)
@@ -502,7 +504,7 @@ class UiMainWindow(QtWidgets.QMainWindow):
                         compile_program_cpp(CodeEdit.fullfilepath)
                     try:
                         proc = RunCodeClass(self.CodeEdit.fullfilepath, self.CodeEdit.filename, self.CodeEdit.language)
-                        if proc.command == None:
+                        if proc.command is None:
                             CustomDialog("Launch error").exec()
                         else:
                             proc.process()
@@ -627,9 +629,6 @@ class UiMainWindow(QtWidgets.QMainWindow):
         self.saveOpenFiles()
         saveSession(self.files)
         self.dialog.close()
-
-    def __del__(self):
-        self.closeEvent()
 
 
 if __name__ == "__main__":
