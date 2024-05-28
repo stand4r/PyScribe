@@ -474,7 +474,7 @@ class CodeTextEdit(QPlainTextEdit):
         self.tabWidth = 4
         self.setFont(QFont("Courier New", self.font_size))
         self.setStyleSheet(
-            f"background-color: {self.first_color};\n"
+            f"background-color: {self.second_color};\n"
             "color: #ffffff;\n"
             "padding: 20px;\n"
             "padding-top: 10px;\n"
@@ -488,7 +488,7 @@ class CodeTextEdit(QPlainTextEdit):
         else:
             self.analyzer = CodeAnalyzer(self.language)
             self.blockCountChanged.connect(self.analyzeCode)
-            self.completer = MyCompleter(self.dict, self.first_color, self.font_size)
+            self.completer = MyCompleter(self.dict, self.second_color, self.font_size)
             self.completer.setWidget(self)
             self.completer.insertText.connect(self.insertCompletion)
             self.highlighter = WordHighlighter(self.document(), self.language)
@@ -667,11 +667,11 @@ class TextEdit(QPlainTextEdit):
         self.settings = settings
         self.welcome = False
         self.fontSize = int(self.settings["settings"]["fontsize"])
-        self.first_color = self.settings["settings"]["first_color"]
+        self.second_color = self.settings["settings"]["second_color"]
         self.tabWidth = 4
         self.setFont(QFont("Courier New", self.fontSize))
         self.setStyleSheet(
-            f"background-color: {self.first_color};\n"
+            f"background-color: {self.second_color};\n"
             "color: #ffffff;\n"
             "padding: 20px;\n"
             "padding-top: 10px;\n"
@@ -693,7 +693,7 @@ class CodeEdit(QWidget):
         self.settings = settings
         self.welcome = False
         self.fontSize = int(self.settings["settings"]["fontsize"])
-        self.first_color = self.settings["settings"]["first_color"]
+        self.second_color = self.settings["settings"]["second_color"]
         self.layout = QHBoxLayout(self)
         self.layout.setSpacing(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -706,7 +706,7 @@ class CodeEdit(QWidget):
         self.labelCount = QPlainTextEdit(self)
         self.labelCount.setReadOnly(True)
         self.labelCount.setStyleSheet(f"padding-left: 12px; color: #ABB2BF; width: 0px;\n padding-top: 10px;\n"
-                                      f"background-color: {self.first_color}; padding-bottom: 20px; letter-spacing:1px; border: 2px solid {self.first_color}; border-right-color: #282C34;")
+                                      f"background-color: {self.second_color}; padding-bottom: 20px; letter-spacing:1px; border: 2px solid {self.second_color}; border-right-color: #282C34;")
         self.labelCount.setFixedWidth(103)
         self.labelCount.setFont(QFont("Courier New", self.fontSize))
         self.changeCount(1)
