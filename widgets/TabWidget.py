@@ -242,3 +242,4 @@ class VSCodeTabBar(QTabBar):
         # Обновляем отрисовку при движении мыши для hover-эффектов
         self.update()
         super().mouseMoveEvent(event)
+        

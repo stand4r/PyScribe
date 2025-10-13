@@ -1,6 +1,7 @@
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import Qt
 
+
 class ThemeManager:
     def __init__(self):
         self.themes = {

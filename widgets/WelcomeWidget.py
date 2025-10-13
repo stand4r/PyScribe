@@ -87,3 +87,4 @@ class Ui_Welcome(QtWidgets.QWidget):
         self.OpenFileButton.setText(_translate("Main", "Open file..."))
         self.NewFileButton.setText(_translate("Main", "New file..."))
 
+

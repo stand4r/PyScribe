@@ -31,6 +31,7 @@ class Language(Enum):
     CSS = "css"
 
 
+
 @dataclass
 class SyntaxRule:
     pattern: str

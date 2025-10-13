@@ -130,3 +130,4 @@ class SettingsWidget(QtWidgets.QWidget):
         for key, edit in self.fields.items():
             default_value = getattr(default_settings, key)
             edit.setText(str(default_value))
+            

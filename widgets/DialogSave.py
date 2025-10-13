@@ -20,3 +20,4 @@ class CustomDialogSave(QDialog):
 
     def reject(self):
         self.close()
+

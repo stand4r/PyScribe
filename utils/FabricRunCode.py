@@ -7,6 +7,7 @@ from sys import platform
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
+
 class FabricFoundTerminalClass(ABC):
     @abstractmethod
     def get_terminal_command(self, command):

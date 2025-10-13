@@ -494,6 +494,7 @@ class ModernMainWindow(QMainWindow):
         # Загрузка аргументов запуска
         args = self.load_launch_arguments(str(file_path))
         
+        
         # Синхронный запуск
         try:
             file_extension = Path(file_path).suffix.lower()

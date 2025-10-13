@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QSize
 
+
 class UpPushButton(QPushButton):
     def __init__(self, text):
         super(UpPushButton, self).__init__(text=" Up", parent=None)
