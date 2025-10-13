@@ -1,6 +1,7 @@
 import pickle
 import shutil
 from os import path, getlogin, name, environ, remove, makedirs, listdir
+from dataclasses import dataclass, asdict
 
 try:
     from os import getuid
@@ -207,3 +208,77 @@ def restore_backup():
         with open(text[-1], "w") as f:
             f.write("".join(text[0:-1]))
     clear_backup()
+
+# Добавить эти классы в конец файла programs.py
+
+from dataclasses import dataclass, asdict
+from typing import Dict, Any
+import json
+
+@dataclass
+class EditorSettings:
+    main_color: str = "#013B81"
+    text_color: str = "#ABB2BF"
+    first_color: str = "#16171D"
+    second_color: str = "#131313"
+    tab_color: str = "#1F2228"
+    fontsize: str = "12"
+    font_size_tab: str = "10"
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'EditorSettings':
+        valid_data = {k: v for k, v in data.items() if k in cls.__annotations__}
+        return cls(**valid_data)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+class SettingsManager:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not hasattr(self, 'initialized'):
+            self.initialized = True
+            self.settings_path = None
+            self.settings = None
+    
+    def initialize(self, script_path: str):
+        self.settings_path = script_path + r"/config/settings.json"
+        self.settings = self._load_settings()
+    
+    def _load_settings(self) -> EditorSettings:
+        try:
+            with open(self.settings_path, "r") as f:
+                data = json.load(f)
+            return EditorSettings.from_dict(data.get("settings", {}))
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+            return EditorSettings()
+    
+    def save_settings(self):
+        if self.settings and self.settings_path:
+            try:
+                with open(self.settings_path, "r+") as f:
+                    data = json.load(f)
+                    data["settings"] = self.settings.to_dict()
+                    f.seek(0)
+                    json.dump(data, f, indent=2)
+                    f.truncate()
+            except Exception as e:
+                print(f"Error saving settings: {e}")
+    
+    def get_setting(self, key: str):
+        return getattr(self.settings, key, None)
+    
+    def set_setting(self, key: str, value: Any):
+        if hasattr(self.settings, key):
+            setattr(self.settings, key, value)
+            self.save_settings()
+
+# Глобальный экземпляр
+settings_manager = SettingsManager()

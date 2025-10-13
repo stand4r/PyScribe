@@ -1,941 +1,933 @@
 import ast
 import re
+import json
 import subprocess
 from os import remove
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Set
+from dataclasses import dataclass
+from enum import Enum
 
-from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint
-from PyQt5.QtGui import QColor, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence
-from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout
+from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint, QTimer, QProcess, QPropertyAnimation, QEasingCurve, QRect, QSize
+from PyQt5.QtGui import QColor, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence, QTextCharFormat, QPainter, QPen, QLinearGradient
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QApplication, QTextEdit
 
-keywords = {
+
+class Language(Enum):
+    PYTHON = "py"
+    CPP = "cpp"
+    C = "c"
+    JAVA = "java"
+    JAVASCRIPT = "js"
+    TYPESCRIPT = "ts"
+    KOTLIN = "kt"
+    PHP = "php"
+    CSHARP = "cs"
+    RUBY = "rb"
+    GO = "go"
+    LUA = "lua"
+    RUST = "rs"
+    HTML = "html"
+    CSS = "css"
+
+
+@dataclass
+class SyntaxRule:
+    pattern: str
+    color: str
+    weight: int = QFont.Normal
+    italic: bool = False
+
+
+@dataclass
+class LanguageConfig:
+    keywords: List[str]
+    syntax_rules: List[SyntaxRule]
+    auto_indent: bool = True
+    brace_auto_close: bool = True
+    line_comment: str = "//"
+    block_comment_start: str = "/*"
+    block_comment_end: str = "*/"
+
+
+class SyntaxHighlighterFactory:
+    """Фабрика для создания конфигураций подсветки синтаксиса"""
+    
+    @staticmethod
+    def create_config(language: Language) -> LanguageConfig:
+        keywords = KEYWORDS.get(language.value, [])
+        syntax_rules = []
+        
+        # Базовые правила для всех языков
+        base_rules = [
+            (r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),  # Строки в двойных кавычках
+            (r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),  # Строки в одинарных кавычках
+            (r'\b(true|false|null)\b', "#569CD6"),  # Булевы значения и null
+            (r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),  # Числа
+            (r'\b0x[0-9a-fA-F]+\b', "#B5CEA8"),  # Шестнадцатеричные числа
+        ]
+        
+        # Добавляем операторы
+        operators = ['=', '==', '!=', '<', '<=', '>', '>=', '\+', '-', '\*', '/', '//', '\%', '\*\*', 
+                    '\+=', '-=', '\*=', '/=', '\%=', '\+\+', '--', '&&', '\|\|', '!', '&', '\|', '\^', '~', '<<', '>>']
+        
+        for op in operators:
+            base_rules.append((rf"\s*{op}\s*", "#D4D4D4"))
+        
+        # Добавляем ключевые слова
+        for keyword in keywords:
+            base_rules.append((rf"\b{keyword}\b", "#569CD6"))
+        
+        # Языко-специфичные правила
+        if language == Language.PYTHON:
+            base_rules.extend([
+                (r'\b(class|def)\s+(\w+)', "#D7BA7D", QFont.Normal, False),  # Классы и функции
+                (r'\b(self|cls)\b', "#569CD6"),  # Self/cls в Python
+                (r'@\w+\b', "#D7BA7D"),  # Декораторы
+                (r'#.*$', "#6A9955"),  # Комментарии Python
+            ])
+        elif language in [Language.C, Language.CPP]:
+            base_rules.extend([
+                (r'#include\s*<[^>]+>', "#569CD6"),  # Инклюды
+                (r'#\w+', "#569CD6"),  # Директивы препроцессора
+                (r'\b(std|main|printf|cout|cin)\b', "#DCDCAA"),  # Стандартные функции
+            ])
+        elif language in [Language.JAVASCRIPT, Language.TYPESCRIPT]:
+            base_rules.extend([
+                (r'\b(function|var|let|const)\b', "#569CD6"),  # Объявления
+                (r'\b(console|document|window)\b', "#4EC9B0"),  # Глобальные объекты
+                (r'\b(export|import|from|default)\b', "#569CD6"),  # Модули
+            ])
+        elif language == Language.HTML:
+            base_rules.extend([
+                (r'<\/?[^>]+>', "#569CD6"),  # HTML теги
+                (r'\b(src|href|class|id|style)\b', "#9CDCFE"),  # Атрибуты
+            ])
+        elif language == Language.CSS:
+            base_rules.extend([
+                (r'\.[\w-]+\b', "#D7BA7D"),  # CSS классы
+                (r'#[\w-]+\b', "#D7BA7D"),  # CSS ID
+                (r'\b[\w-]+\s*:', "#9CDCFE"),  # CSS свойства
+            ])
+        
+        # Конвертируем в SyntaxRule
+        for rule in base_rules:
+            if len(rule) == 2:
+                pattern, color = rule
+                syntax_rules.append(SyntaxRule(pattern, color))
+            elif len(rule) == 4:
+                pattern, color, weight, italic = rule
+                syntax_rules.append(SyntaxRule(pattern, color, weight, italic))
+        
+        # Определяем символы комментариев для языка
+        line_comment = "//"
+        block_comment_start = "/*"
+        block_comment_end = "*/"
+        
+        if language == Language.PYTHON:
+            line_comment = "#"
+            block_comment_start = '"""'
+            block_comment_end = '"""'
+        
+        return LanguageConfig(
+            keywords=keywords,
+            syntax_rules=syntax_rules,
+            auto_indent=language in [Language.PYTHON, Language.C, Language.CPP, Language.JAVA, Language.JAVASCRIPT, Language.TYPESCRIPT],
+            brace_auto_close=True,
+            line_comment=line_comment,
+            block_comment_start=block_comment_start,
+            block_comment_end=block_comment_end
+        )
+
+
+# Глобальные константы
+KEYWORDS = {
     "py": [
-        "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue",
-        "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import",
-        "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield",
-        "abs", "all", "any", "bin", "bool", "bytearray", "bytes", "callable", "chr", "classmethod",
-        "compile", "complex", "delattr", "dict", "dir", "divmod", "enumerate", "eval", "exec", "filter",
-        "float", "format", "frozenset", "getattr", "globals", "hasattr", "hash", "help", "hex", "id",
-        "input", "int", "isinstance", "issubclass", "iter", "len", "list", "locals", "map", "max",
-        "memoryview", "min", "next", "object", "oct", "open", "ord", "pow", "print", "property",
-        "range", "repr", "reversed", "round", "set", "setattr", "slice", "sorted", "staticmethod",
-        "str", "sum", "super", "tuple", "type", "vars", "zip"
+        "False", "None", "True", "and", "as", "assert", "async", "await", "break", 
+        "class", "continue", "def", "del", "elif", "else", "except", "finally", 
+        "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", 
+        "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
     ],
     "cpp": [
-        "default", "do", "double", "else", "enum", "extern",
-        "float", "for", "goto", "if", "int",
-        "long", "register", "return", "short", "signed",
-        "sizeof", "static", "struct", "switch", "typedef",
-        "union", "unsigned", "void", "volatile", "while",
-        "asm", "auto", "bool", "break", "case", "catch", "char", "class", "const",
-        "const_cast", "continue", "default", "delete", "do", "double", "dynamic_cast",
-        "else", "enum", "explicit", "export", "extern", "false", "float", "for",
-        "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace",
-        "new", "operator", "private", "protected", "public", "register", "reinterpret_cast",
-        "return", "short", "signed", "sizeof", "static", "static_cast", "struct",
-        "switch", "template", "this", "throw", "true", "try", "typedef", "typeid",
-        "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t",
-        "while"
+        "alignas", "alignof", "and", "and_eq", "asm", "atomic_cancel", "atomic_commit",
+        "atomic_noexcept", "auto", "bitand", "bitor", "bool", "break", "case", "catch",
+        "char", "char8_t", "char16_t", "char32_t", "class", "compl", "concept", "const",
+        "consteval", "constexpr", "const_cast", "continue", "co_await", "co_return",
+        "co_yield", "decltype", "default", "delete", "do", "double", "dynamic_cast",
+        "else", "enum", "explicit", "export", "extern", "false", "float", "for", "friend",
+        "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept",
+        "not", "not_eq", "nullptr", "operator", "or", "or_eq", "private", "protected",
+        "public", "reflexpr", "register", "reinterpret_cast", "requires", "return",
+        "short", "signed", "sizeof", "static", "static_assert", "static_cast", "struct",
+        "switch", "synchronized", "template", "this", "thread_local", "throw", "true",
+        "try", "typedef", "typeid", "typename", "union", "unsigned", "using", "virtual",
+        "void", "volatile", "wchar_t", "while", "xor", "xor_eq"
     ],
-
-    "c": [
-        'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do',
-        'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if', 'int', 'long',
-        'register', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch',
-        'typedef', 'union', 'unsigned', 'void', 'volatile', 'while'
+    "js": [
+        "abstract", "arguments", "await", "boolean", "break", "byte", "case", "catch",
+        "char", "class", "const", "continue", "debugger", "default", "delete", "do",
+        "double", "else", "enum", "eval", "export", "extends", "false", "final",
+        "finally", "float", "for", "function", "goto", "if", "implements", "import",
+        "in", "instanceof", "int", "interface", "let", "long", "native", "new",
+        "null", "package", "private", "protected", "public", "return", "short",
+        "static", "super", "switch", "synchronized", "this", "throw", "throws",
+        "transient", "true", "try", "typeof", "var", "void", "volatile", "while",
+        "with", "yield"
     ],
-    "java": ["abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
-             "continue", "default", "do", "double", "else", "enum", "extends", "final", "finally", "float",
-             "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native",
-             "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp",
-             "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile",
-             "while"
-             ],
-    "js": ["await", "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
-           "do", "else", "enum", "export", "extends", "false", "finally", "for", "function", "if", "implements",
-           "import", "in", "instanceof", "interface", "let", "new", "null", "package", "private", "protected",
-           "public", "return", "super", "switch", "static", "this", "throw", "try", "typeof", "var", "void",
-           "volatile", "while", "with", "yield"
-           ],
-    "kt": ["abstract", "annotation", "as", "break", "by", "catch", "class", "companion", "const",
-           "constructor", "continue", "crossinline", "data", "do", "dynamic", "else", "enum", "external",
-           "false", "file", "final", "finally", "for", "fun", "get", "if", "import", "in", "infix", "init",
-           "inline", "inner", "interface", "internal", "is", "it", "lateinit", "noinline", "null", "object",
-           "open", "operator", "out", "override", "package", "private", "protected", "public", "reified",
-           "return", "sealed", "set", "super", "tailrec", "this", "throw", "true", "try", "typealias",
-           "typeof", "val", "var", "when", "while"
-           ],
-    "php": ["__halt_compiler", "__CLASS__", "__DIR__", "__EXIT__", "__FILE__", "__FUNCTION__", "__LINE__",
-            "__METHOD__", "__NAMESPACE__", "__TRAIT__", "abstract", "and", "array", "as", "break", "callable",
-            "case", "catch", "class", "clone", "const", "continue", "declare", "default", "die", "do", "echo",
-            "else", "elseif", "empty", "enddeclare", "endfor", "endforeach", "endif", "endswitch", "endwhile",
-            "eval", "exit", "extends", "final", "finally", "for", "foreach", "function", "global", "goto", "if",
-            "implements", "include", "include_once", "instanceof", "insteadof", "interface", "isset", "list",
-            "namespace", "new", "or", "print", "private", "protected", "public", "require", "require_once",
-            "return", "static", "switch", "throw", "trait", "try", "unset", "use", "var", "while", "xor",
-            "yield", "yield from"
-            ],
-    "cs": ["abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
-           "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
-           "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
-           "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
-           "long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
-           "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
-           "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true",
-           "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual",
-           "void", "volatile", "while"
-           ],
-    "rb": ["alias", "and", "begin", "break", "case", "class", "def", "defined?", "do",
-           "else", "elsif", "end", "ensure", "false", "for", "if", "in", "module", "next",
-           "nil", "not", "or", "redo", "rescue", "retry", "return", "self", "super", "then",
-           "true", "undef", "unless", "until", "when", "while", "yield"
-           ],
-    "go": ["break", "case", "chan", "const", "continue", "default", "defer",
-           "else", "fallthrough", "for", "func", "go", "goto", "if", "import", "interface",
-           "map", "package", "range", "return", "select", "struct", "switch", "type", "var"
-           ],
-    "lua": ["and", "break", "do", "else",
-            "elseif", "end", "false", "for", "function", "if", "in", "local", "nil",
-            "not", "or", "repeat", "return", "then", "true", "until", "while"
-            ],
-    "rust": ["as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for", "if",
-             "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "return", "self", "static",
-             "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while"
-             ]
-}
-
-operators = [
-    '=',
-    # Comparison
-    '==', '!=', '<', '<=', '>', '>=', '<>',
-    # Arithmetic
-    '\+', '-', '\*', '/', '//', '\%', '\*\*',
-    # In-place
-    '\+=', '-=', '\*=', '/=', '\%=',
-    # Bitwise
-    '\^', '\|', '\&', '\~', '>>', '<<',
-]
-
-braces = [
-    '\{', '\}', '\(', '\)', '\[', '\]',
-]
-
-patterns = {
-    "py": {
-        (r"\band\b", "#c77a5a"), (r"\bassert\b", "#c77a5a"), (r"\bbreak\b", "#c77a5a"),
-        (r"\bcontinue\b", "#c77a5a"), (r"\bdef\b", "#c77a5a"), (r"\bdel\b", "#c77a5a"),
-        (r"\belif\b", "#c77a5a"), (r"\belse\b", "#c77a5a"), (r"\bexcept\b", "#c77a5a"),
-        (r"\bexec\b", "#c77a5a"), (r"\bfinally\b", "#c77a5a"), (r"\bfor\b", "#c77a5a"),
-        (r"\bfrom\b", "#c77a5a"), (r"\bglobal\b", "#c77a5a"), (r"\bglobal\b", "#c77a5a"),
-        (r"\bif\b", "#c77a5a"), (r"\bimport\b", "#c77a5a"), (r"\bin\b", "#c77a5a"),
-        (r'\bis\b', "#c77a5a"), (r'\blambda\b', "#c77a5a"), (r'\bnot\b', "#c77a5a"), (r'\bor\b', "#c77a5a"),
-        (r'\bpass\b', "#c77a5a"), (r'\braise\b', "#c77a5a"), (r'\bis\b', "#c77a5a"), (r'\bis\b', "#c77a5a"),
-        (r'\bis\b', "#c77a5a"), (r'\bprint\b', "#c77a5a"), (r'\breturn\b', "#c77a5a"), (r'\btry\b', "#c77a5a"),
-        (r'\bwhile\b', "#c77a5a"), (r'\byield\b', "#c77a5a"), (r'\bNone\b', "#c77a5a"), (r'\bTrue\b', "#c77a5a"),
-        (r'\bFalse\b', "#c77a5a"), (r'\bauto\b', "#c77a5a"), (r'\bbreak\b', "#c77a5a"), (r'\bcase\b', "#c77a5a"),
-        (r'\bchar\b', "#c77a5a"), (r'\bconst\b', "#c77a5a"),
-        (r'#.*$', "#FFFF9C"), (rf'"([^"]+)"', "#FFFF9C"), (rf"''", "#FFFF9C"), (rf'""', "#FFFF9C"),
-        (r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(:]', "#FFFF9C"),
-        (r'[A-Za-z_][A-Za-z0-9_]*\s*\(', '#FFFF9C'), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"),
-        (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-    "c": {
-        (r'\b(int|float|char|double|short|long)\s+\w+', "#ffff00"), (r'\bint\b', "#c77a5a"), (r'\bfloat\b', "#c77a5a"),
-        (r'\bchar\b', "#c77a5a"), (r'\bdouble\b', "#c77a5a"), (r'\bshort\b', "#c77a5a"), (r'\blong\b', "#c77a5a"),
-        (r'\b\d+\b', "#7777FF"), (r"\{", "#ffff00"), (r"\}", "#ffff00"), (rf"\(", "#ffff00"), (rf"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a"), (r"#include\s+<[^>]+>", "#c77a5a"),
-        (r'"([^"\\]|\\.)*"', "#FFFF9C"), (r'\([^\)]*\)', "#7777FF")
-    },
-    "cpp": {
-        (r'\b\d+\b', "#7777FF"), (r"\{", "#ffff00"), (r"\}", "#ffff00"), (rf"\(", "#ffff00"), (rf"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-    "rb": {
-        (r'\balias\b', '#c77a5a'), (r'\band\b', '#c77a5a'), (r'\bbegin\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'),
-        (r'\bcase\b', '#c77a5a'), (r'\bclass\b', '#c77a5a'), (r'\bdef\b', '#c77a5a'), (r'\bdefined?\b', '#c77a5a'),
-        (r'\bdo\b', '#c77a5a'), (r'\belse\b', '#c77a5a'), (r'\belsif\b', '#c77a5a'), (r'\bend\b', '#c77a5a'),
-        (r'\bensure\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bif\b', '#c77a5a'),
-        (r'\bin\b', '#c77a5a'), (r'\bmodule\b', '#c77a5a'), (r'\bnext\b', '#c77a5a'), (r'\bnil\b', '#c77a5a'),
-        (r'\bnot\b', '#c77a5a'), (r'\bor\b', '#c77a5a'), (r'\bredo\b', '#c77a5a'), (r'\brescue\b', '#c77a5a'),
-        (r'\bretry\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bself\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'),
-        (r'\bthen\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\bundef\b', '#c77a5a'), (r'\bunless\b', '#c77a5a'),
-        (r'\buntil\b', '#c77a5a'), (r'\bwhen\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), (r'\byield\b', '#c77a5a'),
-        (r'\b[A-Z]\w*\b', "#7777FF"),
-        (r'\bclass\s+\w+', "#FFFF9C"),
-        (r'\bdef\s+\w+', "#FFFF9C"), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-    "java": {
-        (r'\babstract\b', '#c77a5a'), (r'\bassert\b', '#c77a5a'), (r'\bboolean\b', '#c77a5a'),
-        (r'\bbreak\b', '#c77a5a'),
-        (r'\bbyte\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'), (r'\bchar\b', '#c77a5a'),
-        (r'\bclass\b', '#c77a5a'),
-        (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bdefault\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'),
-        (r'\bdouble\b', '#c77a5a'),
-        (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), (r'\bextends\b', '#c77a5a'), (r'\bfinal\b', '#c77a5a'),
-        (r'\bfinally\b', '#c77a5a'),
-        (r'\bfloat\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), (r'\bif\b', '#c77a5a'),
-        (r'\bimplements\b', '#c77a5a'),
-        (r'\bimport\b', '#c77a5a'), (r'\binstanceof\b', '#c77a5a'), (r'\bint\b', '#c77a5a'),
-        (r'\binterface\b', '#c77a5a'), (r'\blong\b', '#c77a5a'),
-        (r'\bnative\b', '#c77a5a'), (r'\bnew\b', '#c77a5a'), (r'\bpackage\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'),
-        (r'\bprotected\b', '#c77a5a'),
-        (r'\bpublic\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bshort\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'),
-        (r'\bstrictfp\b', '#c77a5a'),
-        (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bsynchronized\b', '#c77a5a'),
-        (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'),
-        (r'\bthrows\b', '#c77a5a'), (r'\btransient\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'),
-        (r'\bvolatile\b', '#c77a5a'),
-        (r'\bwhile\b', '#c77a5a'), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-
-    "js": {
-        (r'\bawait\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'),
-        (r'\bclass\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'),
-        (r'\bdebugger\b', '#c77a5a'),
-        (r'\bdefault\b', '#c77a5a'), (r'\bdelete\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\belse\b', '#c77a5a'),
-        (r'\benum\b', '#c77a5a'),
-        (r'\bexport\b', '#c77a5a'), (r'\bextends\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'),
-        (r'\bfor\b', '#c77a5a'),
-        (r'\bfunction\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimplements\b', '#c77a5a'),
-        (r'\bimport\b', '#c77a5a'), (r'\bin\b', '#c77a5a'),
-        (r'\binstanceof\b', '#c77a5a'), (r'\binterface\b', '#c77a5a'), (r'\blet\b', '#c77a5a'), (r'\bnew\b', '#c77a5a'),
-        (r'\bnull\b', '#c77a5a'),
-        (r'\bpackage\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'),
-        (r'\bpublic\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'),
-        (r'\bsuper\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'),
-        (r'\bthrow\b', '#c77a5a'),
-        (r'\btry\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bvoid\b', '#c77a5a'),
-        (r'\bvolatile\b', '#c77a5a'),
-        (r'\bwhile\b', '#c77a5a'), (r'\bwith\b', '#c77a5a'), (r'\byield\b', '#c77a5a'),
-        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-
-    "kt": {
-        (r'\babstract\b', '#c77a5a'), (r'\bannotation\b', '#c77a5a'), (r'\bas\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'),
-        (r'\bby\b', '#c77a5a'),
-        (r'\bcatch\b', '#c77a5a'), (r'\bclass\b', '#c77a5a'), (r'\bcompanion\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'),
-        (r'\bconstructor\b', '#c77a5a'),
-        (r'\bcontinue\b', '#c77a5a'), (r'\bcrossinline\b', '#c77a5a'), (r'\bdata\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'),
-        (r'\bdynamic\b', '#c77a5a'),
-        (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), (r'\bexternal\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'),
-        (r'\bfile\b', '#c77a5a'),
-        (r'\bfinal\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bfun\b', '#c77a5a'),
-        (r'\bget\b', '#c77a5a'),
-        (r'\bif\b', '#c77a5a'), (r'\bimport\b', '#c77a5a'), (r'\bin\b', '#c77a5a'), (r'\binfix\b', '#c77a5a'),
-        (r'\binit\b', '#c77a5a'),
-        (r'\binline\b', '#c77a5a'), (r'\binner\b', '#c77a5a'), (r'\binterface\b', '#c77a5a'),
-        (r'\binternal\b', '#c77a5a'), (r'\bis\b', '#c77a5a'),
-        (r'\bit\b', '#c77a5a'), (r'\blateinit\b', '#c77a5a'), (r'\bnoinline\b', '#c77a5a'), (r'\bnull\b', '#c77a5a'),
-        (r'\bobject\b', '#c77a5a'),
-        (r'\bopen\b', '#c77a5a'), (r'\boperator\b', '#c77a5a'), (r'\bout\b', '#c77a5a'), (r'\boverride\b', '#c77a5a'),
-        (r'\bpackage\b', '#c77a5a'),
-        (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'),
-        (r'\breified\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'),
-        (r'\bsealed\b', '#c77a5a'), (r'\bset\b', '#c77a5a'), (r'\bsuper\b', '#c77a5a'), (r'\btailrec\b', '#c77a5a'),
-        (r'\bthis\b', '#c77a5a'),
-        (r'\bthrow\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\btypealias\b', '#c77a5a'),
-        (r'\btypeof\b', '#c77a5a'),
-        (r'\bval\b', '#c77a5a'), (r'\bvar\b', '#c77a5a'), (r'\bwhen\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'),
-        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-
-    "php": {
-        (r'\b__halt_compiler\b', '#c77a5a'), (r'\b__CLASS__\b', '#c77a5a'), (r'\b__DIR__\b', '#c77a5a'),
-        (r'\b__EXIT__\b', '#c77a5a'),
-        (r'\b__FILE__\b', '#c77a5a'), (r'\b__FUNCTION__\b', '#c77a5a'), (r'\b__LINE__\b', '#c77a5a'),
-        (r'\b__METHOD__\b', '#c77a5a'),
-        (r'\b__NAMESPACE__\b', '#c77a5a'), (r'\b__TRAIT__\b', '#c77a5a'), (r'\babstract\b', '#c77a5a'),
-        (r'\band\b', '#c77a5a'), (r'\barray\b', '#c77a5a'),
-        (r'\bas\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bcallable\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'),
-        (r'\bcatch\b', '#c77a5a'),
-        (r'\bclass\b', '#c77a5a'), (r'\bclone\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'),
-        (r'\bdeclare\b', '#c77a5a'),
-        (r'\bdefault\b', '#c77a5a'), (r'\bdie\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\becho\b', '#c77a5a'),
-        (r'\belse\b', '#c77a5a'),
-        (r'\belseif\b', '#c77a5a'), (r'\bempty\b', '#c77a5a'), (r'\benddeclare\b', '#c77a5a'),
-        (r'\bendfor\b', '#c77a5a'), (r'\bendforeach\b', '#c77a5a'),
-        (r'\bendif\b', '#c77a5a'), (r'\bendswitch\b', '#c77a5a'), (r'\bendwhile\b', '#c77a5a'),
-        (r'\beval\b', '#c77a5a'), (r'\bexit\b', '#c77a5a'),
-        (r'\bextends\b', '#c77a5a'), (r'\bfinal\b', '#c77a5a'), (r'\bfinally\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'),
-        (r'\bforeach\b', '#c77a5a'),
-        (r'\bfunction\b', '#c77a5a'), (r'\bglobal\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), (r'\bif\b', '#c77a5a'),
-        (r'\bimplements\b', '#c77a5a'),
-        (r'\binclude\b', '#c77a5a'), (r'\binclude_once\b', '#c77a5a'), (r'\binstanceof\b', '#c77a5a'),
-        (r'\binsteadof\b', '#c77a5a'),
-        (r'\binterface\b', '#c77a5a'), (r'\bisset\b', '#c77a5a'), (r'\blist\b', '#c77a5a'),
-        (r'\bnamespace\b', '#c77a5a'), (r'\bnew\b', '#c77a5a'),
-        (r'\bor\b', '#c77a5a'), (r'\bprint\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'), (r'\bprotected\b', '#c77a5a'),
-        (r'\bpublic\b', '#c77a5a'),
-        (r'\brequire\b', '#c77a5a'), (r'\brequire_once\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'),
-        (r'\bstatic\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'),
-        (r'\bthrow\b', '#c77a5a'), (r'\btrait\b', '#c77a5a'), (r'\btry\b', '#c77a5a'), (r'\bunset\b', '#c77a5a'),
-        (r'\buse\b', '#c77a5a'),
-        (r'\bvar\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'), (r'\bxor\b', '#c77a5a'), (r'\byield\b', '#c77a5a'),
-        (r'\byield from\b', '#c77a5a'),
-        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-
-    "cs": {
-        (r'\babstract\b', '#c77a5a'), (r'\bas\b', '#c77a5a'), (r'\bbase\b', '#c77a5a'), (r'\bbool\b', '#c77a5a'),
-        (r'\bbreak\b', '#c77a5a'),
-        (r'\bbyte\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bcatch\b', '#c77a5a'), (r'\bchar\b', '#c77a5a'),
-        (r'\bchecked\b', '#c77a5a'),
-        (r'\bclass\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'), (r'\bdecimal\b', '#c77a5a'),
-        (r'\bdefault\b', '#c77a5a'),
-        (r'\bdelegate\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\bdouble\b', '#c77a5a'), (r'\belse\b', '#c77a5a'),
-        (r'\benum\b', '#c77a5a'),
-        (r'\bevent\b', '#c77a5a'), (r'\bexplicit\b', '#c77a5a'), (r'\bextern\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'),
-        (r'\bfinally\b', '#c77a5a'),
-        (r'\bfixed\b', '#c77a5a'), (r'\bfloat\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bforeach\b', '#c77a5a'),
-        (r'\bgoto\b', '#c77a5a'),
-        (r'\bif\b', '#c77a5a'), (r'\bimplicit\b', '#c77a5a'), (r'\bin\b', '#c77a5a'), (r'\bint\b', '#c77a5a'),
-        (r'\binterface\b', '#c77a5a'),
-        (r'\binternal\b', '#c77a5a'), (r'\bis\b', '#c77a5a'), (r'\block\b', '#c77a5a'), (r'\blong\b', '#c77a5a'),
-        (r'\bnamespace\b', '#c77a5a'),
-        (r'\bnew\b', '#c77a5a'), (r'\bnull\b', '#c77a5a'), (r'\bobject\b', '#c77a5a'), (r'\boperator\b', '#c77a5a'),
-        (r'\bout\b', '#c77a5a'),
-        (r'\boverride\b', '#c77a5a'), (r'\bparams\b', '#c77a5a'), (r'\bprivate\b', '#c77a5a'),
-        (r'\bprotected\b', '#c77a5a'), (r'\bpublic\b', '#c77a5a'),
-        (r'\breadonly\b', '#c77a5a'), (r'\bref\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bsbyte\b', '#c77a5a'),
-        (r'\bsealed\b', '#c77a5a'),
-        (r'\bshort\b', '#c77a5a'), (r'\bsizeof\b', '#c77a5a'), (r'\bstackalloc\b', '#c77a5a'),
-        (r'\bstatic\b', '#c77a5a'), (r'\bstring\b', '#c77a5a'),
-        (r'\bstruct\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\bthis\b', '#c77a5a'), (r'\bthrow\b', '#c77a5a'),
-        (r'\btrue\b', '#c77a5a'),
-        (r'\btry\b', '#c77a5a'), (r'\btypeof\b', '#c77a5a'), (r'\buint\b', '#c77a5a'), (r'\bulong\b', '#c77a5a'),
-        (r'\bunchecked\b', '#c77a5a'),
-        (r'\bunsafe\b', '#c77a5a'), (r'\bushort\b', '#c77a5a'), (r'\busing\b', '#c77a5a'), (r'\bvirtual\b', '#c77a5a'),
-        (r'\bvoid\b', '#c77a5a'),
-        (r'\bvolatile\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'),
-        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-
-    "go": {
-        (r'\bbreak\b', '#c77a5a'), (r'\bcase\b', '#c77a5a'), (r'\bchan\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'),
-        (r'\bcontinue\b', '#c77a5a'),
-        (r'\bdefault\b', '#c77a5a'), (r'\bdefer\b', '#c77a5a'), (r'\belse\b', '#c77a5a'),
-        (r'\bfallthrough\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'),
-        (r'\bfunc\b', '#c77a5a'), (r'\bgo\b', '#c77a5a'), (r'\bgoto\b', '#c77a5a'), (r'\bif\b', '#c77a5a'),
-        (r'\bimport\b', '#c77a5a'),
-        (r'\binterface\b', '#c77a5a'), (r'\bmap\b', '#c77a5a'), (r'\bpackage\b', '#c77a5a'), (r'\brange\b', '#c77a5a'),
-        (r'\breturn\b', '#c77a5a'),
-        (r'\bselect\b', '#c77a5a'), (r'\bstruct\b', '#c77a5a'), (r'\bswitch\b', '#c77a5a'), (r'\btype\b', '#c77a5a'),
-        (r'\bvar\b', '#c77a5a'),
-        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-
-    "lua": {
-        (r'\band\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bdo\b', '#c77a5a'), (r'\belse\b', '#c77a5a'),
-        (r'\belseif\b', '#c77a5a'),
-        (r'\bend\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'), (r'\bfor\b', '#c77a5a'), (r'\bfunction\b', '#c77a5a'),
-        (r'\bif\b', '#c77a5a'),
-        (r'\bin\b', '#c77a5a'), (r'\blocal\b', '#c77a5a'), (r'\bnil\b', '#c77a5a'), (r'\bnot\b', '#c77a5a'),
-        (r'\bor\b', '#c77a5a'),
-        (r'\brepeat\b', '#c77a5a'), (r'\breturn\b', '#c77a5a'), (r'\bthen\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'),
-        (r'\buntil\b', '#c77a5a'),
-        (r'\bwhile\b', '#c77a5a'), (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
-
-    "rust": {
-        (r'\bas\b', '#c77a5a'), (r'\bbreak\b', '#c77a5a'), (r'\bconst\b', '#c77a5a'), (r'\bcontinue\b', '#c77a5a'),
-        (r'\bcrate\b', '#c77a5a'),
-        (r'\belse\b', '#c77a5a'), (r'\benum\b', '#c77a5a'), (r'\bextern\b', '#c77a5a'), (r'\bfalse\b', '#c77a5a'),
-        (r'\bfn\b', '#c77a5a'),
-        (r'\bfor\b', '#c77a5a'), (r'\bif\b', '#c77a5a'), (r'\bimpl\b', '#c77a5a'), (r'\bin\b', '#c77a5a'),
-        (r'\blet\b', '#c77a5a'), (r'\bloop\b', '#c77a5a'),
-        (r'\bmatch\b', '#c77a5a'), (r'\bmod\b', '#c77a5a'), (r'\bmove\b', '#c77a5a'), (r'\bmut\b', '#c77a5a'),
-        (r'\bpub\b', '#c77a5a'),
-        (r'\breturn\b', '#c77a5a'), (r'\bself\b', '#c77a5a'), (r'\bstatic\b', '#c77a5a'), (r'\bstruct\b', '#c77a5a'),
-        (r'\bsuper\b', '#c77a5a'),
-        (r'\btrait\b', '#c77a5a'), (r'\btrue\b', '#c77a5a'), (r'\btype\b', '#c77a5a'), (r'\bunsafe\b', '#c77a5a'),
-        (r'\buse\b', '#c77a5a'),
-        (r'\bwhere\b', '#c77a5a'), (r'\bwhile\b', '#c77a5a'),
-        (r'\{', "#ffff00"), (r"\}", "#ffff00"), (r"\(", "#ffff00"), (r"\)", "#ffff00"),
-        (rf"\[", "#ffff00"), (rf"\]", "#ffff00"), (rf"=", "#c77a5a"),
-        (rf"==", "#c77a5a"), (rf"!=", "#c77a5a"), (rf"<", "#c77a5a"),
-        (rf"<=", "#c77a5a"), (rf">", "#c77a5a"), (rf">=", "#c77a5a"), (rf"\+", "#c77a5a"), (rf"-", "#c77a5a"),
-        (rf"\*", "#c77a5a"), (rf"/", "#c77a5a"), (rf"//", "#c77a5a"), (rf"\%", "#c77a5a"), (rf"\*\*", "#c77a5a"),
-        (rf"\+=", "#c77a5a"), (rf"-=", "#c77a5a"), (rf"\*=", "#c77a5a"), (rf"/=", "#c77a5a"), (rf"\%=", "#c77a5a"),
-        (rf"\^", "#c77a5a"), (rf"\|", "#c77a5a"), (rf"\&", "#c77a5a"),
-        (rf"\~", "#c77a5a"), (rf">>", "#c77a5a"), (rf"<<", "#c77a5a")
-    },
+    "java": [
+        "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
+        "class", "const", "continue", "default", "do", "double", "else", "enum",
+        "extends", "final", "finally", "float", "for", "goto", "if", "implements",
+        "import", "instanceof", "int", "interface", "long", "native", "new",
+        "package", "private", "protected", "public", "return", "short", "static",
+        "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
+        "transient", "try", "void", "volatile", "while"
+    ]
 }
 
 
-def convert_to_hex(content):
-    hex_string = ""
-    ascii_string = ""
+class ModernSyntaxHighlighter(QSyntaxHighlighter):
+    """Современный подсветчик синтаксиса с улучшенной производительностью"""
+    # Кэш для форматирования
+    _format_cache = {}
 
-    for i, byte in enumerate(content):
-        if i % 16 == 0:
-            if i > 0:
-                hex_string += f"   {ascii_string}\n"
-            hex_string += "{:08X}   ".format(i)
-            ascii_string = ""
-        ascii_string += chr(byte) if 32 <= byte <= 126 else "."
-        hex_string += f"{byte:02X} "
-    return hex_string.strip()
+    def __init__(self, document, language_config: LanguageConfig):
+        super().__init__(document)
+        self.language_config = language_config
+        self._rules = self._compile_rules()        
+    
+    def _compile_rules(self) -> List[Tuple[QRegExp, QTextCharFormat]]:
+        rules = []
+        
+        # Компилируем правила с кэшированием форматов
+        for rule in self.language_config.syntax_rules:
+            regex = QRegExp(rule.pattern)
+            fmt = self._get_cached_format(rule.color, rule.weight, rule.italic)
+            rules.append((regex, fmt))
+        
+        return rules
+    
+    def _get_cached_format(self, color: str, weight: int = QFont.Normal, italic: bool = False) -> QTextCharFormat:
+        cache_key = f"{color}_{weight}_{italic}"
+        
+        if cache_key not in self._format_cache:
+            fmt = QTextCharFormat()
+            fmt.setForeground(QColor(color))
+            fmt.setFontWeight(weight)
+            fmt.setFontItalic(italic)
+            self._format_cache[cache_key] = fmt
+        
+        return self._format_cache[cache_key]
+    
+    def highlightBlock(self, text: str):
+        for regex, fmt in self._rules:
+            index = regex.indexIn(text)
+            while index >= 0:
+                length = regex.matchedLength()
+                self.setFormat(index, length, fmt)
+                index = regex.indexIn(text, index + length)
 
 
-class CodeTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None, language="", d=[], settings={}):
-        super(CodeTextEdit, self).__init__(parent)
-        self.filename = ""
-        self.fullfilepath = ""
+class CodeAnalyzer:
+    """Анализатор кода с улучшенной поддержкой языков"""
+    
+    def __init__(self, language: str):
         self.language = language
-        self.settings = settings
-        self.welcome = False
-        self.main_color = self.settings["settings"]['main_color']  # 013B81
-        self.text_color = self.settings["settings"]["text_color"]  # ABB2BF
-        self.first_color = self.settings["settings"]['first_color']  # 16171D
-        self.second_color = self.settings["settings"]['second_color']  # 131313
-        self.tab_color = self.settings["settings"]['tab_color']  # 1F2228
-        self.languages = self.settings["languages"]
-        self.mode = settings["languages_type"][self.language]
-        self.font_size = int(self.settings["settings"]["fontsize"])
-        self.dict = d
-        self.flag = 0
-        self.prev_key = ""
-        self.executable = False
-        self.tabWidth = 4
-        self.setFont(QFont("Courier New", self.font_size))
-        self.setStyleSheet(
-            f"background-color: {self.second_color};\n"
-            "color: #ffffff;\n"
-            "padding: 20px;\n"
-            "padding-top: 10px;\n"
-            "letter-spacing:1px;\n"
-            "width: 0px;\n"
-            "border: none"
-        )
-        if self.mode == 0:
-            self.setReadOnly(True)
-            self.setFont(QFont("Courier New", self.font_size))
-        else:
-            self.analyzer = CodeAnalyzer(self.language)
-            self.blockCountChanged.connect(self.analyzeCode)
-            self.completer = MyCompleter(self.dict, self.second_color, self.font_size)
-            self.completer.setWidget(self)
-            self.completer.insertText.connect(self.insertCompletion)
-            self.highlighter = WordHighlighter(self.document(), self.language)
-            self.highlighter.rehighlight()
-
-    def analyzeAndHighlightErrors(self):
-        code = self.toPlainText()
-
-        # Create temporary file for code
-        with open("temp_file.py", "w") as temp_file:
-            temp_file.write(code)
-
-        # Run flake8 on temporary file
+        self.defined_names: Set[str] = set(KEYWORDS.get(language, []))
+    
+    def analyze_code(self, code: str):
         try:
-            result = subprocess.check_output(["python", "-m", "flake8", "temp_file.py"])
-            errors = self.parseFlake8Output(result.decode())
-            self.highlightCodeErrors(errors)
-        except subprocess.CalledProcessError:
-            pass
-        remove("temp_file.py")
+            if self.language == "py":
+                self._analyze_python(code)
+            elif self.language in ["c", "cpp"]:
+                self._analyze_c_cpp(code)
+            elif self.language == "java":
+                self._analyze_java(code)
+            elif self.language in ["js", "ts"]:
+                self._analyze_javascript(code)
+            else:
+                self._analyze_generic(code)
+        except Exception as e:
+            print(f"Code analysis error: {e}")
+    
+    def _analyze_python(self, code: str):
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+                    self.defined_names.add(node.name)
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        self.defined_names.add(alias.name.split(".")[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        self.defined_names.add(node.module.split(".")[0])
+                elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                    self.defined_names.add(node.id)
+        except SyntaxError:
+            # Fallback to regex for invalid syntax
+            self._analyze_with_regex(code, r'def\s+(\w+)\s*\(')
+            self._analyze_with_regex(code, r'class\s+(\w+)')
+            self._analyze_with_regex(code, r'(\w+)\s*=')
+    
+    def _analyze_c_cpp(self, code: str):
+        self._analyze_with_regex(code, r'(\w+)\s*\([^)]*\)\s*\{')  # Functions
+        self._analyze_with_regex(code, r'\b(\w+)\s*=\s*[^;]+;')  # Variables
+        self._analyze_with_regex(code, r'class\s+(\w+)')  # Classes
+        self._analyze_with_regex(code, r'struct\s+(\w+)')  # Structs
+    
+    def _analyze_java(self, code: str):
+        self._analyze_with_regex(code, r'(public|private|protected)\s+\w+\s+(\w+)\s*\(')
+        self._analyze_with_regex(code, r'class\s+(\w+)')
+        self._analyze_with_regex(code, r'interface\s+(\w+)')
+    
+    def _analyze_javascript(self, code: str):
+        self._analyze_with_regex(code, r'function\s+(\w+)\s*\(')
+        self._analyze_with_regex(code, r'const\s+(\w+)\s*=')
+        self._analyze_with_regex(code, r'let\s+(\w+)\s*=')
+        self._analyze_with_regex(code, r'var\s+(\w+)\s*=')
+        self._analyze_with_regex(code, r'class\s+(\w+)')
+    
+    def _analyze_generic(self, code: str):
+        self._analyze_with_regex(code, r'function\s+(\w+)\s*\(')
+        self._analyze_with_regex(code, r'def\s+(\w+)\s*\(')
+        self._analyze_with_regex(code, r'class\s+(\w+)')
+        self._analyze_with_regex(code, r'(\w+)\s*=')
+    
+    def _analyze_with_regex(self, code: str, pattern: str):
+        matches = re.findall(pattern, code)
+        for match in matches:
+            if isinstance(match, tuple):
+                self.defined_names.update(m for m in match if m and m.isidentifier())
+            elif match and match.isidentifier():
+                self.defined_names.add(match)
+    
+    def get_completion_list(self) -> List[str]:
+        return sorted(self.defined_names)
 
-    def parseFlake8Output(self, output):
-        errors = []
-        for line in output.split('\n'):
-            if line:
-                parts = line.split(':')
-                line_number = int(parts[1])
-                column = int(parts[2])
-                errors.append((line_number, column))
-        return errors
 
-    def highlightCodeErrors(self, errors):
-        for (line, _) in errors:
-            start_pos = self.document().findBlockByLineNumber(line - 1).position()
-            text_cursor = QTextCursor(self.document())
-            text_cursor.setPosition(start_pos)
-            text_cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
-            self.error_format = self.text_edit.currentCharFormat()
-            self.error_format.setBackground(Qt.red)
-            text_cursor.setCharFormat(self.error_format)
+class SmartCompleter(QCompleter):
+    """Умный комплитер с кастомным отображением и анимациями"""
+    
+    insertText = pyqtSignal(str)
+    
+    def __init__(self, word_list: List[str], background_color: str, font_size: int, parent=None):
+        super().__init__(word_list, parent)
+        self.setCaseSensitivity(Qt.CaseInsensitive)
+        self.setFilterMode(Qt.MatchContains)
+        self.setCompletionMode(QCompleter.PopupCompletion)
+        self.setMaxVisibleItems(8)
+        
+        # Настройка анимации
+        self.animation = QPropertyAnimation(self.popup(), b"geometry")
+        self.animation.setDuration(150)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        
+        # Стилизация попапа в стиле VS Code
+        popup = self.popup()
+        popup.setStyleSheet(f"""
+            QListView {{
+                background-color: {background_color};
+                color: #D4D4D4;
+                font-size: {font_size}pt;
+                font-family: 'Segoe UI', 'Consolas', monospace;
+                border: 1px solid #3C3C3C;
+                border-radius: 4px;
+                outline: none;
+                padding: 4px 0px;
+            }}
+            QListView::item {{
+                padding: 4px 12px;
+                border: none;
+                background-color: transparent;
+            }}
+            QListView::item:selected {{
+                background-color: #094771;
+                color: #FFFFFF;
+                border: none;
+            }}
+            QListView::item:hover {{
+                background-color: #2A2D2E;
+            }}
+        """)
+        
+        # Устанавливаем фиксированную ширину
+        popup.setFixedWidth(300)
+    
+    def update_completions(self, word_list: List[str]):
+        model = QStringListModel()
+        model.setStringList(word_list)
+        self.setModel(model)
+    
+    def complete(self, rect):
+        # Анимированное появление
+        popup = self.popup()
+        start_rect = QRect(rect.x(), rect.y(), 0, 0)
+        end_rect = QRect(rect.x(), rect.bottom() + 2, 300, 
+                        min(self.maxVisibleItems() * popup.sizeHintForRow(0) + 10, 200))
+        
+        self.animation.setStartValue(start_rect)
+        self.animation.setEndValue(end_rect)
+        
+        super().complete(rect)
+        self.animation.start()
 
-    def analyzeCode(self):
-        if self.toPlainText() != "":
-            self.analyzer.analyze_code(self.toPlainText())
-            self.dict = self.analyzer.get_auto_complete_dict()
-            self.completer.update(self.dict)
 
-    def insertCompletion(self, completion):
+class LineNumberArea(QWidget):
+    """Область для отображения номеров строк с современным дизайном"""
+    
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor = editor
+        self.setMouseTracking(True)
+        
+        # Анимация hover эффекта
+        self.hover_animation = QPropertyAnimation(self, b"")
+        self.hover_animation.setDuration(200)
+
+    def line_number_area_width(self):
+        """Вычисление ширины области номеров строк"""
+        digits = len(str(max(1, self.blockCount())))
+        space = 20 + self.fontMetrics().horizontalAdvance('9') * digits  # Исправление: horizontalAdvance вместо width
+        return space
+        
+    def sizeHint(self):
+        return QSize(self.line_number_area_width(), 0)
+    
+    def paintEvent(self, event):
+        self.editor.line_number_area_paint_event(event)
+
+
+class CodeEditor(QPlainTextEdit):
+    """Основной редактор кода с расширенными функциями и анимациями"""
+    
+    # Сигналы
+    textChangedAnimated = pyqtSignal()
+    focusChanged = pyqtSignal(bool)
+    
+    def __init__(self, parent=None, language: str = "", settings: dict = None):
+        super().__init__(parent)
+        self.settings = settings or {}
+        self.language = language
+        try:
+            self.language_config = SyntaxHighlighterFactory.create_config(Language(language))
+        except:
+            # Fallback to Python if language not supported
+            self.language_config = SyntaxHighlighterFactory.create_config(Language.PYTHON)
+        
+        self._setup_editor()
+        self._setup_autocomplete()
+        self._setup_line_numbers()
+        
+        # Анимации
+        self.cursor_animation = QPropertyAnimation(self, b"")
+        self.cursor_animation.setDuration(600)
+        self.cursor_animation.setLoopCount(-1)
+        
+        # Таймер для отложенных операций
+        self.analysis_timer = QTimer()
+        self.analysis_timer.setSingleShot(True)
+        self.analysis_timer.timeout.connect(self._delayed_analysis)
+        
+    def _setup_editor(self):
+        """Настройка базовых параметров редактора"""
+        font_size = int(self.settings.get("fontsize", 12))
+        bg_color = self.settings.get("second_color", "#1E1E1E")
+        text_color = self.settings.get("text_color", "#D4D4D4")
+        
+        # Устанавливаем современный шрифт
+        font = QFont("Cascadia Code", font_size)
+        font.setStyleHint(QFont.Monospace)
+        self.setFont(font)
+        
+        # Современный стиль в духе VS Code
+        self.setStyleSheet(f"""
+            QPlainTextEdit {{
+                background-color: {bg_color};
+                color: {text_color};
+                padding: 10px 0px;
+                border: none;
+                selection-background-color: #264F78;
+                selection-color: #FFFFFF;
+                font-family: 'Cascadia Code', 'Consolas', monospace;
+            }}
+            QPlainTextEdit:focus {{
+                border: none;
+                outline: none;
+            }}
+        """)
+        
+        self.tab_width = 4
+        self.setTabStopDistance(self.tab_width * self.fontMetrics().width(' '))
+        
+        # Подсветка синтаксиса
+        self.highlighter = ModernSyntaxHighlighter(
+            self.document(), 
+            self.language_config
+        )
+        
+        # Включаем плавный скроллинг
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    
+    def _setup_line_numbers(self):
+        """Настройка области номеров строк"""
+        self.line_number_area = LineNumberArea(self)
+        self.blockCountChanged.connect(self.update_line_number_area_width)
+        self.updateRequest.connect(self.update_line_number_area)
+        self.cursorPositionChanged.connect(self.highlight_current_line)
+        
+        self.update_line_number_area_width()
+        self.highlight_current_line()
+    
+    def _setup_autocomplete(self):
+        """Настройка системы автодополнения"""
+        self.analyzer = CodeAnalyzer(self.language)
+        self.completer = SmartCompleter(
+            [], 
+            self.settings.get("second_color", "#1E1E1E"),
+            int(self.settings.get("fontsize", 10))
+        )
+        self.completer.setWidget(self)
+        self.completer.insertText.connect(self._insert_completion)
+        
+        # Таймер для отложенного автодополнения
+        self.completion_timer = QTimer()
+        self.completion_timer.setSingleShot(True)
+        self.completion_timer.timeout.connect(self._trigger_completion)
+    
+    def line_number_area_width(self):
+        """Вычисление ширины области номеров строк"""
+        digits = len(str(max(1, self.blockCount())))
+        space = 20 + self.fontMetrics().width('9') * digits
+        return space
+    
+    def update_line_number_area_width(self):
+        """Обновление ширины области номеров строк"""
+        self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
+    
+    def update_line_number_area(self, rect, dy):
+        """Обновление области номеров строк"""
+        if dy:
+            self.line_number_area.scroll(0, dy)
+        else:
+            self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
+        
+        if rect.contains(self.viewport().rect()):
+            self.update_line_number_area_width()
+    
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        cr = self.contentsRect()
+        self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), 
+                                              self.line_number_area_width(), cr.height()))
+    
+    def line_number_area_paint_event(self, event):
+        """Отрисовка номеров строк"""
+        painter = QPainter(self.line_number_area)
+        painter.fillRect(event.rect(), QColor("#1E1E1E"))
+        
+        # Градиент для разделительной линии
+        gradient = QLinearGradient(0, 0, self.line_number_area.width(), 0)
+        gradient.setColorAt(0, QColor("#1E1E1E"))
+        gradient.setColorAt(1, QColor("#2D3139"))
+        painter.fillRect(QRect(self.line_number_area.width() - 2, 0, 2, self.height()), gradient)
+        
+        block = self.firstVisibleBlock()
+        block_number = block.blockNumber()
+        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+        bottom = top + self.blockBoundingRect(block).height()
+        
+        current_line = self.textCursor().blockNumber() + 1
+        
+        font_metrics = self.fontMetrics()
+        line_height = font_metrics.height()
+        
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                number = str(block_number + 1)
+                
+                # Подсветка текущей строки
+                if block_number + 1 == current_line:
+                    painter.setPen(QColor("#FFFFFF"))
+                    painter.setFont(QFont("Cascadia Code", self.font().pointSize(), QFont.Bold))
+                else:
+                    painter.setPen(QColor("#6E7681"))
+                    painter.setFont(self.font())
+                
+                # Исправление: правильное позиционирование текста
+                painter.drawText(0, int(top), self.line_number_area.width() - 8, 
+                            int(line_height),
+                            Qt.AlignRight, number)
+            
+            block = block.next()
+            top = bottom
+            bottom = top + self.blockBoundingRect(block).height()
+            block_number += 1
+
+    def highlight_current_line(self):
+        """Подсветка текущей строки"""
+        extra_selections = []
+        
+        if not self.isReadOnly():
+            selection = QTextEdit.ExtraSelection()
+            line_color = QColor("#2D3139")
+            line_color.setAlpha(80)
+            selection.format.setBackground(line_color)
+            selection.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+            selection.cursor = self.textCursor()
+            selection.cursor.clearSelection()
+            extra_selections.append(selection)
+        
+        self.setExtraSelections(extra_selections)
+    
+    def _insert_completion(self, completion: str):
+        """Вставка выбранного автодополнения"""
         tc = self.textCursor()
-        extra = (len(completion) - len(self.completer.completionPrefix()))
+        extra = len(completion) - len(self.completer.completionPrefix())
         tc.movePosition(QTextCursor.Left)
         tc.movePosition(QTextCursor.EndOfWord)
         tc.insertText(completion[-extra:])
         self.setTextCursor(tc)
-        self.completer.popup().hide()
-
-    def focusInEvent(self, event):
-        if self.mode == 1:
-            if self.completer:
-                self.completer.setWidget(self)
-        QPlainTextEdit.focusInEvent(self, event)
-
-    def addText(self, text: str):
-        if self.mode == 1:
-            self.insertPlainText(text)
-        else:
-            hex_content = convert_to_hex(text)
-            self.setPlainText(hex_content)
-
-    def set_highlight_words(self, words, color):
-        self.highlighter.set_patterns(words, color)
-
+    
+    def _trigger_completion(self):
+        """Активация автодополнения"""
+        tc = self.textCursor()
+        tc.select(QTextCursor.WordUnderCursor)
+        prefix = tc.selectedText()
+        
+        if len(prefix) >= 1:  # Уменьшил минимальную длину для лучшего UX
+            # Обновляем список автодополнений
+            self.analyzer.analyze_code(self.toPlainText())
+            self.completer.update_completions(self.analyzer.get_completion_list())
+            
+            self.completer.setCompletionPrefix(prefix)
+            if self.completer.completionCount() > 0:
+                self.completer.complete(self.cursorRect())
+    
+    def _delayed_analysis(self):
+        """Отложенный анализ кода для производительности"""
+        self.analyzer.analyze_code(self.toPlainText())
+    
     def keyPressEvent(self, event):
-        if self.mode == 1:
-            tc = self.textCursor()
-            if event.key() == Qt.Key_Tab:
-                if self.completer.popup().isVisible():  # Если виджет автодополнения видим
-                    inserted_text = self.completer.getSelected()  # Получаем выбранный текст из виджета автодополнения
-                    if inserted_text:
-                        cursor_position = tc.position()  # Получаем начальное положение курсора
-                        tc.select(QTextCursor.WordUnderCursor)  # Выбираем слово, над которым находится курсор
-                        tc.removeSelectedText()  # Удаляем текст, над которым находится курсор
-                        self.setTextCursor(tc)  # Устанавливаем обновленное положение курсора
-                        self.insertPlainText(inserted_text)  # Вставляем выбранный текст
-                        self.completer.popup().hide()
-                        return
-                else:
-                    self.insertPlainText(" " * self.tabWidth)
-
-            if event.text() in ["'", '"', "(", "{", "[", ")", "}", "]"]:
-                cursor = self.textCursor()
-                if event.text() == '"':
-                    self.insertPlainText('""')
-                elif event.text() == "'":
-                    self.insertPlainText("''")
-                elif event.text() == "(":
-                    self.insertPlainText("()")
-                elif event.text() == "[":
-                    self.insertPlainText("[]")
-                elif event.text() == "{":
-                    self.insertPlainText("{}")
-                elif event.text() == "<":
-                    self.insertPlainText("<>")
-                elif event.text() == ")":
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                elif event.text() == "]":
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                elif event.text() == "}":
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                elif event.text() == ">":
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor)
-                cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor)
-                self.setTextCursor(cursor)
+        """Обработка нажатий клавиш с улучшенной логикой"""
+        # Автодополнение
+        if event.text() and not event.text().isspace():
+            self.completion_timer.start(200)  # Уменьшил задержку для лучшего UX
+        
+        # Умное закрытие скобок
+        if self.language_config.brace_auto_close:
+            if self._handle_auto_closure(event):
                 return
-            elif event.key() in [Qt.Key_Enter, Qt.Key_Return] and self.language in ["python", "c", "cpp"]:
-                self.completer.popup().hide()
-                if self.language == "python":
-                    # Вставляем новую строку
-                    cursor = self.textCursor()
-                    line = cursor.block().text()
-                    # Считаем количество пробелов в начале текущей строки
-                    spaces = len(line) - len(line.lstrip(' '))
-                    indentation = ' ' * spaces
-                    # Проверяем, заканчивается ли предыдущая строка на особые слова
-                    if line.strip().endswith(('if', 'for', 'while', 'else', 'elif', ':')):
-                        indentation += ' ' * self.tabWidth  # Добавляем отступ
-                    self.insertPlainText('\n')
-                    self.insertPlainText(indentation)
-                elif self.language in ["c", "cpp"]:
-                    cursor = self.textCursor()
-                    line = cursor.block().text()
-                    # Считаем количество пробелов в начале текущей строки
-                    spaces = len(line) - len(line.lstrip(' '))
-                    indentation = ' ' * spaces
-                    cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 1)
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, 1)
-                    symbol = cursor.selectedText()
-                    if symbol == "{":
-                        indentation += ' ' * self.tabWidth
-                        self.insertPlainText("\n\n")  # Добавляем отступ
-                        cursor.movePosition(QTextCursor.Up)
-                        self.setTextCursor(cursor)
-                        self.insertPlainText(indentation)
-                    else:
-                        self.insertPlainText("\n" + indentation)
+        
+        # Умные отступы
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self._handle_smart_indent()
+            return
+        
+        # Комбинации клавиш для комплитера
+        if event.key() in (Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return) and self.completer.popup().isVisible():
+            self.completer.popup().hide()
+            if event.key() in (Qt.Key_Enter, Qt.Key_Return):
                 return
-            else:
-                if event.key() == Qt.Key_Backspace:
-                    self.completer.popup().hide()  # Скрываем popup при удалении последнего символа
-                if event.key() not in [Qt.Key_Up, Qt.Key_Down] and event.modifiers() not in [Qt.ControlModifier,
-                                                                                             Qt.ShiftModifier]:
-                    tc.select(QTextCursor.WordUnderCursor)
-                    cr = self.cursorRect()
-                    if event.text() not in [".", "[", "{", "("]:
-                        if len(tc.selectedText()) > 0:
-                            prefix = tc.selectedText()  # Получаем выбранный текст для установки в качестве префикса автодополнения
-                            if "." in prefix:
-                                prefix = prefix.split(".")[-1]
-                            self.completer.setCompletionPrefix(prefix)
-                            popup = self.completer.popup()
-                            popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
-                            cr.setWidth(self.completer.popup().sizeHintForColumn(
-                                0) + self.completer.popup().verticalScrollBar().sizeHint().width())
-                            self.completer.complete(cr)  # Запускаем автодополнение
-                else:
-                    self.completer.popup().hide()  # Если ничего не выбрано, скрываем всплывающий список
-                super().keyPressEvent(event)
-                return
+        
         super().keyPressEvent(event)
+        
+        # Запускаем отложенный анализ
+        self.analysis_timer.start(500)
+    
+    def _handle_auto_closure(self, event):
+        """Автоматическое закрытие скобок и кавычек"""
+        closure_map = {
+            '"': '"', "'": "'", '(': ')', '[': ']', '{': '}'
+        }
+        
+        if event.text() in closure_map:
+            cursor = self.textCursor()
+            cursor.insertText(event.text() + closure_map[event.text()])
+            cursor.movePosition(QTextCursor.Left)
+            self.setTextCursor(cursor)
+            return True
+        return False
+    
+    def _handle_smart_indent(self):
+        """Умное добавление отступов"""
+        cursor = self.textCursor()
+        current_block = cursor.block()
+        previous_text = current_block.previous().text()
+        
+        # Вычисляем базовый отступ
+        indent = len(previous_text) - len(previous_text.lstrip())
+        base_indent = ' ' * indent
+        
+        # Добавляем дополнительный отступ для определенных конструкций
+        if self.language_config.auto_indent:
+            if any(previous_text.strip().endswith(keyword) for keyword in [':', '{', '=>']):
+                base_indent += ' ' * self.tab_width
+        
+        # Вставляем новую строку с отступом
+        cursor.insertText('\n' + base_indent)
 
 
-class TextEdit(QPlainTextEdit):
-    def __init__(self, parent=None, language="", settings={}):
-        super(TextEdit, self).__init__(parent)
+class ModernCodeEditor(QWidget):
+    """Современный редактор кода с нумерацией строк и дополнительными функциями"""
+    
+    def __init__(self, parent=None, language: str = "", settings: dict = None):
+        super().__init__(parent)
         self.language = language
-        self.settings = settings
-        self.welcome = False
-        self.fontSize = int(self.settings["settings"]["fontsize"])
-        self.second_color = self.settings["settings"]["second_color"]
-        self.tabWidth = 4
-        self.setFont(QFont("Courier New", self.fontSize))
-        self.setStyleSheet(
-            f"background-color: {self.second_color};\n"
-            "color: #ffffff;\n"
-            "padding: 20px;\n"
-            "padding-top: 10px;\n"
-            "letter-spacing:1px;\n"
-            "width: 0px;\n"
-            "border: none"
-        )
-
-    def addText(self, text: str):
-        self.insertPlainText(text)
-
-
-class CodeEdit(QWidget):
-    def __init__(self, parent=None, language="", d=[], settings={}):
-        super(CodeEdit, self).__init__(parent)
-        self.language = language
-        self.filename = ""
-        self.fullfilepath = ""
-        self.settings = settings
-        self.welcome = False
-        self.fontSize = int(self.settings["settings"]["fontsize"])
-        self.second_color = self.settings["settings"]["second_color"]
-        self.layout = QHBoxLayout(self)
-        self.layout.setSpacing(0)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        if self.language in settings["languages"]:
-            self.mode = self.settings["languages_type"][self.language]
-            self.textedit = CodeTextEdit(self, language=language, d=d, settings=self.settings)
+        self.settings = settings or {}
+        self.file_path = None
+        
+        self._setup_ui()
+        self._setup_shortcuts()
+        self._setup_animations()
+    
+    def _setup_ui(self):
+        """Настройка пользовательского интерфейса"""
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        # Основной редактор
+        self.editor = CodeEditor(language=self.language, settings=self.settings)
+        
+        layout.addWidget(self.editor)
+    
+    def _setup_shortcuts(self):
+        """Настройка горячих клавиш"""
+        shortcuts = {
+            "Ctrl+=": self._zoom_in,
+            "Ctrl+-": self._zoom_out,
+            "Ctrl+0": self._reset_zoom,
+            "Ctrl+/": self._toggle_comment,
+            "Ctrl+D": self._duplicate_line,
+            "Ctrl+Shift+K": self._delete_line,
+        }
+        
+        for key_sequence, callback in shortcuts.items():
+            shortcut = QShortcut(QKeySequence(key_sequence), self)
+            shortcut.activated.connect(callback)
+    
+    def _setup_animations(self):
+        """Настройка анимаций"""
+        self.fade_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.fade_animation.setDuration(300)
+        self.fade_animation.setStartValue(0)
+        self.fade_animation.setEndValue(1)
+        self.fade_animation.start()
+    
+    def _zoom_in(self):
+        """Увеличение масштаба с анимацией"""
+        font = self.editor.font()
+        current_size = font.pointSize()
+        
+        if current_size < 30:
+            font.setPointSize(current_size + 1)
+            self.editor.setFont(font)
+    
+    def _zoom_out(self):
+        """Уменьшение масштаба с анимацией"""
+        font = self.editor.font()
+        current_size = font.pointSize()
+        
+        if current_size > 6:
+            font.setPointSize(current_size - 1)
+            self.editor.setFont(font)
+    
+    def _reset_zoom(self):
+        """Сброс масштаба к стандартному"""
+        default_size = int(self.settings.get("fontsize", 14))
+        font = QFont("Cascadia Code", default_size)
+        self.editor.setFont(font)
+    
+    def _toggle_comment(self):
+        """Комментирование/раскомментирование кода"""
+        cursor = self.editor.textCursor()
+        if cursor.hasSelection():
+            start = cursor.selectionStart()
+            end = cursor.selectionEnd()
+            
+            cursor.setPosition(start)
+            cursor.beginEditBlock()
+            
+            # Получаем символ комментария для текущего языка
+            comment_char = self.editor.language_config.line_comment
+            
+            cursor.setPosition(start)
+            cursor.movePosition(QTextCursor.StartOfLine)
+            
+            lines_commented = 0
+            while cursor.position() < end:
+                cursor_text = cursor.block().text()
+                
+                # Проверяем, комментирована ли уже строка
+                if cursor_text.lstrip().startswith(comment_char):
+                    # Раскомментировать
+                    cursor.movePosition(QTextCursor.StartOfLine)
+                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, 
+                                      len(cursor_text) - len(cursor_text.lstrip()))
+                    cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, len(comment_char))
+                    cursor.removeSelectedText()
+                else:
+                    # Закомментировать
+                    cursor.movePosition(QTextCursor.StartOfLine)
+                    cursor.insertText(comment_char + " ")
+                
+                lines_commented += 1
+                if not cursor.movePosition(QTextCursor.Down):
+                    break
+            
+            cursor.endEditBlock()
         else:
-            self.mode = -1
-            self.textedit = TextEdit(self, language=language, settings=self.settings)
-        self.labelCount = QPlainTextEdit(self)
-        self.labelCount.setReadOnly(True)
-        self.labelCount.setStyleSheet(f"padding-left: 12px; color: #ABB2BF; width: 0px;\n padding-top: 10px;\n"
-                                      f"background-color: {self.second_color}; padding-bottom: 20px; letter-spacing:1px; border: 2px solid {self.second_color}; border-right-color: #282C34;")
-        self.labelCount.setFixedWidth(103)
-        self.labelCount.setFont(QFont("Courier New", self.fontSize))
-        self.changeCount(1)
-        self.textedit.blockCountChanged.connect(self.changeCount)
-        self.textedit.verticalScrollBar().valueChanged.connect(self.sync_scroll)
-        self.labelCount.verticalScrollBar().valueChanged.connect(self.sync_scroll)
-        self.layout.addWidget(self.labelCount, 1)
-        self.layout.addWidget(self.textedit, 10)
-        self.setLayout(self.layout)
-        self.shortcutAdd = QShortcut(QKeySequence("Ctrl+Shift+="), self)
-        self.shortcutAdd.activated.connect(self.addFontSize)
-        self.shortcutPop = QShortcut(QKeySequence("Ctrl+-"), self)
-        self.shortcutPop.activated.connect(self.popFontSize)
-        self.shortcutEnd = QShortcut(QKeySequence("Ctrl+Down"), self)
-        self.shortcutEnd.activated.connect(self.moveCursorToEnd)
-        self.shortcutStart = QShortcut(QKeySequence("Ctrl+Up"), self)
-        self.shortcutStart.activated.connect(self.moveCursorToStart)
+            # Комментирование одной строки
+            cursor = self.editor.textCursor()
+            cursor.movePosition(QTextCursor.StartOfLine)
+            cursor_text = cursor.block().text()
+            comment_char = self.editor.language_config.line_comment
+            
+            if cursor_text.lstrip().startswith(comment_char):
+                # Раскомментировать
+                cursor.movePosition(QTextCursor.StartOfLine)
+                cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, 
+                                  len(cursor_text) - len(cursor_text.lstrip()))
+                cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, len(comment_char))
+                cursor.removeSelectedText()
+            else:
+                # Закомментировать
+                cursor.movePosition(QTextCursor.StartOfLine)
+                cursor.insertText(comment_char + " ")
+    
+    def _duplicate_line(self):
+        """Дублирование текущей строки"""
+        cursor = self.editor.textCursor()
+        cursor.select(QTextCursor.LineUnderCursor)
+        text = cursor.selectedText()
+        
+        cursor.movePosition(QTextCursor.EndOfLine)
+        cursor.insertText("\n" + text)
+    
+    def _delete_line(self):
+        """Удаление текущей строки"""
+        cursor = self.editor.textCursor()
+        cursor.select(QTextCursor.LineUnderCursor)
+        cursor.removeSelectedText()
+    
+    def set_file_path(self, file_path: str):
+        """Установка пути к файлу и обновление языка на основе расширения"""
+        self.file_path = Path(file_path)
+        
+        # Автоматически определяем язык по расширению файла
+        file_extension = self.file_path.suffix.lower()
+        if file_extension:  # Убираем точку если есть
+            file_extension = file_extension[1:]
+            
+        # Обновляем язык редактора если расширение изменилось
+        if file_extension and file_extension != self.language:
+            self.set_language(file_extension)
+    
+    def get_file_path(self) -> Optional[Path]:
+        """Получение пути к файлу"""
+        return self.file_path
 
-    def sync_scroll(self, value):
-        self.textedit.verticalScrollBar().setValue(value)
-        self.labelCount.verticalScrollBar().setValue(value)
+    def get_file_name(self) -> str:
+        """Получение имени файла"""
+        return self.file_path.name if self.file_path else "Untitled"
 
-    def changeCount(self, value):
-        self.labelCount.setPlainText("")
-        self.labelCount.insertPlainText("\n".join([f"{round(i + 1, 2):>4}" for i in range(self.textedit.blockCount())]))
-        self.labelCount.verticalScrollBar().setValue(value)
-
-    def addText(self, text):
-        self.textedit.addText(text)
-
-    def setPlainText(self, text):
-        self.textedit.setPlainText(text)
-
-    def toPlainText(self):
-        return self.textedit.toPlainText()
-
-    @pyqtSlot()
-    def addFontSize(self):
-        self.fontSize += 1
-        self.textedit.setFont(QFont("Courier New", self.fontSize))
-        self.labelCount.setFont(QFont("Courier New", self.fontSize))
-
-    @pyqtSlot()
-    def popFontSize(self):
-        if self.fontSize > 1:
-            self.fontSize -= 1
-            self.textedit.setFont(QFont("Courier New", self.fontSize))
-            self.labelCount.setFont(QFont("Courier New", self.fontSize))
-
-    @pyqtSlot()
-    def moveCursorToEnd(self):
-        self.textedit.moveCursor(QTextCursor.End)
-        self.labelCount.moveCursor(QTextCursor.End)
-
-    @pyqtSlot()
-    def moveCursorToStart(self):
-        self.labelCount.moveCursor(QTextCursor.Start)
-        self.textedit.moveCursor(QTextCursor.Start)
-
-
-class WordHighlighter(QSyntaxHighlighter):
-    def __init__(self, parent, language):
-        super(WordHighlighter, self).__init__(parent)
-        self.language = language
-        self.patterns = []
-        self.set_patterns()
-
-    def set_patterns(self):
-        self.create_patterns()
-
-    def create_patterns(self):
+    def save_file(self) -> bool:
+        """Сохранение файла"""
         try:
-            for i in patterns[self.language]:
-                self.patterns.append((i[0], QColor(i[1])))
-            return self.patterns
-        except:
-            return []
+            if self.file_path:
+                self.file_path.write_text(self.get_code(), encoding='utf-8')
+                return True
+            return False
+        except Exception as e:
+            print(f"Save error: {e}")
+            return False
 
-    def highlightBlock(self, text):
-        if self.patterns != []:
-            for pattern, format in self.patterns:
-                expression = QRegExp(pattern)
-                index = expression.indexIn(text)
-                while index >= 0:
-                    length = expression.matchedLength()
-                    self.setFormat(index, length, format)
-                    index = expression.indexIn(text, index + length)
-
-
-class MyCompleter(QCompleter):
-    insertText = pyqtSignal(str)
-
-    def __init__(self, d=[], backcolor="", fontsize=11, parent=None):
-        QCompleter.__init__(self, d, parent)
-        self.setCaseSensitivity(Qt.CaseInsensitive)  # Нечувствительность к регистру
-        self.setFilterMode(Qt.MatchContains)  # Фильтрация по вхождению
-        self.setCompletionMode(QCompleter.PopupCompletion)
-        self.popup().setFixedWidth(200)
-        self.highlighted.connect(self.setHighlighted)
-        self.popup().setStyleSheet(f"font-size: {fontsize - 1}pt;"
-                                   "QListView { background-color: " + backcolor + "; color: white; padding: 2px; border: 1px solid lightgray;} "
-                                                                                  "QFrame {border: 1px solid #ccc; padding: 2px;}"
-                                                                                  "QListView::item:selected { background-color: lightgray;}"
-                                                                                  "QListView::item {height: 30px;}")
-
-    def update(self, d):
-        model = QStringListModel()
-        model.setStringList(d)
-        self.setModel(model)
-
-    def complete(self, rect):
-        # Рассчитываем позицию попапа относительно курсора
-        point = QPoint(rect.left(), rect.top() + rect.height())
-        global_point = rect.bottomLeft() + point
-
-        # Перемещаем попап QCompleter
-        self.popup().move(global_point)
-
-        super().complete(rect)
-
-    def setHighlighted(self, text):
-        self.lastSelected = text
-
-    def getSelected(self):
-        return self.lastSelected
-
-
-class CodeAnalyzer:
-    def __init__(self, lang):
-        self._lang = lang
-        self.defined_names = keywords[self._lang]
-
-    def analyze_code(self, code):
-        if self._lang == "python":
-            self.defined_names = keywords[self._lang]  # Сброс списка определенных имен
-            # Анализируем текст кода, чтобы найти определения функций и переменных
-            try:
-                # Разбираем код в абстрактное синтаксическое дерево (AST)
-                tree = ast.parse(code)
-
-                # Обходим AST, чтобы найти все определения и импорты
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.FunctionDef):
-                        # Если узел - определение функции, добавляем ее имя в словарь
-                        if node.name not in self.defined_names:
-                            self.defined_names += node.name
-                    elif isinstance(node, ast.ClassDef):
-                        # Если узел - определение класса, добавляем его имя в словарь
-                        if node.name not in self.defined_names:
-                            self.defined_names += node.name
-                        for n in node.body:
-                            if isinstance(n, ast.FunctionDef):
-                                if node.name not in self.defined_names:
-                                    self.defined_names += n.name
-                    elif isinstance(node, ast.Import):
-                        # Если узел - импорт, добавляем имена импортированных модулей в словарь
-                        for alias in node.names:
-                            if node.name not in self.defined_names:
-                                self.defined_names += alias.name.split(".")[0]
-            except:
-                function_pattern = r'def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\('
-                self.defined_names += re.findall(function_pattern, code)
-            variable_pattern = r'\b([A-Za-z_][A-Za-z0-9_]*)\b(?=[^\(]*\))'  # Регулярное выражение для определения переменных
-            self.defined_names += re.findall(variable_pattern, code)
-        elif self._lang == "c":
-            c_language_dictionary = [
-                "auto", "double", "int", "struct", "break", "else", "long", "switch",
-                "case", "enum", "register", "typedef", "char", "extern", "return", "union",
-                "continue", "for", "signed", "void", "do", "if", "static", "while",
-                "default", "goto", "sizeof", "volatile", "const", "float", "short", "unsigned"
-            ]
-
-            c_standard_library = [
-                "assert", "errno", "time", "stdlib", "stdio", "math", "string"  # И другие стандартные библиотеки C
-            ]
-
-            functions = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*\(', code)
-            variables = re.findall(r'[a-zA-Z_][a-zA-Z0-9_]*', code)
-            '''
-            import ply.lex as lex
-            import ply.yacc as yacc
-            tokens = (
-                'VAR',  # Переменная
-                'FUNC',  # Функция
-                # Другие токены, такие как INT, FLOAT и т.д.
+    def save_file_as(self, file_path: str) -> bool:
+        """Сохранение файла под новым именем"""
+        try:
+            self.set_file_path(file_path)
+            return self.save_file()
+        except Exception as e:
+            print(f"Save as error: {e}")
+            return False
+    
+    def get_code(self) -> str:
+        """Получение кода из редактора"""
+        return self.editor.toPlainText()
+    
+    def set_code(self, code: str):
+        """Установка кода в редактор"""
+        self.editor.setPlainText(code)
+    
+    def set_language(self, language: str):
+        """Изменение языка программирования"""
+        self.language = language
+        try:
+            self.editor.language_config = SyntaxHighlighterFactory.create_config(Language(language))
+            self.editor.analyzer = CodeAnalyzer(language)
+            self.editor.highlighter = ModernSyntaxHighlighter(
+                self.editor.document(), 
+                self.editor.language_config
             )
+            # Перезапускаем анализ кода для нового языка
+            self.editor.analyzer.analyze_code(self.get_code())
+        except Exception as e:
+            print(f"Error setting language {language}: {e}")
+            # Fallback to Python if language not supported
+            try:
+                self.editor.language_config = SyntaxHighlighterFactory.create_config(Language.PYTHON)
+            except:
+                pass
 
-            # Определение правил для токенов
-            def t_VAR(t):
-                r'[a-zA-Z_][a-zA-Z0-9_]*'
-                # Добавляем переменную в список
-                variables.append(t.value)
-                return t
 
-            def t_FUNC(t):
-                r'[a-zA-Z_][a-zA-Z0-9_]*\('
-                # Добавляем имя функции в список
-                functions.append(t.value[:-1])
-                return t
+# Пример использования
+if __name__ == "__main__":
+    import sys
+    
+    app = QApplication(sys.argv)
+    
+    # Настройки в стиле VS Code
+    settings = {
+        "fontsize": 14,
+        "text_color": "#D4D4D4",
+        "second_color": "#1E1E1E",
+        "accent_color": "#007ACC"
+    }
+    
+    # Создаем редактор с примером кода
+    editor = ModernCodeEditor(language="py", settings=settings)
+    
+    example_code = '''# Пример Python кода с современной подсветкой
+class Calculator:
+    """Простой калькулятор с базовыми операциями"""
+    
+    def __init__(self):
+        self.result = 0
+    
+    def add(self, x: float, y: float) -> float:
+        """Сложение двух чисел"""
+        self.result = x + y
+        return self.result
+    
+    def multiply(self, x: float, y: float) -> float:
+        """Умножение двух чисел"""
+        self.result = x * y
+        return self.result
 
-            # Другие правила для токенов
+def main():
+    calc = Calculator()
+    print(f"2 + 3 = {calc.add(2, 3)}")
+    print(f"4 * 5 = {calc.multiply(4, 5)}")
 
-            # Запуск парсера
-            def parse_c_code(code):
-                lexer = lex.lex()
-                lexer.input(code)
-                for token in lexer:
-                    pass  # Парсинг всех токенов
-
-            # Пример использования парсера
-            variables = []
-            functions = []
-            parse_c_code(code)
-            self.defined_names += variables
-            self.defined_names += functions'''
-            self.defined_names += functions
-            self.defined_names += c_language_dictionary
-            self.defined_names += c_standard_library
-        elif self._lang == "cpp":
-            variable_pattern = r'\b\w+\s+\w+\s*=\s*.*;'
-            function_pattern = r'\b\w+\s+\w+\(.*\)\s*{'
-
-            # Извлечение переменных
-            variables = re.findall(variable_pattern, code)
-
-            # Извлечение функций
-            functions = re.findall(function_pattern, code)
-            self.defined_names += variables
-            self.defined_names += functions
-
-    def get_auto_complete_dict(self):
-        return list(set([name for name in self.defined_names]))  # Возвращаем словарь для автодополнения
+if __name__ == "__main__":
+    main()
+'''
+    
+    editor.set_code(example_code)
+    editor.setWindowTitle("Modern Code Editor - VS Code Style")
+    editor.resize(800, 600)
+    editor.show()
+    
+    sys.exit(app.exec_())
