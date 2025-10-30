@@ -1,13 +1,14 @@
-from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtGui import QIcon, QDesktopServices
+from PyQt5 import QtWidgets, QtCore, QtGui
+from PyQt5.QtGui import QIcon, QDesktopServices, QFont
+from PyQt5.QtCore import Qt
 
 class Explorer(QtWidgets.QTreeView):
     def __init__(self, parent=None):
         super(Explorer, self).__init__(parent=parent)
 
         self.setHeaderHidden(True)
-        self.setColumnWidth(0, 200)
-        self.setFixedWidth(300)
+        self.setColumnWidth(0, 300)
+        self.setFixedWidth(400)
 
         self.model = QtWidgets.QFileSystemModel()
         self.model.setRootPath(QtCore.QDir.rootPath())
@@ -16,38 +17,68 @@ class Explorer(QtWidgets.QTreeView):
         self.setRootIndex(self.model.index(QtCore.QDir.rootPath()))
         self.hide()
 
-        # Скрытие столбцов "Дата изменения" и "Тип"
-        self.setColumnHidden(1, True)  # Размер
-        self.setColumnHidden(2, True)  # Тип
-        self.setColumnHidden(3, True)  # Дата изменения
+        # Скрытие столбцов
+        self.setColumnHidden(1, True)
+        self.setColumnHidden(2, True)
+        self.setColumnHidden(3, True)
 
+        # Clean Glass стиль с белым текстом
         self.setStyleSheet(
             """
             QTreeView {
-                background-color: #1b1c2e;
-                color: #D8DEE9;
+                background-color: rgba(30, 30, 30, 0.9);
+                color: rgba(255, 255, 255, 0.95);
                 border: none;
                 font-size: 14px;
                 padding-top: 5px;
-                border: 1px solid #2E3440;
-                border-right-color: #282C34;
+                border-radius: 12px;
+                margin: 5px;
+                outline: none;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                font-weight: 400;
             }
             QTreeView::item {
-                height: 30px;
-                padding: 2px;
-                padding-right: 10px;
+                height: 36px;
+                padding: 2px 12px;
+                border-radius: 8px;
+                margin: 2px 5px;
+                border: none;
+                color: rgba(255, 255, 255, 0.95);
             }
             QTreeView::item:hover {
-                background-color: #4C566A;
+                background-color: rgba(255, 255, 255, 0.15);
+                color: rgba(255, 255, 255, 1);
             }
             QTreeView::item:selected {
-                background-color: #5E81AC;
-                color: #ECEFF4;
+                background-color: rgba(255, 255, 255, 0.25);
+                color: rgba(255, 255, 255, 1);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+            QTreeView::branch:has-siblings:!adjoins-item {
+                border-image: url(vline.png) 0;
+            }
+            QTreeView::branch:has-siblings:adjoins-item {
+                border-image: url(branch-more.png) 0;
+            }
+            QTreeView::branch:!has-children:!has-siblings:adjoins-item {
+                border-image: url(branch-end.png) 0;
+            }
+            QTreeView::branch:has-children:!has-siblings:closed,
+            QTreeView::branch:closed:has-children:has-siblings {
+                border-image: none;
+                image: url(branch-closed.png);
+            }
+            QTreeView::branch:open:has-children:!has-siblings,
+            QTreeView::branch:open:has-children:has-siblings  {
+                border-image: none;
+                image: url(branch-open.png);
             }
         """
         )
 
-        # Контекстное меню
+        # Включение антиалиасинга для сглаживания
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_context_menu)
 
@@ -59,21 +90,54 @@ class Explorer(QtWidgets.QTreeView):
             self.setRootIndex(parent_index)
             self.setCurrentIndex(parent_index)
 
-
-
     def open_context_menu(self, position):
-        menu = QtWidgets.QMenu()
+        # Стилизованное контекстное меню в стиле Clean Glass
+        menu = QtWidgets.QMenu(self)
+        menu.setStyleSheet(
+            """
+            QMenu {
+                background-color: rgba(40, 40, 40, 0.95);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 12px;
+                padding: 8px;
+                color: rgba(255, 255, 255, 0.95);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                font-size: 12px;
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+            }
+            QMenu::item {
+                padding: 8px 16px;
+                border-radius: 6px;
+                margin: 2px;
+                color: rgba(255, 255, 255, 0.95);
+            }
+            QMenu::item:selected {
+                background-color: rgba(255, 255, 255, 0.2);
+                color: rgba(255, 255, 255, 1);
+            }
+            QMenu::separator {
+                height: 1px;
+                background: rgba(255, 255, 255, 0.2);
+                margin: 4px 8px;
+            }
+            """
+        )
 
-        open_action = menu.addAction("Open")
+        open_action = menu.addAction("📁 Open")
         open_action.triggered.connect(self.open_item)
 
-        copy_action = menu.addAction("Copy")
+        menu.addSeparator()
+
+        copy_action = menu.addAction("📋 Copy")
         copy_action.triggered.connect(self.copy_item)
 
-        paste_action = menu.addAction("Paste")
+        paste_action = menu.addAction("📎 Paste")
         paste_action.triggered.connect(self.paste_item)
 
-        delete_action = menu.addAction("Delete")
+        menu.addSeparator()
+
+        delete_action = menu.addAction("🗑️ Delete")
         delete_action.triggered.connect(self.delete_item)
 
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -112,33 +176,79 @@ class CustomIconProvider(QtWidgets.QFileIconProvider):
             return QIcon("src/explorer.png")
         return super().icon(type)
 
-#TEST
-class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
-        super(MainWindow, self).__init__()
-
-        self.setWindowTitle("Explorer")
-        self.setGeometry(100, 100, 800, 600)
-
-        self.central_widget = QtWidgets.QWidget()
-        self.setCentralWidget(self.central_widget)
-
-        self.layout = QtWidgets.QVBoxLayout(self.central_widget)
-
-        self.explorer = Explorer()
-        self.layout.addWidget(self.explorer)
-
-        self.nav_bar = QtWidgets.QHBoxLayout()
-
-        self.up_button = QtWidgets.QPushButton("Up")
-        self.up_button.clicked.connect(self.explorer.go_up)
-        self.nav_bar.addWidget(self.up_button)
-
-        self.layout.addLayout(self.nav_bar)
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+class YouTubeStyleToolBar(QtWidgets.QWidget):
+    def __init__(self, explorer, parent=None):
+        super().__init__(parent)
+        self.explorer = explorer
+        self.init_ui()
+        
+    def init_ui(self):
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(0, 4, 0, 4)
+        layout.setSpacing(2)
+        
+        # Стиль кнопок в стиле YouTube
+        button_style = """
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 14px;
+                padding: 4px 5px;
+                color: rgba(255, 255, 255, 0.95);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                font-size: 6px;
+                max-width: 30px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+            QPushButton:pressed {
+                background-color: rgba(255, 255, 255, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.4);
+            }
+            QPushButton:disabled {
+                background-color: rgba(255, 255, 255, 0.05);
+                color: rgba(255, 255, 255, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+        """
+        
+        # Кнопка Назад
+        self.back_btn = QtWidgets.QPushButton("⬅️ Back")
+        self.back_btn.setStyleSheet(button_style)
+        self.back_btn.setCursor(Qt.PointingHandCursor)
+        
+        # Кнопка Вперед
+        self.forward_btn = QtWidgets.QPushButton("➡️ Forward")
+        self.forward_btn.setStyleSheet(button_style)
+        self.forward_btn.setCursor(Qt.PointingHandCursor)
+        
+        # Кнопка Вверх
+        self.up_btn = QtWidgets.QPushButton("⬆️ Up")
+        self.up_btn.setStyleSheet(button_style)
+        self.up_btn.setCursor(Qt.PointingHandCursor)
+        self.up_btn.clicked.connect(self.explorer.go_up)
+        
+        # Добавляем кнопки в layout
+        layout.addWidget(self.back_btn)
+        layout.addWidget(self.forward_btn)
+        layout.addWidget(self.up_btn)
+        layout.addStretch()
+        
+        # Устанавливаем фон панели
+        self.setStyleSheet("""
+            YouTubeStyleToolBar {
+                background-color: rgba(40, 40, 40, 0.8);
+                border-radius: 12px;
+                margin: 2px;
+            }
+        """)
+    
+    def go_home(self):
+        home_path = QtCore.QDir.homePath()
+        self.explorer.setRootIndex(self.explorer.model.index(home_path))
+    
+    def refresh(self):
+        current_index = self.explorer.currentIndex()
+        self.explorer.model.refresh(current_index)

@@ -6,7 +6,7 @@ from functools import partial
 from typing import Dict, List, Optional, Any
 
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtCore import QSize, QTimer
+from PyQt5.QtCore import QSize, QTimer, Qt
 from PyQt5.QtGui import QIcon, QPalette, QColor, QFont, QKeySequence
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QMessageBox, 
@@ -108,7 +108,7 @@ class UIManager:
         
         # Горизонтальный layout для explorer и редактора
         horizontal_layout = QtWidgets.QHBoxLayout()
-        horizontal_layout.setContentsMargins(0, 0, 0, 0)
+        horizontal_layout.setContentsMargins(0, 20, 12, 15)
         horizontal_layout.setSpacing(0)
         
         # Настройка explorer
@@ -141,16 +141,45 @@ class UIManager:
             'delete': DeletePushButton("")
         }
         
+        # Стилизуем кнопки в стиле YouTube
+        button_style = """
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 18px;
+                padding: 8px 16px;
+                color: rgba(255, 255, 255, 0.95);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                font-size: 13px;
+                font-weight: 500;
+                min-width: 60px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+            QPushButton:pressed {
+                background-color: rgba(255, 255, 255, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.4);
+            }
+        """
+        
+        for button in self.main_window.explorer_buttons.values():
+            button.setStyleSheet(button_style)
+            button.setCursor(Qt.PointingHandCursor)
+        
         buttons_layout = QtWidgets.QHBoxLayout()
-        buttons_layout.setContentsMargins(0, 0, 0, 0)
-        buttons_layout.setSpacing(0)
+        buttons_layout.setContentsMargins(0, 0, 8, 4)  # Добавьте отступы
+        buttons_layout.setSpacing(4)
+        
         for button in self.main_window.explorer_buttons.values():
             buttons_layout.addWidget(button)
         
+        # ИСПОЛЬЗУЙТЕ ModernExplorer вместо старого Explorer
         self.main_window.file_explorer = Explorer()
         
         self.main_window.explorer_layout = QtWidgets.QVBoxLayout()
-        self.main_window.explorer_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_window.explorer_layout.setContentsMargins(0, 0, 5, 5)  # Добавьте отступы
         self.main_window.explorer_layout.setSpacing(0)
         self.main_window.explorer_layout.addLayout(buttons_layout)
         self.main_window.explorer_layout.addWidget(self.main_window.file_explorer)
@@ -266,7 +295,16 @@ class UIManager:
         self.main_window.status_bar.addPermanentWidget(self.main_window.project_indicator)
         
     def _apply_styles(self):
-        self.main_window.setStyleSheet("background-color: #131313;")
+        self.main_window.setStyleSheet("""
+            QMainWindow {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 rgba(20, 20, 20, 0.95),
+                    stop:1 rgba(30, 30, 30, 0.95));
+            }
+            QWidget {
+                background-color: transparent;
+                color: rgba(255, 255, 255, 0.95);
+            }""")
         self.main_window.central_widget.setStyleSheet("QWidget { background-color: #25263b; }")
         
     def _toggle_explorer_visibility(self, visible: bool):
@@ -1243,7 +1281,7 @@ def setup_application_style(app: QApplication):
     palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
     palette.setColor(QPalette.ToolTipBase, QColor(255, 255, 255))
     palette.setColor(QPalette.ToolTipText, QColor(255, 255, 255))
-    palette.setColor(QPalette.Text, QColor(255, 255, 255))
+    palette.setColor(QPalette.Text, QColor(0, 0, 0))
     palette.setColor(QPalette.Button, QColor(53, 53, 53))
     palette.setColor(QPalette.ButtonText, QColor(255, 255, 255))
     palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
