@@ -2,7 +2,9 @@ import pickle
 import shutil
 from os import path, getlogin, name, environ, remove, makedirs, listdir
 from dataclasses import dataclass, asdict
-
+from typing import Dict, Any
+import json
+from pathlib import Path
 
 try:
     from os import getuid
@@ -157,19 +159,52 @@ def update_settings(scriptPath, data):
 
 
 def backup(file):
+    """Создание backup с правильной кодировкой"""
     backup_folder = 'backups'
-    backup_name = path.basename(file.split('.')[0]) + '_backup.txt'
+    backup_name = Path(file).name.split('.')[0] + '_backup.txt'
+    
     if name == 'nt':
         temp_dir = environ.get('TEMP', None)
         if temp_dir:
-            file_path = path.join(temp_dir, backup_folder)
+            file_path = Path(temp_dir) / backup_folder
     else:
-        file_path = backup_folder
-    if not path.exists(file_path):
-        makedirs(file_path)
-    shutil.copyfile(file, path.join(file_path, backup_name))
-    with open(path.join(file_path, backup_name), "a") as f:
-        f.write("\n" + file)
+        file_path = Path(backup_folder)
+    
+    if not file_path.exists():
+        file_path.mkdir(parents=True, exist_ok=True)
+    
+    backup_file = file_path / backup_name
+    
+    try:
+        # Читаем оригинальный файл с определением кодировки
+        encodings = ['utf-8', 'cp1251', 'latin1', 'iso-8859-1', 'cp866']
+        content = None
+        original_encoding = 'utf-8'
+        
+        for encoding in encodings:
+            try:
+                with open(file, "r", encoding=encoding) as f:
+                    content = f.read()
+                original_encoding = encoding
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if content is None:
+            # Если не удалось прочитать как текст, читаем как бинарный
+            with open(file, "rb") as f:
+                binary_content = f.read()
+                content = binary_content.decode('utf-8', errors='ignore')
+                original_encoding = 'binary'
+        
+        # Сохраняем backup в UTF-8
+        with open(backup_file, "w", encoding='utf-8') as f:
+            f.write(content)
+            f.write(f"\n# Original file: {file}\n")
+            f.write(f"# Encoding: {original_encoding}\n")
+            
+    except Exception as e:
+        print(f"Error creating backup for {file}: {e}")
 
 
 def clear_backup():
@@ -202,19 +237,52 @@ def check_backups():
 
 
 def restore_backup():
+    """Восстановление из backup с обработкой кодировок"""
     files = check_backups()
     for file in files:
-        with open(file, "r") as f:
-            text = f.readlines()
-        with open(text[-1], "w") as f:
-            f.write("".join(text[0:-1]))
+        try:
+            # Пробуем разные кодировки
+            encodings = ['utf-8', 'cp1251', 'latin1', 'iso-8859-1', 'cp866']
+            content = None
+            
+            for encoding in encodings:
+                try:
+                    with open(file, "r", encoding=encoding) as f:
+                        content = f.readlines()
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            if content is None:
+                # Если ни одна кодировка не подошла, читаем как бинарный и пробуем декодировать
+                with open(file, "rb") as f:
+                    binary_content = f.read()
+                    # Пробуем декодировать с игнорированием ошибок
+                    try:
+                        text = binary_content.decode('utf-8', errors='ignore')
+                        content = text.splitlines(True)
+                    except:
+                        # Если всё равно ошибка, пропускаем файл
+                        print(f"Could not decode backup file: {file}")
+                        continue
+            
+            if content and len(content) > 1:
+                original_file = content[-1].strip()
+                # Проверяем существование оригинального файла
+                if Path(original_file).exists():
+                    # Записываем содержимое (все строки кроме последней)
+                    with open(original_file, "w", encoding='utf-8') as f:
+                        f.write("".join(content[0:-1]))
+                    print(f"Restored backup for: {original_file}")
+                else:
+                    print(f"Original file not found: {original_file}")
+                    
+        except Exception as e:
+            print(f"Error restoring backup {file}: {e}")
+            continue
+    
+    # Очищаем backup после восстановления
     clear_backup()
-
-# Добавить эти классы в конец файла programs.py
-
-from dataclasses import dataclass, asdict
-from typing import Dict, Any
-import json
 
 @dataclass
 class EditorSettings:

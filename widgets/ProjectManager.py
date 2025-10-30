@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional
-
+import datetime
 
 @dataclass
 class ProjectConfig:
@@ -12,13 +12,45 @@ class ProjectConfig:
     launch_command: str = ""
     description: str = ""
     created_at: str = ""
+    last_opened: str = ""
     
     @classmethod
     def from_dict(cls, data: dict) -> 'ProjectConfig':
-        return cls(**data)
+        return cls(**{k: v for k, v in data.items() if k in cls.__annotations__})
     
     def to_dict(self) -> dict:
         return asdict(self)
+    
+    def get_display_name(self) -> str:
+        """Получить отображаемое имя проекта"""
+        return self.name if self.name else Path(self.root_path).name
+    
+    def get_folder_name(self) -> str:
+        """Получить имя папки проекта"""
+        return Path(self.root_path).name
+    
+    def get_last_opened_display(self) -> str:
+        """Получить отформатированное время последнего открытия"""
+        if not self.last_opened:
+            return "Never opened"
+        try:
+            last_opened = datetime.datetime.fromisoformat(self.last_opened.replace('Z', '+00:00'))
+            now = datetime.datetime.now()
+            diff = now - last_opened
+            
+            if diff.days == 0:
+                return "Today"
+            elif diff.days == 1:
+                return "Yesterday"
+            elif diff.days < 7:
+                return f"{diff.days} days ago"
+            elif diff.days < 30:
+                weeks = diff.days // 7
+                return f"{weeks} week{'s' if weeks > 1 else ''} ago"
+            else:
+                return last_opened.strftime("%b %d, %Y")
+        except:
+            return "Unknown"
 
 class ProjectManager:
     def __init__(self):
@@ -46,7 +78,7 @@ class ProjectManager:
         except Exception as e:
             print(f"Error saving projects: {e}")
     
-    def create_project(self, root_path: str, name: str = None, launch_command: str = "") -> ProjectConfig:
+    def create_project(self, root_path: str, name: str = None, launch_command: str = "", description: str = "") -> ProjectConfig:
         """Создание нового проекта"""
         if name is None:
             name = Path(root_path).name
@@ -55,7 +87,9 @@ class ProjectManager:
             name=name,
             root_path=root_path,
             launch_command=launch_command,
-            created_at=json.dumps(os.path.getctime(root_path))
+            description=description,
+            created_at=datetime.datetime.now().isoformat(),
+            last_opened=datetime.datetime.now().isoformat()
         )
         
         self.projects[root_path] = project
@@ -66,6 +100,9 @@ class ProjectManager:
         """Открытие проекта"""
         if root_path in self.projects:
             self.current_project = self.projects[root_path]
+            # Обновляем время последнего открытия
+            self.current_project.last_opened = datetime.datetime.now().isoformat()
+            self.save_projects()
         else:
             self.current_project = self.create_project(root_path)
         
@@ -81,6 +118,19 @@ class ProjectManager:
         if self.current_project and self.current_project.root_path == config.root_path:
             self.current_project = config
         self.save_projects()
+    
+    def get_recent_projects(self, limit: int = 10) -> List[ProjectConfig]:
+        """Получение списка недавних проектов"""
+        projects = list(self.projects.values())
+        # Сортируем по времени последнего открытия
+        projects.sort(key=lambda x: x.last_opened or "", reverse=True)
+        return projects[:limit]
+    
+    def get_sorted_projects(self) -> List[ProjectConfig]:
+        """Получение отсортированного списка проектов"""
+        projects = list(self.projects.values())
+        projects.sort(key=lambda x: x.get_display_name().lower())
+        return projects
     
     def get_project_files(self) -> List[str]:
         """Получение списка файлов проекта"""
@@ -105,6 +155,18 @@ class ProjectManager:
             project_path = Path(self.current_project.root_path).resolve()
             return file_path.is_relative_to(project_path)
         except:
+            return False
+    
+    def delete_project(self, root_path: str) -> bool:
+        """Удаляет проект из менеджера"""
+        try:
+            if root_path in self.projects:
+                del self.projects[root_path]
+                self.save_projects()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error deleting project: {e}")
             return False
 
 # Глобальный экземпляр

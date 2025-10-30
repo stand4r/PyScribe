@@ -5,8 +5,8 @@ from os import path
 from subprocess import PIPE, Popen, check_output, CalledProcessError
 from sys import platform
 from concurrent.futures import ThreadPoolExecutor
-import threading
-
+import shlex
+import os
 
 class FabricFoundTerminalClass(ABC):
     @abstractmethod
@@ -15,8 +15,9 @@ class FabricFoundTerminalClass(ABC):
 
 class WindowsFoundTerminalClass(FabricFoundTerminalClass):
     def get_terminal_command(self, command) -> str:
-        return f'start cmd /k "{command}"'
-
+        # Для Windows используем двойные кавычки
+        return f'cmd /c "{command}"'
+    
 class LinuxFoundTerminalClass(FabricFoundTerminalClass):
     def get_terminal_command(self, command) -> str:
         terminals = {
@@ -34,10 +35,10 @@ class LinuxFoundTerminalClass(FabricFoundTerminalClass):
                 if terminal == 'gnome-terminal':
                     return f'{term} {param} bash -c "{command}; exec bash"'
                 else:
-                    return f'{term} {param} bash -c "{command} && read"'
+                    return f'{term} {param} bash -c "{command}; read -p \\"Press enter to continue...\\""'
             except (CalledProcessError, FileNotFoundError):
                 continue
-        return f'xterm -e bash -c "{command} && read"'
+        return f'xterm -e bash -c "{command}; read -p \\"Press enter to continue...\\""'
 
 class OSXFoundTerminalClass(FabricFoundTerminalClass):
     def get_terminal_command(self, command) -> str:
@@ -53,13 +54,33 @@ def choice_env(command):
     else:
         return ""
 
+def safe_path(file_path):
+    """Безопасное экранирование пути для командной строки"""
+    # Нормализуем путь
+    normalized = os.path.normpath(file_path)
+    
+    # Для Windows: используем двойные кавычки если есть пробелы
+    if platform == "win32":
+        if ' ' in normalized:
+            return f'"{normalized}"'
+        return normalized
+    else:
+        # Для Unix-систем: экранируем специальные символы
+        if ' ' in normalized or any(char in normalized for char in ['(', ')', '&', '|', ';']):
+            return shlex.quote(normalized)
+        return normalized
+
 def compile_program_c(path: str) -> str:
     if platform == "win32":
         exe_path = path.rsplit(".", 1)[0] + ".exe"
     elif platform == "linux" or platform == "linux2":
         exe_path = path.rsplit(".", 1)[0] + ".out"
     
-    command = ["gcc", path, "-o", exe_path]
+    # Используем безопасные пути
+    safe_file_path = safe_path(path)
+    safe_exe_path = safe_path(exe_path)
+    
+    command = ["gcc", safe_file_path, "-o", safe_exe_path]
     
     try:
         result = subprocess.run(command, capture_output=True, text=True, check=True)
@@ -73,7 +94,11 @@ def compile_program_cpp(path: str) -> str:
     elif platform == "linux" or platform == "linux2":
         exe_path = path.rsplit(".", 1)[0] + ".out"
     
-    command = ["g++", path, "-o", exe_path]
+    # Используем безопасные пути
+    safe_file_path = safe_path(path)
+    safe_exe_path = safe_path(exe_path)
+    
+    command = ["g++", safe_file_path, "-o", safe_exe_path]
     
     try:
         result = subprocess.run(command, capture_output=True, text=True, check=True)
@@ -105,6 +130,8 @@ class AsyncCodeRunner:
         runner = RunCodeClass(file_path, path.basename(file_path), language, args)
         if runner.command:
             try:
+                # Для отладки выводим команду
+                print(f"Executing command: {runner.command}")
                 process = Popen(runner.command, shell=True)
                 return f"Process started with PID: {process.pid}"
             except Exception as e:
@@ -118,14 +145,18 @@ class RunCodeClass:
         self._args = args
         self.command = ""
         
+        # Используем безопасный путь
+        safe_file_path = safe_path(self._path)
+        
         lang_commands = {
-            "py": f"python {self._path} {args}",
-            "rb": f"ruby {self._path} {args}",
-            "js": f"node {self._path} {args}",
-            "php": f"php {self._path} {args}",
-            "lua": f"lua {self._path} {args}",
-            "pl": f"perl {self._path} {args}",
-            "sh": f"bash {self._path} {args}",
+            "py": f"python {safe_file_path} {args}",
+            "rb": f"ruby {safe_file_path} {args}",
+            "js": f"node {safe_file_path} {args}",
+            "php": f"php {safe_file_path} {args}",
+            "lua": f"lua {safe_file_path} {args}",
+            "pl": f"perl {safe_file_path} {args}",
+            "sh": f"bash {safe_file_path} {args}",
+            "ts": f"ts-node {safe_file_path} {args}",
         }
         
         if lang in lang_commands:
@@ -133,21 +164,28 @@ class RunCodeClass:
         elif lang == "c":
             try:
                 exe = compile_program_c(self._path)
-                self.command = choice_env(f"{exe} {args}")
+                safe_exe = safe_path(exe)
+                self.command = choice_env(f"{safe_exe} {args}")
             except ValueError as e:
                 raise e
         elif lang == "cpp":
             try:
                 exe = compile_program_cpp(self._path)
-                self.command = choice_env(f"{exe} {args}")
+                safe_exe = safe_path(exe)
+                self.command = choice_env(f"{safe_exe} {args}")
             except ValueError as e:
                 raise e
         elif lang == "java":
             # Компиляция и запуск Java
             class_dir = path.dirname(self._path)
             class_name = path.basename(self._path).replace('.java', '')
-            compile_cmd = f"javac {self._path}"
-            run_cmd = f"java -cp {class_dir} {class_name} {args}"
+            
+            # Используем безопасные пути
+            safe_file_path = safe_path(self._path)
+            safe_class_dir = safe_path(class_dir)
+            
+            compile_cmd = f"javac {safe_file_path}"
+            run_cmd = f"java -cp {safe_class_dir} {class_name} {args}"
             self.command = choice_env(f"{compile_cmd} && {run_cmd}")
         else:
             self.command = None

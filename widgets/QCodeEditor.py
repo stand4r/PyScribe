@@ -1,35 +1,41 @@
 import ast
 import re
 import json
-import subprocess
-from os import remove
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Set
+from typing import Dict, List, Tuple, Optional, Set, Any, Callable
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 from enum import Enum
 
-from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint, QTimer, QProcess, QPropertyAnimation, QEasingCurve, QRect, QSize
+from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint, QTimer, QPropertyAnimation, QEasingCurve, QRect, QSize
 from PyQt5.QtGui import QColor, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence, QTextCharFormat, QPainter, QPen, QLinearGradient
 from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QApplication, QTextEdit
 
 
 class Language(Enum):
     PYTHON = "py"
-    CPP = "cpp"
-    C = "c"
-    JAVA = "java"
     JAVASCRIPT = "js"
     TYPESCRIPT = "ts"
-    KOTLIN = "kt"
-    PHP = "php"
+    JAVA = "java"
+    CPP = "cpp"
+    C = "c"
     CSHARP = "cs"
+    PHP = "php"
     RUBY = "rb"
     GO = "go"
-    LUA = "lua"
     RUST = "rs"
+    KOTLIN = "kt"
+    SWIFT = "swift"
     HTML = "html"
     CSS = "css"
-
+    SQL = "sql"
+    JSON = "json"
+    XML = "xml"
+    YAML = "yaml"
+    MARKDOWN = "md"
+    DOCKERFILE = "dockerfile"
+    BASH = "sh"
+    PLAINTEXT = "txt"
 
 
 @dataclass
@@ -42,6 +48,8 @@ class SyntaxRule:
 
 @dataclass
 class LanguageConfig:
+    name: str
+    extensions: List[str]
     keywords: List[str]
     syntax_rules: List[SyntaxRule]
     auto_indent: bool = True
@@ -49,158 +57,370 @@ class LanguageConfig:
     line_comment: str = "//"
     block_comment_start: str = "/*"
     block_comment_end: str = "*/"
-
-
-class SyntaxHighlighterFactory:
-    """Фабрика для создания конфигураций подсветки синтаксиса"""
+    string_delimiters: List[str] = None
     
-    @staticmethod
-    def create_config(language: Language) -> LanguageConfig:
-        keywords = KEYWORDS.get(language.value, [])
-        syntax_rules = []
-        
-        # Базовые правила для всех языков
-        base_rules = [
-            (r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),  # Строки в двойных кавычках
-            (r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),  # Строки в одинарных кавычках
-            (r'\b(true|false|null)\b', "#569CD6"),  # Булевы значения и null
-            (r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),  # Числа
-            (r'\b0x[0-9a-fA-F]+\b', "#B5CEA8"),  # Шестнадцатеричные числа
+    def __post_init__(self):
+        if self.string_delimiters is None:
+            self.string_delimiters = ['"', "'"]
+
+
+class LanguageProvider(ABC):
+    """Абстрактный базовый класс для провайдеров языков"""
+    
+    @abstractmethod
+    def get_config(self) -> LanguageConfig:
+        pass
+    
+    @abstractmethod
+    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
+        pass
+    
+    @abstractmethod
+    def get_completion_items(self, code: str) -> List[str]:
+        pass
+
+
+class PythonLanguageProvider(LanguageProvider):
+    def get_config(self) -> LanguageConfig:
+        keywords = [
+            "False", "None", "True", "and", "as", "assert", "async", "await", "break", 
+            "class", "continue", "def", "del", "elif", "else", "except", "finally", 
+            "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", 
+            "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
         ]
         
-        # Добавляем операторы
-        operators = ['=', '==', '!=', '<', '<=', '>', '>=', '\+', '-', '\*', '/', '//', '\%', '\*\*', 
-                    '\+=', '-=', '\*=', '/=', '\%=', '\+\+', '--', '&&', '\|\|', '!', '&', '\|', '\^', '~', '<<', '>>']
-        
-        for op in operators:
-            base_rules.append((rf"\s*{op}\s*", "#D4D4D4"))
-        
-        # Добавляем ключевые слова
-        for keyword in keywords:
-            base_rules.append((rf"\b{keyword}\b", "#569CD6"))
-        
-        # Языко-специфичные правила
-        if language == Language.PYTHON:
-            base_rules.extend([
-                (r'\b(class|def)\s+(\w+)', "#D7BA7D", QFont.Normal, False),  # Классы и функции
-                (r'\b(self|cls)\b', "#569CD6"),  # Self/cls в Python
-                (r'@\w+\b', "#D7BA7D"),  # Декораторы
-                (r'#.*$', "#6A9955"),  # Комментарии Python
-            ])
-        elif language in [Language.C, Language.CPP]:
-            base_rules.extend([
-                (r'#include\s*<[^>]+>', "#569CD6"),  # Инклюды
-                (r'#\w+', "#569CD6"),  # Директивы препроцессора
-                (r'\b(std|main|printf|cout|cin)\b', "#DCDCAA"),  # Стандартные функции
-            ])
-        elif language in [Language.JAVASCRIPT, Language.TYPESCRIPT]:
-            base_rules.extend([
-                (r'\b(function|var|let|const)\b', "#569CD6"),  # Объявления
-                (r'\b(console|document|window)\b', "#4EC9B0"),  # Глобальные объекты
-                (r'\b(export|import|from|default)\b', "#569CD6"),  # Модули
-            ])
-        elif language == Language.HTML:
-            base_rules.extend([
-                (r'<\/?[^>]+>', "#569CD6"),  # HTML теги
-                (r'\b(src|href|class|id|style)\b', "#9CDCFE"),  # Атрибуты
-            ])
-        elif language == Language.CSS:
-            base_rules.extend([
-                (r'\.[\w-]+\b', "#D7BA7D"),  # CSS классы
-                (r'#[\w-]+\b', "#D7BA7D"),  # CSS ID
-                (r'\b[\w-]+\s*:', "#9CDCFE"),  # CSS свойства
-            ])
-        
-        # Конвертируем в SyntaxRule
-        for rule in base_rules:
-            if len(rule) == 2:
-                pattern, color = rule
-                syntax_rules.append(SyntaxRule(pattern, color))
-            elif len(rule) == 4:
-                pattern, color, weight, italic = rule
-                syntax_rules.append(SyntaxRule(pattern, color, weight, italic))
-        
-        # Определяем символы комментариев для языка
-        line_comment = "//"
-        block_comment_start = "/*"
-        block_comment_end = "*/"
-        
-        if language == Language.PYTHON:
-            line_comment = "#"
-            block_comment_start = '"""'
-            block_comment_end = '"""'
+        syntax_rules = [
+            SyntaxRule(r'#.*$', "#6A9955"),  # Комментарии
+            SyntaxRule(r'\b(class|def)\s+(\w+)', "#D7BA7D", QFont.Normal, False),
+            SyntaxRule(r'\b(self|cls)\b', "#569CD6"),
+            SyntaxRule(r'@\w+\b', "#D7BA7D"),  # Декораторы
+            SyntaxRule(r'\b(None|True|False)\b', "#569CD6"),
+            SyntaxRule(r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),  # Числа
+            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),  # Строки
+            SyntaxRule(r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),
+        ]
         
         return LanguageConfig(
+            name="Python",
+            extensions=["py", "pyw"],
             keywords=keywords,
             syntax_rules=syntax_rules,
-            auto_indent=language in [Language.PYTHON, Language.C, Language.CPP, Language.JAVA, Language.JAVASCRIPT, Language.TYPESCRIPT],
-            brace_auto_close=True,
-            line_comment=line_comment,
-            block_comment_start=block_comment_start,
-            block_comment_end=block_comment_end
+            line_comment="#",
+            block_comment_start='"""',
+            block_comment_end='"""'
         )
+    
+    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+                    analyzer.add_defined_name(node.name)
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        analyzer.add_defined_name(alias.name.split(".")[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        analyzer.add_defined_name(node.module.split(".")[0])
+                elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                    analyzer.add_defined_name(node.id)
+        except SyntaxError:
+            self._analyze_with_regex(code, analyzer)
+    
+    def _analyze_with_regex(self, code: str, analyzer: 'CodeAnalyzer'):
+        patterns = [
+            r'def\s+(\w+)\s*\(',
+            r'class\s+(\w+)',
+            r'(\w+)\s*=',
+            r'from\s+(\w+)',
+            r'import\s+(\w+)'
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, code)
+            for match in matches:
+                if isinstance(match, tuple):
+                    for m in match:
+                        if m and m.isidentifier():
+                            analyzer.add_defined_name(m)
+                elif match and match.isidentifier():
+                    analyzer.add_defined_name(match)
+    
+    def get_completion_items(self, code: str) -> List[str]:
+        return []  # Можно расширить специфичными для Python completion items
 
 
-# Глобальные константы
-KEYWORDS = {
-    "py": [
-        "False", "None", "True", "and", "as", "assert", "async", "await", "break", 
-        "class", "continue", "def", "del", "elif", "else", "except", "finally", 
-        "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", 
-        "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
-    ],
-    "cpp": [
-        "alignas", "alignof", "and", "and_eq", "asm", "atomic_cancel", "atomic_commit",
-        "atomic_noexcept", "auto", "bitand", "bitor", "bool", "break", "case", "catch",
-        "char", "char8_t", "char16_t", "char32_t", "class", "compl", "concept", "const",
-        "consteval", "constexpr", "const_cast", "continue", "co_await", "co_return",
-        "co_yield", "decltype", "default", "delete", "do", "double", "dynamic_cast",
-        "else", "enum", "explicit", "export", "extern", "false", "float", "for", "friend",
-        "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept",
-        "not", "not_eq", "nullptr", "operator", "or", "or_eq", "private", "protected",
-        "public", "reflexpr", "register", "reinterpret_cast", "requires", "return",
-        "short", "signed", "sizeof", "static", "static_assert", "static_cast", "struct",
-        "switch", "synchronized", "template", "this", "thread_local", "throw", "true",
-        "try", "typedef", "typeid", "typename", "union", "unsigned", "using", "virtual",
-        "void", "volatile", "wchar_t", "while", "xor", "xor_eq"
-    ],
-    "js": [
-        "abstract", "arguments", "await", "boolean", "break", "byte", "case", "catch",
-        "char", "class", "const", "continue", "debugger", "default", "delete", "do",
-        "double", "else", "enum", "eval", "export", "extends", "false", "final",
-        "finally", "float", "for", "function", "goto", "if", "implements", "import",
-        "in", "instanceof", "int", "interface", "let", "long", "native", "new",
-        "null", "package", "private", "protected", "public", "return", "short",
-        "static", "super", "switch", "synchronized", "this", "throw", "throws",
-        "transient", "true", "try", "typeof", "var", "void", "volatile", "while",
-        "with", "yield"
-    ],
-    "java": [
-        "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
-        "class", "const", "continue", "default", "do", "double", "else", "enum",
-        "extends", "final", "finally", "float", "for", "goto", "if", "implements",
-        "import", "instanceof", "int", "interface", "long", "native", "new",
-        "package", "private", "protected", "public", "return", "short", "static",
-        "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
-        "transient", "try", "void", "volatile", "while"
-    ]
-}
+class JavaScriptLanguageProvider(LanguageProvider):
+    def get_config(self) -> LanguageConfig:
+        keywords = [
+            "abstract", "arguments", "await", "boolean", "break", "byte", "case", "catch",
+            "char", "class", "const", "continue", "debugger", "default", "delete", "do",
+            "double", "else", "enum", "eval", "export", "extends", "false", "final",
+            "finally", "float", "for", "function", "goto", "if", "implements", "import",
+            "in", "instanceof", "int", "interface", "let", "long", "native", "new",
+            "null", "package", "private", "protected", "public", "return", "short",
+            "static", "super", "switch", "synchronized", "this", "throw", "throws",
+            "transient", "true", "try", "typeof", "var", "void", "volatile", "while",
+            "with", "yield"
+        ]
+        
+        syntax_rules = [
+            SyntaxRule(r'//.*$', "#6A9955"),  # Комментарии
+            SyntaxRule(r'/\*[\s\S]*?\*/', "#6A9955"),  # Блочные комментарии
+            SyntaxRule(r'\b(function|class|const|let|var)\b', "#569CD6"),
+            SyntaxRule(r'\b(console|document|window|this)\b', "#4EC9B0"),
+            SyntaxRule(r'\b(export|import|from|default)\b', "#569CD6"),
+            SyntaxRule(r'\b(true|false|null|undefined)\b', "#569CD6"),
+            SyntaxRule(r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),
+            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),
+            SyntaxRule(r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),
+            SyntaxRule(r'`[^`\\]*(\\.[^`\\]*)*`', "#CE9178"),  # Template literals
+        ]
+        
+        return LanguageConfig(
+            name="JavaScript",
+            extensions=["js", "jsx"],
+            keywords=keywords,
+            syntax_rules=syntax_rules
+        )
+    
+    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
+        patterns = [
+            r'function\s+(\w+)\s*\(',
+            r'class\s+(\w+)',
+            r'const\s+(\w+)\s*=',
+            r'let\s+(\w+)\s*=',
+            r'var\s+(\w+)\s*=',
+            r'(\w+)\s*:\s*function'
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, code)
+            for match in matches:
+                if match and match.isidentifier():
+                    analyzer.add_defined_name(match)
+    
+    def get_completion_items(self, code: str) -> List[str]:
+        return ["console", "document", "window", "alert", "fetch"]
+
+
+class HTMLLanguageProvider(LanguageProvider):
+    def get_config(self) -> LanguageConfig:
+        syntax_rules = [
+            SyntaxRule(r'<!--.*?-->', "#6A9955"),  # Комментарии
+            SyntaxRule(r'<\/?[^>]+>', "#569CD6"),  # HTML теги
+            SyntaxRule(r'\b(src|href|class|id|style|alt|title)\b', "#9CDCFE"),  # Атрибуты
+            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),
+            SyntaxRule(r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),
+        ]
+        
+        return LanguageConfig(
+            name="HTML",
+            extensions=["html", "htm"],
+            keywords=[],
+            syntax_rules=syntax_rules,
+            auto_indent=False,
+            brace_auto_close=False
+        )
+    
+    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
+        # HTML не требует сложного анализа для автодополнения
+        pass
+    
+    def get_completion_items(self, code: str) -> List[str]:
+        return ["div", "span", "p", "a", "img", "script", "style"]
+
+
+class CSSLanguageProvider(LanguageProvider):
+    def get_config(self) -> LanguageConfig:
+        syntax_rules = [
+            SyntaxRule(r'\/\*[\s\S]*?\*\/', "#6A9955"),  # Комментарии
+            SyntaxRule(r'\.[\w-]+\b', "#D7BA7D"),  # CSS классы
+            SyntaxRule(r'#[\w-]+\b', "#D7BA7D"),  # CSS ID
+            SyntaxRule(r'\b[\w-]+\s*:', "#9CDCFE"),  # CSS свойства
+            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),
+        ]
+        
+        return LanguageConfig(
+            name="CSS",
+            extensions=["css"],
+            keywords=[],
+            syntax_rules=syntax_rules,
+            auto_indent=True,
+            brace_auto_close=True
+        )
+    
+    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
+        patterns = [
+            r'\.([\w-]+)\s*\{',
+            r'#([\w-]+)\s*\{',
+            r'@(\w+)'  # CSS directives
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, code)
+            for match in matches:
+                if match:
+                    analyzer.add_defined_name(match)
+    
+    def get_completion_items(self, code: str) -> List[str]:
+        return ["color", "background", "font-size", "margin", "padding"]
+
+
+class JSONLanguageProvider(LanguageProvider):
+    def get_config(self) -> LanguageConfig:
+        syntax_rules = [
+            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"\s*:', "#9CDCFE"),  # Ключи
+            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),  # Строки
+            SyntaxRule(r'\b(true|false|null)\b', "#569CD6"),
+            SyntaxRule(r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),
+        ]
+        
+        return LanguageConfig(
+            name="JSON",
+            extensions=["json"],
+            keywords=[],
+            syntax_rules=syntax_rules,
+            auto_indent=True,
+            brace_auto_close=True
+        )
+    
+    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
+        try:
+            data = json.loads(code)
+            self._extract_keys(data, analyzer)
+        except:
+            pass
+    
+    def _extract_keys(self, data, analyzer: 'CodeAnalyzer', prefix=""):
+        if isinstance(data, dict):
+            for key in data.keys():
+                analyzer.add_defined_name(key)
+                self._extract_keys(data[key], analyzer, f"{prefix}.{key}" if prefix else key)
+        elif isinstance(data, list):
+            for item in data:
+                self._extract_keys(item, analyzer, prefix)
+    
+    def get_completion_items(self, code: str) -> List[str]:
+        return []  # JSON completion зависит от структуры данных
+
+
+class LanguageProviderFactory:
+    """Фабрика для создания и управления провайдерами языков"""
+    
+    _providers: Dict[str, LanguageProvider] = {}
+    _extension_map: Dict[str, str] = {}
+    
+    @classmethod
+    def register_provider(cls, language: Language, provider: LanguageProvider):
+        """Регистрация провайдера для языка"""
+        config = provider.get_config()
+        cls._providers[language.value] = provider
+        
+        # Регистрируем расширения файлов
+        for ext in config.extensions:
+            cls._extension_map[ext] = language.value
+    
+    @classmethod
+    def get_provider(cls, language: str) -> Optional[LanguageProvider]:
+        """Получение провайдера по идентификатору языка"""
+        return cls._providers.get(language)
+    
+    @classmethod
+    def get_provider_by_extension(cls, extension: str) -> Optional[LanguageProvider]:
+        """Получение провайдера по расширению файла"""
+        language = cls._extension_map.get(extension.lower())
+        return cls.get_provider(language) if language else None
+    
+    @classmethod
+    def get_supported_extensions(cls) -> List[str]:
+        """Получение списка поддерживаемых расширений"""
+        return list(cls._extension_map.keys())
+    
+    @classmethod
+    def get_language_config(cls, language: str) -> Optional[LanguageConfig]:
+        """Получение конфигурации языка"""
+        provider = cls.get_provider(language)
+        return provider.get_config() if provider else None
+
+
+# Регистрация провайдеров по умолчанию
+LanguageProviderFactory.register_provider(Language.PYTHON, PythonLanguageProvider())
+LanguageProviderFactory.register_provider(Language.JAVASCRIPT, JavaScriptLanguageProvider())
+LanguageProviderFactory.register_provider(Language.HTML, HTMLLanguageProvider())
+LanguageProviderFactory.register_provider(Language.CSS, CSSLanguageProvider())
+LanguageProviderFactory.register_provider(Language.JSON, JSONLanguageProvider())
+
+
+class CodeAnalyzer:
+    """Анализатор кода с поддержкой различных языков"""
+    
+    def __init__(self, language: str):
+        self.language = language
+        self.provider = LanguageProviderFactory.get_provider(language)
+        self.defined_names: Set[str] = set()
+        
+        # Добавляем ключевые слова языка
+        if self.provider:
+            config = self.provider.get_config()
+            self.defined_names.update(config.keywords)
+    
+    def analyze_code(self, code: str):
+        """Анализ кода с использованием зарегистрированного провайдера"""
+        self.defined_names.clear()
+        
+        if self.provider:
+            # Добавляем ключевые слова обратно после очистки
+            config = self.provider.get_config()
+            self.defined_names.update(config.keywords)
+            
+            # Запускаем специфичный для языка анализ
+            self.provider.analyze_code(code, self)
+        else:
+            # Общий анализ для неподдерживаемых языков
+            self._analyze_generic(code)
+    
+    def add_defined_name(self, name: str):
+        """Добавление определенного имени в список автодополнения"""
+        if name and name.isidentifier():
+            self.defined_names.add(name)
+    
+    def _analyze_generic(self, code: str):
+        """Общий анализ для неподдерживаемых языков"""
+        patterns = [
+            r'function\s+(\w+)\s*\(',
+            r'def\s+(\w+)\s*\(',
+            r'class\s+(\w+)',
+            r'(\w+)\s*='
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, code)
+            for match in matches:
+                if match and match.isidentifier():
+                    self.add_defined_name(match)
+    
+    def get_completion_list(self) -> List[str]:
+        """Получение списка для автодополнения"""
+        completion_list = sorted(self.defined_names)
+        
+        # Добавляем специфичные для языка completion items
+        if self.provider:
+            completion_list.extend(self.provider.get_completion_items(""))
+        
+        return completion_list
 
 
 class ModernSyntaxHighlighter(QSyntaxHighlighter):
-    """Современный подсветчик синтаксиса с улучшенной производительностью"""
-    # Кэш для форматирования
+    """Современный подсветчик синтаксиса с поддержкой различных языков"""
+    
     _format_cache = {}
 
     def __init__(self, document, language_config: LanguageConfig):
         super().__init__(document)
         self.language_config = language_config
-        self._rules = self._compile_rules()        
+        self._rules = self._compile_rules()
     
     def _compile_rules(self) -> List[Tuple[QRegExp, QTextCharFormat]]:
+        """Компиляция правил подсветки"""
         rules = []
         
-        # Компилируем правила с кэшированием форматов
         for rule in self.language_config.syntax_rules:
             regex = QRegExp(rule.pattern)
             fmt = self._get_cached_format(rule.color, rule.weight, rule.italic)
@@ -209,6 +429,7 @@ class ModernSyntaxHighlighter(QSyntaxHighlighter):
         return rules
     
     def _get_cached_format(self, color: str, weight: int = QFont.Normal, italic: bool = False) -> QTextCharFormat:
+        """Получение кэшированного формата текста"""
         cache_key = f"{color}_{weight}_{italic}"
         
         if cache_key not in self._format_cache:
@@ -221,6 +442,7 @@ class ModernSyntaxHighlighter(QSyntaxHighlighter):
         return self._format_cache[cache_key]
     
     def highlightBlock(self, text: str):
+        """Подсветка блока текста"""
         for regex, fmt in self._rules:
             index = regex.indexIn(text)
             while index >= 0:
@@ -229,86 +451,8 @@ class ModernSyntaxHighlighter(QSyntaxHighlighter):
                 index = regex.indexIn(text, index + length)
 
 
-class CodeAnalyzer:
-    """Анализатор кода с улучшенной поддержкой языков"""
-    
-    def __init__(self, language: str):
-        self.language = language
-        self.defined_names: Set[str] = set(KEYWORDS.get(language, []))
-    
-    def analyze_code(self, code: str):
-        try:
-            if self.language == "py":
-                self._analyze_python(code)
-            elif self.language in ["c", "cpp"]:
-                self._analyze_c_cpp(code)
-            elif self.language == "java":
-                self._analyze_java(code)
-            elif self.language in ["js", "ts"]:
-                self._analyze_javascript(code)
-            else:
-                self._analyze_generic(code)
-        except Exception as e:
-            print(f"Code analysis error: {e}")
-    
-    def _analyze_python(self, code: str):
-        try:
-            tree = ast.parse(code)
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-                    self.defined_names.add(node.name)
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        self.defined_names.add(alias.name.split(".")[0])
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        self.defined_names.add(node.module.split(".")[0])
-                elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                    self.defined_names.add(node.id)
-        except SyntaxError:
-            # Fallback to regex for invalid syntax
-            self._analyze_with_regex(code, r'def\s+(\w+)\s*\(')
-            self._analyze_with_regex(code, r'class\s+(\w+)')
-            self._analyze_with_regex(code, r'(\w+)\s*=')
-    
-    def _analyze_c_cpp(self, code: str):
-        self._analyze_with_regex(code, r'(\w+)\s*\([^)]*\)\s*\{')  # Functions
-        self._analyze_with_regex(code, r'\b(\w+)\s*=\s*[^;]+;')  # Variables
-        self._analyze_with_regex(code, r'class\s+(\w+)')  # Classes
-        self._analyze_with_regex(code, r'struct\s+(\w+)')  # Structs
-    
-    def _analyze_java(self, code: str):
-        self._analyze_with_regex(code, r'(public|private|protected)\s+\w+\s+(\w+)\s*\(')
-        self._analyze_with_regex(code, r'class\s+(\w+)')
-        self._analyze_with_regex(code, r'interface\s+(\w+)')
-    
-    def _analyze_javascript(self, code: str):
-        self._analyze_with_regex(code, r'function\s+(\w+)\s*\(')
-        self._analyze_with_regex(code, r'const\s+(\w+)\s*=')
-        self._analyze_with_regex(code, r'let\s+(\w+)\s*=')
-        self._analyze_with_regex(code, r'var\s+(\w+)\s*=')
-        self._analyze_with_regex(code, r'class\s+(\w+)')
-    
-    def _analyze_generic(self, code: str):
-        self._analyze_with_regex(code, r'function\s+(\w+)\s*\(')
-        self._analyze_with_regex(code, r'def\s+(\w+)\s*\(')
-        self._analyze_with_regex(code, r'class\s+(\w+)')
-        self._analyze_with_regex(code, r'(\w+)\s*=')
-    
-    def _analyze_with_regex(self, code: str, pattern: str):
-        matches = re.findall(pattern, code)
-        for match in matches:
-            if isinstance(match, tuple):
-                self.defined_names.update(m for m in match if m and m.isidentifier())
-            elif match and match.isidentifier():
-                self.defined_names.add(match)
-    
-    def get_completion_list(self) -> List[str]:
-        return sorted(self.defined_names)
-
-
 class SmartCompleter(QCompleter):
-    """Умный комплитер с кастомным отображением и анимациями"""
+    """Умный комплитер с кастомным отображением"""
     
     insertText = pyqtSignal(str)
     
@@ -324,7 +468,11 @@ class SmartCompleter(QCompleter):
         self.animation.setDuration(150)
         self.animation.setEasingCurve(QEasingCurve.OutCubic)
         
-        # Стилизация попапа в стиле VS Code
+        # Стилизация попапа
+        self._style_popup(background_color, font_size)
+    
+    def _style_popup(self, background_color: str, font_size: int):
+        """Стилизация всплывающего окна"""
         popup = self.popup()
         popup.setStyleSheet(f"""
             QListView {{
@@ -351,17 +499,16 @@ class SmartCompleter(QCompleter):
                 background-color: #2A2D2E;
             }}
         """)
-        
-        # Устанавливаем фиксированную ширину
         popup.setFixedWidth(300)
     
     def update_completions(self, word_list: List[str]):
+        """Обновление списка автодополнений"""
         model = QStringListModel()
         model.setStringList(word_list)
         self.setModel(model)
     
     def complete(self, rect):
-        # Анимированное появление
+        """Анимированное отображение автодополнения"""
         popup = self.popup()
         start_rect = QRect(rect.x(), rect.y(), 0, 0)
         end_rect = QRect(rect.x(), rect.bottom() + 2, 300, 
@@ -375,34 +522,22 @@ class SmartCompleter(QCompleter):
 
 
 class LineNumberArea(QWidget):
-    """Область для отображения номеров строк с современным дизайном"""
+    """Область для отображения номеров строк"""
     
     def __init__(self, editor):
         super().__init__(editor)
         self.editor = editor
-        self.setMouseTracking(True)
-        
-        # Анимация hover эффекта
-        self.hover_animation = QPropertyAnimation(self, b"")
-        self.hover_animation.setDuration(200)
-
-    def line_number_area_width(self):
-        """Вычисление ширины области номеров строк"""
-        digits = len(str(max(1, self.blockCount())))
-        space = 20 + self.fontMetrics().horizontalAdvance('9') * digits  # Исправление: horizontalAdvance вместо width
-        return space
-        
+    
     def sizeHint(self):
-        return QSize(self.line_number_area_width(), 0)
+        return QSize(self.editor.line_number_area_width(), 0)
     
     def paintEvent(self, event):
         self.editor.line_number_area_paint_event(event)
 
 
 class CodeEditor(QPlainTextEdit):
-    """Основной редактор кода с расширенными функциями и анимациями"""
+    """Основной редактор кода с поддержкой различных языков"""
     
-    # Сигналы
     textChangedAnimated = pyqtSignal()
     focusChanged = pyqtSignal(bool)
     
@@ -410,38 +545,50 @@ class CodeEditor(QPlainTextEdit):
         super().__init__(parent)
         self.settings = settings or {}
         self.language = language
-        try:
-            self.language_config = SyntaxHighlighterFactory.create_config(Language(language))
-        except:
-            # Fallback to Python if language not supported
-            self.language_config = SyntaxHighlighterFactory.create_config(Language.PYTHON)
+        
+        # Получаем конфигурацию языка
+        self.language_config = self._get_language_config(language)
         
         self._setup_editor()
         self._setup_autocomplete()
         self._setup_line_numbers()
         
-        # Анимации
-        self.cursor_animation = QPropertyAnimation(self, b"")
-        self.cursor_animation.setDuration(600)
-        self.cursor_animation.setLoopCount(-1)
-        
-        # Таймер для отложенных операций
+        # Таймеры для отложенных операций
         self.analysis_timer = QTimer()
         self.analysis_timer.setSingleShot(True)
         self.analysis_timer.timeout.connect(self._delayed_analysis)
         
+        self.completion_timer = QTimer()
+        self.completion_timer.setSingleShot(True)
+        self.completion_timer.timeout.connect(self._trigger_completion)
+    
+    def _get_language_config(self, language: str) -> LanguageConfig:
+        """Получение конфигурации языка"""
+        config = LanguageProviderFactory.get_language_config(language)
+        if not config:
+            # Конфигурация по умолчанию для неподдерживаемых языков
+            config = LanguageConfig(
+                name="Plain Text",
+                extensions=["txt"],
+                keywords=[],
+                syntax_rules=[],
+                auto_indent=False,
+                brace_auto_close=False
+            )
+        return config
+    
     def _setup_editor(self):
         """Настройка базовых параметров редактора"""
         font_size = int(self.settings.get("fontsize", 12))
         bg_color = self.settings.get("second_color", "#1E1E1E")
         text_color = self.settings.get("text_color", "#D4D4D4")
         
-        # Устанавливаем современный шрифт
+        # Устанавливаем шрифт
         font = QFont("Cascadia Code", font_size)
         font.setStyleHint(QFont.Monospace)
         self.setFont(font)
         
-        # Современный стиль в духе VS Code
+        # Стилизация
         self.setStyleSheet(f"""
             QPlainTextEdit {{
                 background-color: {bg_color};
@@ -458,18 +605,12 @@ class CodeEditor(QPlainTextEdit):
             }}
         """)
         
+        # Настройка табуляции
         self.tab_width = 4
         self.setTabStopDistance(self.tab_width * self.fontMetrics().width(' '))
         
         # Подсветка синтаксиса
-        self.highlighter = ModernSyntaxHighlighter(
-            self.document(), 
-            self.language_config
-        )
-        
-        # Включаем плавный скроллинг
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.highlighter = ModernSyntaxHighlighter(self.document(), self.language_config)
     
     def _setup_line_numbers(self):
         """Настройка области номеров строк"""
@@ -491,11 +632,6 @@ class CodeEditor(QPlainTextEdit):
         )
         self.completer.setWidget(self)
         self.completer.insertText.connect(self._insert_completion)
-        
-        # Таймер для отложенного автодополнения
-        self.completion_timer = QTimer()
-        self.completion_timer.setSingleShot(True)
-        self.completion_timer.timeout.connect(self._trigger_completion)
     
     def line_number_area_width(self):
         """Вычисление ширины области номеров строк"""
@@ -528,7 +664,7 @@ class CodeEditor(QPlainTextEdit):
         painter = QPainter(self.line_number_area)
         painter.fillRect(event.rect(), QColor("#1E1E1E"))
         
-        # Градиент для разделительной линии
+        # Разделительная линия
         gradient = QLinearGradient(0, 0, self.line_number_area.width(), 0)
         gradient.setColorAt(0, QColor("#1E1E1E"))
         gradient.setColorAt(1, QColor("#2D3139"))
@@ -540,7 +676,6 @@ class CodeEditor(QPlainTextEdit):
         bottom = top + self.blockBoundingRect(block).height()
         
         current_line = self.textCursor().blockNumber() + 1
-        
         font_metrics = self.fontMetrics()
         line_height = font_metrics.height()
         
@@ -548,7 +683,6 @@ class CodeEditor(QPlainTextEdit):
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(block_number + 1)
                 
-                # Подсветка текущей строки
                 if block_number + 1 == current_line:
                     painter.setPen(QColor("#FFFFFF"))
                     painter.setFont(QFont("Cascadia Code", self.font().pointSize(), QFont.Bold))
@@ -556,10 +690,8 @@ class CodeEditor(QPlainTextEdit):
                     painter.setPen(QColor("#6E7681"))
                     painter.setFont(self.font())
                 
-                # Исправление: правильное позиционирование текста
                 painter.drawText(0, int(top), self.line_number_area.width() - 8, 
-                            int(line_height),
-                            Qt.AlignRight, number)
+                            int(line_height), Qt.AlignRight, number)
             
             block = block.next()
             top = bottom
@@ -597,8 +729,7 @@ class CodeEditor(QPlainTextEdit):
         tc.select(QTextCursor.WordUnderCursor)
         prefix = tc.selectedText()
         
-        if len(prefix) >= 1:  # Уменьшил минимальную длину для лучшего UX
-            # Обновляем список автодополнений
+        if len(prefix) >= 1:
             self.analyzer.analyze_code(self.toPlainText())
             self.completer.update_completions(self.analyzer.get_completion_list())
             
@@ -607,16 +738,15 @@ class CodeEditor(QPlainTextEdit):
                 self.completer.complete(self.cursorRect())
     
     def _delayed_analysis(self):
-        """Отложенный анализ кода для производительности"""
+        """Отложенный анализ кода"""
         self.analyzer.analyze_code(self.toPlainText())
     
     def keyPressEvent(self, event):
-        """Обработка нажатий клавиш с улучшенной логикой"""
-        # Автодополнение
+        """Обработка нажатий клавиш"""
         if event.text() and not event.text().isspace():
-            self.completion_timer.start(200)  # Уменьшил задержку для лучшего UX
+            self.completion_timer.start(200)
         
-        # Умное закрытие скобок
+        # Автозакрытие скобок
         if self.language_config.brace_auto_close:
             if self._handle_auto_closure(event):
                 return
@@ -626,15 +756,13 @@ class CodeEditor(QPlainTextEdit):
             self._handle_smart_indent()
             return
         
-        # Комбинации клавиш для комплитера
+        # Обработка комплитера
         if event.key() in (Qt.Key_Tab, Qt.Key_Enter, Qt.Key_Return) and self.completer.popup().isVisible():
             self.completer.popup().hide()
             if event.key() in (Qt.Key_Enter, Qt.Key_Return):
                 return
         
         super().keyPressEvent(event)
-        
-        # Запускаем отложенный анализ
         self.analysis_timer.start(500)
     
     def _handle_auto_closure(self, event):
@@ -657,21 +785,26 @@ class CodeEditor(QPlainTextEdit):
         current_block = cursor.block()
         previous_text = current_block.previous().text()
         
-        # Вычисляем базовый отступ
         indent = len(previous_text) - len(previous_text.lstrip())
         base_indent = ' ' * indent
         
-        # Добавляем дополнительный отступ для определенных конструкций
         if self.language_config.auto_indent:
             if any(previous_text.strip().endswith(keyword) for keyword in [':', '{', '=>']):
                 base_indent += ' ' * self.tab_width
         
-        # Вставляем новую строку с отступом
         cursor.insertText('\n' + base_indent)
+    
+    def set_language(self, language: str):
+        """Изменение языка программирования"""
+        self.language = language
+        self.language_config = self._get_language_config(language)
+        self.analyzer = CodeAnalyzer(language)
+        self.highlighter = ModernSyntaxHighlighter(self.document(), self.language_config)
+        self.analyzer.analyze_code(self.toPlainText())
 
 
 class ModernCodeEditor(QWidget):
-    """Современный редактор кода с нумерацией строк и дополнительными функциями"""
+    """Современный редактор кода с поддержкой различных языков"""
     
     def __init__(self, parent=None, language: str = "", settings: dict = None):
         super().__init__(parent)
@@ -681,7 +814,6 @@ class ModernCodeEditor(QWidget):
         
         self._setup_ui()
         self._setup_shortcuts()
-        self._setup_animations()
     
     def _setup_ui(self):
         """Настройка пользовательского интерфейса"""
@@ -689,9 +821,7 @@ class ModernCodeEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Основной редактор
         self.editor = CodeEditor(language=self.language, settings=self.settings)
-        
         layout.addWidget(self.editor)
     
     def _setup_shortcuts(self):
@@ -709,34 +839,24 @@ class ModernCodeEditor(QWidget):
             shortcut = QShortcut(QKeySequence(key_sequence), self)
             shortcut.activated.connect(callback)
     
-    def _setup_animations(self):
-        """Настройка анимаций"""
-        self.fade_animation = QPropertyAnimation(self, b"windowOpacity")
-        self.fade_animation.setDuration(300)
-        self.fade_animation.setStartValue(0)
-        self.fade_animation.setEndValue(1)
-        self.fade_animation.start()
-    
     def _zoom_in(self):
-        """Увеличение масштаба с анимацией"""
+        """Увеличение масштаба"""
         font = self.editor.font()
         current_size = font.pointSize()
-        
         if current_size < 30:
             font.setPointSize(current_size + 1)
             self.editor.setFont(font)
     
     def _zoom_out(self):
-        """Уменьшение масштаба с анимацией"""
+        """Уменьшение масштаба"""
         font = self.editor.font()
         current_size = font.pointSize()
-        
         if current_size > 6:
             font.setPointSize(current_size - 1)
             self.editor.setFont(font)
     
     def _reset_zoom(self):
-        """Сброс масштаба к стандартному"""
+        """Сброс масштаба"""
         default_size = int(self.settings.get("fontsize", 14))
         font = QFont("Cascadia Code", default_size)
         self.editor.setFont(font)
@@ -751,50 +871,41 @@ class ModernCodeEditor(QWidget):
             cursor.setPosition(start)
             cursor.beginEditBlock()
             
-            # Получаем символ комментария для текущего языка
             comment_char = self.editor.language_config.line_comment
             
             cursor.setPosition(start)
             cursor.movePosition(QTextCursor.StartOfLine)
             
-            lines_commented = 0
             while cursor.position() < end:
                 cursor_text = cursor.block().text()
                 
-                # Проверяем, комментирована ли уже строка
                 if cursor_text.lstrip().startswith(comment_char):
-                    # Раскомментировать
                     cursor.movePosition(QTextCursor.StartOfLine)
                     cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, 
                                       len(cursor_text) - len(cursor_text.lstrip()))
                     cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, len(comment_char))
                     cursor.removeSelectedText()
                 else:
-                    # Закомментировать
                     cursor.movePosition(QTextCursor.StartOfLine)
                     cursor.insertText(comment_char + " ")
                 
-                lines_commented += 1
                 if not cursor.movePosition(QTextCursor.Down):
                     break
             
             cursor.endEditBlock()
         else:
-            # Комментирование одной строки
             cursor = self.editor.textCursor()
             cursor.movePosition(QTextCursor.StartOfLine)
             cursor_text = cursor.block().text()
             comment_char = self.editor.language_config.line_comment
             
             if cursor_text.lstrip().startswith(comment_char):
-                # Раскомментировать
                 cursor.movePosition(QTextCursor.StartOfLine)
                 cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, 
                                   len(cursor_text) - len(cursor_text.lstrip()))
                 cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, len(comment_char))
                 cursor.removeSelectedText()
             else:
-                # Закомментировать
                 cursor.movePosition(QTextCursor.StartOfLine)
                 cursor.insertText(comment_char + " ")
     
@@ -814,28 +925,35 @@ class ModernCodeEditor(QWidget):
         cursor.removeSelectedText()
     
     def set_file_path(self, file_path: str):
-        """Установка пути к файлу и обновление языка на основе расширения"""
+        """Установка пути к файлу и автоматическое определение языка"""
         self.file_path = Path(file_path)
         
-        # Автоматически определяем язык по расширению файла
         file_extension = self.file_path.suffix.lower()
-        if file_extension:  # Убираем точку если есть
+        if file_extension:
             file_extension = file_extension[1:]
             
-        # Обновляем язык редактора если расширение изменилось
         if file_extension and file_extension != self.language:
-            self.set_language(file_extension)
+            self.set_language_by_extension(file_extension)
+    
+    def set_language_by_extension(self, extension: str):
+        """Установка языка по расширению файла"""
+        provider = LanguageProviderFactory.get_provider_by_extension(extension)
+        if provider:
+            config = provider.get_config()
+            self.set_language(config.name.lower())
+    
+    def set_language(self, language: str):
+        """Явная установка языка"""
+        self.language = language
+        self.editor.set_language(language)
     
     def get_file_path(self) -> Optional[Path]:
-        """Получение пути к файлу"""
         return self.file_path
 
     def get_file_name(self) -> str:
-        """Получение имени файла"""
         return self.file_path.name if self.file_path else "Untitled"
 
     def save_file(self) -> bool:
-        """Сохранение файла"""
         try:
             if self.file_path:
                 self.file_path.write_text(self.get_code(), encoding='utf-8')
@@ -846,7 +964,6 @@ class ModernCodeEditor(QWidget):
             return False
 
     def save_file_as(self, file_path: str) -> bool:
-        """Сохранение файла под новым именем"""
         try:
             self.set_file_path(file_path)
             return self.save_file()
@@ -855,41 +972,44 @@ class ModernCodeEditor(QWidget):
             return False
     
     def get_code(self) -> str:
-        """Получение кода из редактора"""
         return self.editor.toPlainText()
     
     def set_code(self, code: str):
-        """Установка кода в редактор"""
         self.editor.setPlainText(code)
-    
-    def set_language(self, language: str):
-        """Изменение языка программирования"""
-        self.language = language
-        try:
-            self.editor.language_config = SyntaxHighlighterFactory.create_config(Language(language))
-            self.editor.analyzer = CodeAnalyzer(language)
-            self.editor.highlighter = ModernSyntaxHighlighter(
-                self.editor.document(), 
-                self.editor.language_config
-            )
-            # Перезапускаем анализ кода для нового языка
-            self.editor.analyzer.analyze_code(self.get_code())
-        except Exception as e:
-            print(f"Error setting language {language}: {e}")
-            # Fallback to Python if language not supported
-            try:
-                self.editor.language_config = SyntaxHighlighterFactory.create_config(Language.PYTHON)
-            except:
-                pass
 
 
-# Пример использования
+# Пример использования и демонстрация расширяемости
 if __name__ == "__main__":
     import sys
     
+    # Пример добавления нового провайдера для TypeScript
+    class TypeScriptLanguageProvider(JavaScriptLanguageProvider):
+        def get_config(self) -> LanguageConfig:
+            base_config = super().get_config()
+            
+            # Добавляем TypeScript-специфичные ключевые слова
+            ts_keywords = base_config.keywords + [
+                "type", "interface", "implements", "namespace", "abstract",
+                "public", "private", "protected", "readonly", "enum"
+            ]
+            
+            ts_syntax_rules = base_config.syntax_rules + [
+                SyntaxRule(r'\b(type|interface|enum)\b', "#569CD6"),
+                SyntaxRule(r'\b(public|private|protected|readonly)\b', "#569CD6"),
+            ]
+            
+            return LanguageConfig(
+                name="TypeScript",
+                extensions=["ts", "tsx"],
+                keywords=ts_keywords,
+                syntax_rules=ts_syntax_rules
+            )
+    
+    # Регистрируем новый провайдер
+    LanguageProviderFactory.register_provider(Language.TYPESCRIPT, TypeScriptLanguageProvider())
+    
     app = QApplication(sys.argv)
     
-    # Настройки в стиле VS Code
     settings = {
         "fontsize": 14,
         "text_color": "#D4D4D4",
@@ -897,38 +1017,20 @@ if __name__ == "__main__":
         "accent_color": "#007ACC"
     }
     
-    # Создаем редактор с примером кода
+    # Демонстрация работы с разными языками
     editor = ModernCodeEditor(language="py", settings=settings)
     
-    example_code = '''# Пример Python кода с современной подсветкой
+    example_code = '''# Пример Python кода
 class Calculator:
-    """Простой калькулятор с базовыми операциями"""
-    
-    def __init__(self):
-        self.result = 0
-    
     def add(self, x: float, y: float) -> float:
-        """Сложение двух чисел"""
-        self.result = x + y
-        return self.result
-    
-    def multiply(self, x: float, y: float) -> float:
-        """Умножение двух чисел"""
-        self.result = x * y
-        return self.result
-
-def main():
-    calc = Calculator()
-    print(f"2 + 3 = {calc.add(2, 3)}")
-    print(f"4 * 5 = {calc.multiply(4, 5)}")
-
-if __name__ == "__main__":
-    main()
+        return x + y
 '''
     
     editor.set_code(example_code)
-    editor.setWindowTitle("Modern Code Editor - VS Code Style")
+    editor.setWindowTitle("Modern Code Editor - Multi Language Support")
     editor.resize(800, 600)
     editor.show()
+    
+    print("Supported extensions:", LanguageProviderFactory.get_supported_extensions())
     
     sys.exit(app.exec_())

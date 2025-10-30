@@ -74,4 +74,3 @@ class HexViewer(QWidget):
                 self.ascii_widget.insertPlainText(chr(byte) + " ")
             else:
                 self.ascii_widget.insertPlainText(".")
-

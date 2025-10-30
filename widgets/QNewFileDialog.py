@@ -21,4 +21,3 @@ class FileSaveWindow(QWidget):
         if fileName:
             self.file.append(filename)
             print("Selected file:", fileName)
-

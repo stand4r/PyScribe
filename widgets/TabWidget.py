@@ -12,17 +12,7 @@ class TabWidget(QTabWidget):
         self.setMovable(True)
         self.setObjectName("tabWidget")
         self.setDocumentMode(True)
-        
-        # Настройки
-        self.main_color = settings["settings"]["main_color"]  # 013B81
-        self.text_color = settings["settings"]["text_color"]  # ABB2BF
-        self.first_color = settings["settings"]["first_color"]  # 16171D
-        self.second_color = settings["settings"]["second_color"]  # 131313
-        self.tab_color = settings["settings"]["tab_color"]  # 1F2228
-        self.languages = settings["languages"]
-        self.languages_type = settings["languages_type"]
-        self.font_size = int(settings["settings"]["fontsize"])
-        self.font_size_tab = settings["settings"]["font_size_tab"]
+    
         
         # Топ-сайд - правая панель с кнопками
         self.right_tab_widget = QWidget(self)
@@ -42,7 +32,8 @@ class TabWidget(QTabWidget):
         self.setCornerWidget(self.right_tab_widget)
         
         # Устанавливаем кастомный TabBar
-        self.setTabBar(VSCodeTabBar(self))
+        self.custom_tab_bar = VSCodeTabBar(self)
+        self.setTabBar(self.custom_tab_bar)
         
         # Стили для кнопок
         button_style = """
@@ -94,9 +85,18 @@ class TabWidget(QTabWidget):
         
         # Подключаем сигналы
         self.tabCloseRequested.connect(self.on_tab_close_requested)
+        # Подключаем сигнал от кастомного TabBar
+        self.custom_tab_bar.tabCloseRequested.connect(self.on_tab_close_requested)
         
     def on_tab_close_requested(self, index):
-        self.removeTab(index)
+        if index >= 0 and index < self.count():
+            self.removeTab(index)
+            
+    def set_project_name(self, project_name):
+        """Установка имени проекта для отображения"""
+        if project_name:
+            # Можно добавить визуальное отображение проекта в будущем
+            pass
 
 
 class VSCodeTabBar(QTabBar):
@@ -186,9 +186,10 @@ class VSCodeTabBar(QTabBar):
             
             # Всегда рисуем крестик закрытия (только наш кастомный)
             close_rect = self.closeButtonRect(index)
+            close_hovered = close_rect.contains(mouse_pos)
             
             # Фон кнопки закрытия при наведении
-            if close_rect.contains(mouse_pos):
+            if close_hovered:
                 painter.setPen(Qt.NoPen)
                 painter.setBrush(self.close_button_hover)
                 painter.drawRoundedRect(close_rect, 2, 2)
@@ -242,4 +243,3 @@ class VSCodeTabBar(QTabBar):
         # Обновляем отрисовку при движении мыши для hover-эффектов
         self.update()
         super().mouseMoveEvent(event)
-        

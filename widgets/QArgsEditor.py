@@ -4,7 +4,6 @@ from os import path
 from PyQt5 import QtCore, QtWidgets, QtGui
 
 
-
 class ArgsWindow(QtWidgets.QWidget):
     def __init__(self, filename, filepath, lang):
         super().__init__()
