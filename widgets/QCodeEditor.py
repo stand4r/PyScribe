@@ -19,7 +19,7 @@ class Language(Enum):
     JAVA = "java"
     CPP = "cpp"
     C = "c"
-    CSHARP = "cs"
+    CS = "cs"
     PHP = "php"
     RUBY = "rb"
     GO = "go"
@@ -147,6 +147,57 @@ class PythonLanguageProvider(LanguageProvider):
     
     def get_completion_items(self, code: str) -> List[str]:
         return []  # Можно расширить специфичными для Python completion items
+
+class CSLanguageProvider(LanguageProvider):
+    def get_config(self) -> LanguageConfig:
+        keywords = [
+            'abstract', 'as', 'base', 'bool', 'break', 'byte', 'case', 'catch',
+            'char', 'checked', 'class', 'const', 'continue', 'decimal', 'default',
+            'delegate', 'do', 'double', 'else', 'enum', 'event', 'explicit',
+            'extern', 'false', 'finally', 'fixed', 'float', 'for', 'foreach',
+            'goto', 'if', 'implicit', 'in', 'int', 'interface', 'internal',
+            'is', 'lock', 'long', 'namespace', 'new', 'null', 'object', 'operator',
+            'out', 'override', 'params', 'private', 'protected', 'public',
+            'readonly', 'ref', 'return', 'sbyte', 'sealed', 'short', 'sizeof',
+            'stackalloc', 'static', 'string', 'struct', 'switch', 'this', 'throw',
+            'true', 'try', 'typeof', 'uint', 'ulong', 'unchecked', 'unsafe',
+            'ushort', 'using', 'virtual', 'void', 'volatile', 'while',
+            'get', 'set', 'value', 'where', 'yield', 'async', 'await', 'nameof',
+            'var', 'dynamic', 'task', 'list', 'dictionary'
+        ]
+        
+        syntax_rules = [
+            SyntaxRule(r'//[^\n]*', "#6A9955"),  # Комментарии
+            SyntaxRule(r'/\*.*?\*/', "#6A9955"),
+            SyntaxRule(r'\bclass\s+(\w+)', "#D7BA7D", QFont.Normal, False),
+            SyntaxRule(r'\binterface\s+(\w+)', "#D7BA7D", QFont.Normal, False),
+            SyntaxRule(r'\bstruct\s+(\w+)', "#D7BA7D", QFont.Normal, False),
+            SyntaxRule(r'\benum\s+(\w+)', "#D7BA7D", QFont.Normal, False),
+            SyntaxRule(r'^\s*#\w+', "#D7BA7D"),  # Декораторы
+            SyntaxRule(r'\b(None|True|False)\b', "#569CD6"),
+            SyntaxRule(r'\b\d+\b', "#B5CEA8"),  # Числа
+            SyntaxRule(r'\"[^\"]*\"', "#CE9178"),  # Строки
+            SyntaxRule(r'\'[^\']*\'', "#CE9178")    
+        ]
+        
+        return LanguageConfig(
+            name="CSharp",
+            extensions=["cs"],
+            keywords=keywords,
+            syntax_rules=syntax_rules,
+            line_comment="//",
+            block_comment_start='/*',
+            block_comment_end='*/'
+        )
+    
+    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
+        pass
+    
+    def _analyze_with_regex(self, code: str, analyzer: 'CodeAnalyzer'):
+        pass
+    
+    def get_completion_items(self, code: str) -> List[str]:
+        return []
 
 
 class JavaScriptLanguageProvider(LanguageProvider):
@@ -347,7 +398,7 @@ LanguageProviderFactory.register_provider(Language.JAVASCRIPT, JavaScriptLanguag
 LanguageProviderFactory.register_provider(Language.HTML, HTMLLanguageProvider())
 LanguageProviderFactory.register_provider(Language.CSS, CSSLanguageProvider())
 LanguageProviderFactory.register_provider(Language.JSON, JSONLanguageProvider())
-
+LanguageProviderFactory.register_provider(Language.CS, CSLanguageProvider())
 
 class CodeAnalyzer:
     """Анализатор кода с поддержкой различных языков"""

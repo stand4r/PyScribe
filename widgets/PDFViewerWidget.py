@@ -3,6 +3,8 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
 
+import fitz
+
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPalette, QColor

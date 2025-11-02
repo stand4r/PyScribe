@@ -15,7 +15,7 @@ class TerminalWidget(QWidget):
         super().__init__(parent)
         self.process = None
         self.current_working_dir = None
-        self.encoding = 'utf-8'
+        self.encoding = 'cp1251'
         self.command_history = []
         self.current_history_index = -1
         self.setup_ui()
@@ -50,26 +50,9 @@ class TerminalWidget(QWidget):
         """)
         clear_btn.clicked.connect(self.clear_terminal)
         
-        stop_btn = QPushButton("Stop")
-        stop_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #5a1e1e;
-                color: #CCCCCC;
-                border: 1px solid #7a2e2e;
-                border-radius: 3px;
-                padding: 2px 8px;
-                font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #6a2e2e;
-            }
-        """)
-        stop_btn.clicked.connect(self.stop_process)
-        
         header_layout.addWidget(self.status_label)
         header_layout.addStretch()
         header_layout.addWidget(self.dir_label)
-        header_layout.addWidget(stop_btn)
         header_layout.addWidget(clear_btn)
         
         # Terminal output
@@ -233,7 +216,6 @@ class TerminalWidget(QWidget):
             except UnicodeDecodeError:
                 continue
                 
-        # Если все кодировки не подошли, используем замену ошибок
         try:
             return data.decode('utf-8', errors='replace')
         except:
@@ -312,7 +294,6 @@ class TerminalWidget(QWidget):
     def _execute_complex_command(self, command, working_dir=None):
         """Выполняет сложные команды с улучшенной стабильностью"""
         if self.process and self.process.state() == QProcess.Running:
-            # Добавляем небольшую задержку для стабильности
             if working_dir:
                 cd_command = f'cd /d "{working_dir}"\r\n'
                 self.process.write(cd_command.encode(self.encoding))
@@ -335,6 +316,7 @@ class TerminalWidget(QWidget):
             '.pl': f'perl "{file_path_str}" {args}',
             '.sh': f'bash "{file_path_str}" {args}',
             '.asm': f'cd /d "{file_path.parent}" && ASM6X.EXE "{file_path.name}" && LNK6X.EXE "{file_path.stem}.obj" -o "{file_path.stem}.out" && SIM62X.EXE',
+            '.bat': f'./{file_path_str}'
         }
         
         return commands.get(extension, f'"{file_path_str}" {args}')

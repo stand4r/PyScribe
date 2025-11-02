@@ -19,6 +19,7 @@ from utils.programs import (
     saveSession, clearCache, clear_backup, backup, restore_backup
 )
 from utils.settings_manager import init_settings_manager, get_settings_manager
+from utils.CSharpCompiler import *
 from widgets.ProjectDialog import ProjectDialog, ProjectConfigDialog
 from widgets.Dialog import CustomDialog
 from widgets.QArgsEditor import ArgsWindow
@@ -46,7 +47,6 @@ class ApplicationManager:
         """Загрузить настройки через менеджер"""
         settings_manager = get_settings_manager()
         
-        # Если настроек нет, создаем дефолтные
         if not settings_manager.settings:
             from utils.programs import EditorSettings
             default_settings = EditorSettings()
@@ -101,36 +101,28 @@ class UIManager:
         self.main_window.central_widget = QtWidgets.QWidget()
         self.main_window.setCentralWidget(self.main_window.central_widget)
         
-        # Основной вертикальный layout
         main_layout = QtWidgets.QVBoxLayout(self.main_window.central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Горизонтальный layout для explorer и редактора
         horizontal_layout = QtWidgets.QHBoxLayout()
         horizontal_layout.setContentsMargins(0, 20, 12, 15)
         horizontal_layout.setSpacing(0)
         
-        # Настройка explorer
         self._setup_explorer_panel()
         
-        # Создаем splitter для редактора и терминала
         self.main_window.editor_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         
-        # Tab widget (редактор)
         self.main_window.tab_widget = TabWidget(
             self.main_window.editor_splitter,
             self.app_manager.settings
         )
         
-        # Терминал (будет добавлен позже)
         self.main_window.terminal_widget = None
         
-        # Добавляем splitter в горизонтальный layout
         horizontal_layout.addLayout(self.main_window.explorer_layout)
         horizontal_layout.addWidget(self.main_window.editor_splitter)
         
-        # Добавляем горизонтальный layout в основной
         main_layout.addLayout(horizontal_layout)
         
     def _setup_explorer_panel(self):
@@ -141,7 +133,6 @@ class UIManager:
             'delete': DeletePushButton("")
         }
         
-        # Стилизуем кнопки в стиле YouTube
         button_style = """
             QPushButton {
                 background-color: rgba(255, 255, 255, 0.1);
@@ -169,17 +160,16 @@ class UIManager:
             button.setCursor(Qt.PointingHandCursor)
         
         buttons_layout = QtWidgets.QHBoxLayout()
-        buttons_layout.setContentsMargins(0, 0, 8, 4)  # Добавьте отступы
+        buttons_layout.setContentsMargins(0, 0, 8, 4)
         buttons_layout.setSpacing(4)
         
         for button in self.main_window.explorer_buttons.values():
             buttons_layout.addWidget(button)
         
-        # ИСПОЛЬЗУЙТЕ ModernExplorer вместо старого Explorer
         self.main_window.file_explorer = Explorer()
         
         self.main_window.explorer_layout = QtWidgets.QVBoxLayout()
-        self.main_window.explorer_layout.setContentsMargins(0, 0, 5, 5)  # Добавьте отступы
+        self.main_window.explorer_layout.setContentsMargins(0, 0, 5, 5)
         self.main_window.explorer_layout.setSpacing(0)
         self.main_window.explorer_layout.addLayout(buttons_layout)
         self.main_window.explorer_layout.addWidget(self.main_window.file_explorer)
@@ -224,7 +214,7 @@ class UIManager:
                 ('Select All', 'Ctrl+A', self.main_window.action_select_all)
             ],
             'run': [
-                ('Run', 'Ctrl+R', self.main_window.action_run_code),  # Изменено с Ctrl+Shift+X
+                ('Run', 'Ctrl+R', self.main_window.action_run_code),
             ],
             'project': [
                 ('Project Manager', 'Ctrl+Shift+P', self.main_window.action_project_manager),
@@ -234,8 +224,13 @@ class UIManager:
                 ('---', None, None),
                 ('Project Settings', None, self.main_window.action_project_settings),
             ],
+            'csharp': [
+                    ('Compile C# File', 'Ctrl+Shift+C', self.main_window.action_compile_csharp),
+                    ('Build Project', 'Ctrl+Shift+B', self.main_window.action_build_csharp_project),
+                    ('---', None, None),
+            ],
             'tools': [
-                ('Terminal', 'ctrl+`', self.main_window.toggle_terminal),  # Изменено с Ctrl+`
+                ('Terminal', 'Ctrl+Shift+Q', self.main_window.toggle_terminal),
                 ('Settings', None, self.main_window.action_open_settings)
             ],
             'help': [
@@ -261,7 +256,7 @@ class UIManager:
             else:
                 action = QtWidgets.QAction(action_text, self.main_window)
                 if shortcut:
-                    action.setShortcut(QKeySequence(shortcut))  # Явное создание QKeySequence
+                    action.setShortcut(QKeySequence(shortcut))
                 if handler:
                     action.triggered.connect(handler)
                 menu.addAction(action)
@@ -345,7 +340,6 @@ class FileManager:
                 
             file_extension = file_path_obj.suffix.lower()
             
-            # Проверяем PDF файлы
             if file_extension == '.pdf':
                 self.open_pdf_file(file_path)
                 return
@@ -397,12 +391,10 @@ class FileManager:
             pdf_viewer = PDFViewerWidget(self.main_window)
             pdf_viewer.open_pdf(file_path)
             
-            # Добавляем как новую вкладку
             file_name = Path(file_path).name
             tab_index = self.main_window.tab_widget.addTab(pdf_viewer, f"       {file_name}       ")
             self.main_window.tab_widget.setCurrentIndex(tab_index)
             
-            # Добавляем в сессию
             if file_path not in self.app_manager.session_files:
                 self.app_manager.session_files.append(file_path)
                 
@@ -423,7 +415,6 @@ class ProjectHandler:
     def on_project_opened(self, project_config):
             print(f"DEBUG: Project opened: {project_config.name}")
             
-            # Закрываем все открытые файлы перед открытием проекта
             self.main_window.close_all_editor_tabs()
             
             self.main_window.current_project = project_config
@@ -493,7 +484,6 @@ class ProjectHandler:
                 self.main_window.action_project_settings()
             return
         
-        # Используем команду из проекта как единую команду
         if self.main_window.terminal_widget:
             self.main_window.run_in_terminal(
                 project.launch_command, 
@@ -557,6 +547,8 @@ class ModernMainWindow(QMainWindow):
         self.file_manager = FileManager(self)
         self.project_handler = ProjectHandler(self)
         self.code_runner = CodeRunner(self)
+        self.csharp_compiler = CSharpCompiler()
+        self.csharp_project_manager = CSharpProjectManager()
 
         self.project_handler.main_window = self
         
@@ -584,13 +576,10 @@ class ModernMainWindow(QMainWindow):
         self.console_widget = ConsoleWidget(self)
         self.console_widget.setVisible(False)
         
-        # Добавляем консоль в splitter под редактором
         if hasattr(self, 'editor_splitter') and self.editor_splitter:
             self.editor_splitter.addWidget(self.console_widget)
-            # Устанавливаем начальные размеры (консоль скрыта)
             self.editor_splitter.setSizes([1000, 0])
             
-            # Настраиваем splitter для возможности изменения размеров
             self.editor_splitter.setChildrenCollapsible(False)
             self.editor_splitter.setHandleWidth(4)
             self.editor_splitter.setStyleSheet("""
@@ -611,20 +600,16 @@ class ModernMainWindow(QMainWindow):
             self.console_widget.setVisible(self.terminal_visible)
             
             if self.terminal_visible:
-                # Показываем консоль (30% высоты)
                 total_height = self.editor_splitter.height()
                 editor_height = int(total_height * 0.7)
                 console_height = int(total_height * 0.3)
                 self.editor_splitter.setSizes([editor_height, console_height])
             else:
-                # Скрываем консоль
                 self.editor_splitter.setSizes([self.editor_splitter.height(), 0])
     
     def apply_application_theme(self):
-        """Применить тему ко всему приложению"""
         colors = self.app_manager.colors
         
-        # Обновляем стиль главного окна
         self.setStyleSheet(f"""
             QMainWindow {{
                 background-color: {colors['first']};
@@ -655,7 +640,6 @@ class ModernMainWindow(QMainWindow):
             }}
         """)
         
-        # Обновляем статус бар
         self.status_bar.setStyleSheet(f"""
             QStatusBar {{
                 background-color: {colors['main']};
@@ -664,7 +648,6 @@ class ModernMainWindow(QMainWindow):
             }}
         """)
         
-        # Обновляем центральный виджет
         if hasattr(self, 'central_widget'):
             self.central_widget.setStyleSheet(f"""
                 QWidget {{
@@ -678,22 +661,19 @@ class ModernMainWindow(QMainWindow):
         settings_window = SettingsWidget(
             self.app_manager.settings, 
             str(self.app_manager.base_path),
-            self  # Передаем родительское окно для обновления темы
+            self
         )
         
-        # Создаем диалоговое окно для настроек
         dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle("Settings")
         dialog.setMinimumSize(600, 700)
         
-        # Применяем текущую тему к диалогу
         colors = self.app_manager.colors
         dialog.setStyleSheet(f"background-color: {colors['first']}; color: {colors['text']};")
         
         layout = QtWidgets.QVBoxLayout(dialog)
         layout.addWidget(settings_window)
         
-        # Кнопка закрытия
         button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
         button_box.rejected.connect(dialog.reject)
         button_box.setStyleSheet(f"background-color: {colors['main']};")
@@ -701,23 +681,111 @@ class ModernMainWindow(QMainWindow):
         
         dialog.exec_()
     
+    def action_compile_csharp(self):
+        """Compile current C# file"""
+        current_editor = self.get_current_editor()
+        if current_editor and hasattr(current_editor, 'file_path'):
+            file_path = getattr(current_editor, 'file_path')
+            if file_path and file_path.endswith('.cs'):
+                self.compile_csharp_file(str(file_path))
+            else:
+                CustomDialog("Current file is not a C# file").exec()
+        else:
+            CustomDialog("No C# file open").exec()
+
+    def action_build_csharp_project(self):
+        """Build C# project"""
+        if hasattr(self, 'current_project') and self.current_project:
+            self.build_csharp_project(self.current_project.root_path)
+        else:
+            # Ask for project directory
+            directory = QFileDialog.getExistingDirectory(self, "Select C# Project Directory")
+            if directory:
+                self.build_csharp_project(directory)
+        
+    def compile_csharp_file(self, file_path: str):
+        """Compile and run C# file"""
+        if not file_path.endswith('.cs'):
+            CustomDialog("Selected file is not a C# file").exec()
+            return
+            
+        # Show compilation in progress
+        self.status_bar.showMessage("Compiling C# file...")
+        
+        # Use .NET CLI if available, otherwise use csc
+        if self.csharp_compiler.dotnet_path:
+            success, output_path, message = self.csharp_compiler.compile_with_dotnet(file_path)
+        else:
+            success, output_path, message = self.csharp_compiler.compile_single_file(file_path)
+        
+        if success:
+            self.status_bar.showMessage("Compilation successful!")
+            # Ask if user wants to run the program
+            reply = QMessageBox.question(
+                self,
+                "Compilation Successful",
+                f"Compilation completed successfully!\nOutput: {output_path}\n\nRun the program?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                self.run_csharp_program(output_path)
+        else:
+            self.status_bar.showMessage("Compilation failed!")
+            self.show_problems_tab()
+            self.add_problem("error", file_path, 0, f"Compilation error: {message}")
+
+    def run_csharp_program(self, exe_path: str, args: str = ""):
+        """Run C# program in terminal"""
+        working_dir = Path(exe_path).parent
+        
+        if not self.terminal_visible:
+            self.toggle_terminal()
+            
+        self.console_widget.set_current_tab("Terminal")
+        terminal = self.console_widget.get_terminal()
+        
+        if terminal:
+            terminal.run_code(f'"{exe_path}" {args}', "", str(working_dir))
+
+    def build_csharp_project(self, project_path: str):
+        """Build C# project or solution"""
+        project_type = self.csharp_project_manager.detect_project_type(project_path)
+        
+        self.status_bar.showMessage(f"Building {project_type}...")
+        
+        if project_type == "solution":
+            success, output, error = self.csharp_compiler.build_solution(project_path)
+        elif project_type == "project":
+            # Find .csproj file
+            csproj_files = list(Path(project_path).glob("*.csproj"))
+            if csproj_files:
+                success, output, error = self.csharp_compiler.compile_with_dotnet(str(csproj_files[0]))
+            else:
+                success, output, error = False, "", "No .csproj file found"
+        else:
+            success, output, error = False, "", "Not a valid C# project directory"
+        
+        if success:
+            self.status_bar.showMessage("Build successful!")
+            self.append_output(output)
+        else:
+            self.status_bar.showMessage("Build failed!")
+            self.show_problems_tab()
+            self.append_output(error, is_error=True)
+    
     def run_in_terminal(self, file_path, args="", working_dir=None):
         """Запуск кода в терминале"""
         if not self.terminal_visible:
             self.toggle_terminal()
             
-        # Переключаемся на вкладку Terminal
         self.console_widget.set_current_tab("Terminal")
         
-        # Получаем терминал из консольного виджета
         terminal = self.console_widget.get_terminal()
         if terminal:
-            # Если это команда (содержит &&), а не путь к файлу
             if "&&" in str(file_path):
-                # Передаем команду как есть
                 terminal.run_code(file_path, args, working_dir)
             else:
-                # Стандартный запуск файла
                 terminal.run_code(file_path, args, working_dir)
 
     def add_problem(self, problem_type, file_path, line, description):
@@ -755,7 +823,7 @@ class ModernMainWindow(QMainWindow):
         self.auto_save_timer.timeout.connect(self.auto_save)
         self.auto_save_timer.start(30000)
 
-        self.terminal_shortcut = QShortcut(QKeySequence("Ctrl+`"), self)
+        self.terminal_shortcut = QShortcut(QKeySequence("Ctrl+E"), self)
         self.terminal_shortcut.activated.connect(self.toggle_terminal)
         
     def _initialize_application(self):
@@ -769,9 +837,7 @@ class ModernMainWindow(QMainWindow):
         self.sidebar_visible = not self.sidebar_visible
         self.ui_manager._toggle_explorer_visibility(self.sidebar_visible)
         
-        # Если sidebar изменил видимость, обновляем размеры
         if old_sidebar_visible != self.sidebar_visible and self.terminal_visible:
-            # Небольшая задержка для обновления layout
             QtCore.QTimer.singleShot(50, self._adjust_terminal_size)
     
     def _adjust_terminal_size(self):
@@ -790,7 +856,6 @@ class ModernMainWindow(QMainWindow):
         else:
             self.show_welcome_screen()
 
-    # Остальные методы остаются без изменений...
     def action_new_file(self):
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Create New File", "", "All Files (*)"
@@ -865,7 +930,6 @@ class ModernMainWindow(QMainWindow):
         try:
             clearCache()
             self.action_clear_recent_files()
-            # Очищаем сессионные файлы
             self.app_manager.session_files.clear()
             saveSession(self.app_manager.session_files)
             self.action_close_all_files()
@@ -1289,7 +1353,7 @@ def setup_application_style(app: QApplication):
     palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
     
     app.setPalette(palette)
-    app.setWindowIcon(QIcon(str(Path(__file__).parent / "assets" / "icon.png")))
+    app.setWindowIcon(QIcon(str(Path(__file__).parent / "src" / "icon2.png")))
 
 
 def main():
