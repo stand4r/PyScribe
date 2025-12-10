@@ -7,455 +7,236 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint, QTimer, QPropertyAnimation, QEasingCurve, QRect, QSize
-from PyQt5.QtGui import QColor, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence, QTextCharFormat, QPainter, QPen, QLinearGradient
+from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint, QTimer, QPropertyAnimation, QEasingCurve, QRect, QSize, QEvent
+from PyQt5.QtGui import QColor, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence, QTextCharFormat, QPainter, QPen, QLinearGradient, QTextBlock, QMouseEvent, QKeyEvent
 from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QShortcut, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QApplication, QTextEdit
+from utils.CodeAnalyzer import *
+
+class SelectionMode(Enum):
+    """Режимы выделения текста"""
+    NORMAL = "normal"
+    RECTANGLE = "rectangle"
 
 
-class Language(Enum):
-    PYTHON = "py"
-    JAVASCRIPT = "js"
-    TYPESCRIPT = "ts"
-    JAVA = "java"
-    CPP = "cpp"
-    C = "c"
-    CS = "cs"
-    PHP = "php"
-    RUBY = "rb"
-    GO = "go"
-    RUST = "rs"
-    KOTLIN = "kt"
-    SWIFT = "swift"
-    HTML = "html"
-    CSS = "css"
-    SQL = "sql"
-    JSON = "json"
-    XML = "xml"
-    YAML = "yaml"
-    MARKDOWN = "md"
-    DOCKERFILE = "dockerfile"
-    BASH = "sh"
-    PLAINTEXT = "txt"
-
-
-@dataclass
-class SyntaxRule:
-    pattern: str
-    color: str
-    weight: int = QFont.Normal
-    italic: bool = False
-
-
-@dataclass
-class LanguageConfig:
-    name: str
-    extensions: List[str]
-    keywords: List[str]
-    syntax_rules: List[SyntaxRule]
-    auto_indent: bool = True
-    brace_auto_close: bool = True
-    line_comment: str = "//"
-    block_comment_start: str = "/*"
-    block_comment_end: str = "*/"
-    string_delimiters: List[str] = None
+class EnhancedTextEdit(QPlainTextEdit):
+    """Улучшенный текстовый редактор с поддержкой прямоугольного выделения"""
     
-    def __post_init__(self):
-        if self.string_delimiters is None:
-            self.string_delimiters = ['"', "'"]
-
-
-class LanguageProvider(ABC):
-    """Абстрактный базовый класс для провайдеров языков"""
+    rectangleSelectionChanged = pyqtSignal(bool)
     
-    @abstractmethod
-    def get_config(self) -> LanguageConfig:
-        pass
-    
-    @abstractmethod
-    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
-        pass
-    
-    @abstractmethod
-    def get_completion_items(self, code: str) -> List[str]:
-        pass
-
-
-class PythonLanguageProvider(LanguageProvider):
-    def get_config(self) -> LanguageConfig:
-        keywords = [
-            "False", "None", "True", "and", "as", "assert", "async", "await", "break", 
-            "class", "continue", "def", "del", "elif", "else", "except", "finally", 
-            "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", 
-            "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
-        ]
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selection_mode = SelectionMode.NORMAL
+        self.rectangle_start_pos = QPoint()
+        self.rectangle_end_pos = QPoint()
+        self.is_selecting_rectangle = False
         
-        syntax_rules = [
-            SyntaxRule(r'#.*$', "#6A9955"),  # Комментарии
-            SyntaxRule(r'\b(class|def)\s+(\w+)', "#D7BA7D", QFont.Normal, False),
-            SyntaxRule(r'\b(self|cls)\b', "#569CD6"),
-            SyntaxRule(r'@\w+\b', "#D7BA7D"),  # Декораторы
-            SyntaxRule(r'\b(None|True|False)\b', "#569CD6"),
-            SyntaxRule(r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),  # Числа
-            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),  # Строки
-            SyntaxRule(r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),
-        ]
+        # Дополнительные выделения для прямоугольного выделения
+        self.rectangle_selections = []
         
-        return LanguageConfig(
-            name="Python",
-            extensions=["py", "pyw"],
-            keywords=keywords,
-            syntax_rules=syntax_rules,
-            line_comment="#",
-            block_comment_start='"""',
-            block_comment_end='"""'
-        )
-    
-    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
-        try:
-            tree = ast.parse(code)
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-                    analyzer.add_defined_name(node.name)
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        analyzer.add_defined_name(alias.name.split(".")[0])
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        analyzer.add_defined_name(node.module.split(".")[0])
-                elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                    analyzer.add_defined_name(node.id)
-        except SyntaxError:
-            self._analyze_with_regex(code, analyzer)
-    
-    def _analyze_with_regex(self, code: str, analyzer: 'CodeAnalyzer'):
-        patterns = [
-            r'def\s+(\w+)\s*\(',
-            r'class\s+(\w+)',
-            r'(\w+)\s*=',
-            r'from\s+(\w+)',
-            r'import\s+(\w+)'
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, code)
-            for match in matches:
-                if isinstance(match, tuple):
-                    for m in match:
-                        if m and m.isidentifier():
-                            analyzer.add_defined_name(m)
-                elif match and match.isidentifier():
-                    analyzer.add_defined_name(match)
-    
-    def get_completion_items(self, code: str) -> List[str]:
-        return []  # Можно расширить специфичными для Python completion items
-
-class CSLanguageProvider(LanguageProvider):
-    def get_config(self) -> LanguageConfig:
-        keywords = [
-            'abstract', 'as', 'base', 'bool', 'break', 'byte', 'case', 'catch',
-            'char', 'checked', 'class', 'const', 'continue', 'decimal', 'default',
-            'delegate', 'do', 'double', 'else', 'enum', 'event', 'explicit',
-            'extern', 'false', 'finally', 'fixed', 'float', 'for', 'foreach',
-            'goto', 'if', 'implicit', 'in', 'int', 'interface', 'internal',
-            'is', 'lock', 'long', 'namespace', 'new', 'null', 'object', 'operator',
-            'out', 'override', 'params', 'private', 'protected', 'public',
-            'readonly', 'ref', 'return', 'sbyte', 'sealed', 'short', 'sizeof',
-            'stackalloc', 'static', 'string', 'struct', 'switch', 'this', 'throw',
-            'true', 'try', 'typeof', 'uint', 'ulong', 'unchecked', 'unsafe',
-            'ushort', 'using', 'virtual', 'void', 'volatile', 'while',
-            'get', 'set', 'value', 'where', 'yield', 'async', 'await', 'nameof',
-            'var', 'dynamic', 'task', 'list', 'dictionary'
-        ]
+        # Настройка для прямоугольного выделения
+        self.setMouseTracking(True)
         
-        syntax_rules = [
-            SyntaxRule(r'//[^\n]*', "#6A9955"),  # Комментарии
-            SyntaxRule(r'/\*.*?\*/', "#6A9955"),
-            SyntaxRule(r'\bclass\s+(\w+)', "#D7BA7D", QFont.Normal, False),
-            SyntaxRule(r'\binterface\s+(\w+)', "#D7BA7D", QFont.Normal, False),
-            SyntaxRule(r'\bstruct\s+(\w+)', "#D7BA7D", QFont.Normal, False),
-            SyntaxRule(r'\benum\s+(\w+)', "#D7BA7D", QFont.Normal, False),
-            SyntaxRule(r'^\s*#\w+', "#D7BA7D"),  # Декораторы
-            SyntaxRule(r'\b(None|True|False)\b', "#569CD6"),
-            SyntaxRule(r'\b\d+\b', "#B5CEA8"),  # Числа
-            SyntaxRule(r'\"[^\"]*\"', "#CE9178"),  # Строки
-            SyntaxRule(r'\'[^\']*\'', "#CE9178")    
-        ]
-        
-        return LanguageConfig(
-            name="CSharp",
-            extensions=["cs"],
-            keywords=keywords,
-            syntax_rules=syntax_rules,
-            line_comment="//",
-            block_comment_start='/*',
-            block_comment_end='*/'
-        )
-    
-    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
-        pass
-    
-    def _analyze_with_regex(self, code: str, analyzer: 'CodeAnalyzer'):
-        pass
-    
-    def get_completion_items(self, code: str) -> List[str]:
-        return []
-
-
-class JavaScriptLanguageProvider(LanguageProvider):
-    def get_config(self) -> LanguageConfig:
-        keywords = [
-            "abstract", "arguments", "await", "boolean", "break", "byte", "case", "catch",
-            "char", "class", "const", "continue", "debugger", "default", "delete", "do",
-            "double", "else", "enum", "eval", "export", "extends", "false", "final",
-            "finally", "float", "for", "function", "goto", "if", "implements", "import",
-            "in", "instanceof", "int", "interface", "let", "long", "native", "new",
-            "null", "package", "private", "protected", "public", "return", "short",
-            "static", "super", "switch", "synchronized", "this", "throw", "throws",
-            "transient", "true", "try", "typeof", "var", "void", "volatile", "while",
-            "with", "yield"
-        ]
-        
-        syntax_rules = [
-            SyntaxRule(r'//.*$', "#6A9955"),  # Комментарии
-            SyntaxRule(r'/\*[\s\S]*?\*/', "#6A9955"),  # Блочные комментарии
-            SyntaxRule(r'\b(function|class|const|let|var)\b', "#569CD6"),
-            SyntaxRule(r'\b(console|document|window|this)\b', "#4EC9B0"),
-            SyntaxRule(r'\b(export|import|from|default)\b', "#569CD6"),
-            SyntaxRule(r'\b(true|false|null|undefined)\b', "#569CD6"),
-            SyntaxRule(r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),
-            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),
-            SyntaxRule(r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),
-            SyntaxRule(r'`[^`\\]*(\\.[^`\\]*)*`', "#CE9178"),  # Template literals
-        ]
-        
-        return LanguageConfig(
-            name="JavaScript",
-            extensions=["js", "jsx"],
-            keywords=keywords,
-            syntax_rules=syntax_rules
-        )
-    
-    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
-        patterns = [
-            r'function\s+(\w+)\s*\(',
-            r'class\s+(\w+)',
-            r'const\s+(\w+)\s*=',
-            r'let\s+(\w+)\s*=',
-            r'var\s+(\w+)\s*=',
-            r'(\w+)\s*:\s*function'
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, code)
-            for match in matches:
-                if match and match.isidentifier():
-                    analyzer.add_defined_name(match)
-    
-    def get_completion_items(self, code: str) -> List[str]:
-        return ["console", "document", "window", "alert", "fetch"]
-
-
-class HTMLLanguageProvider(LanguageProvider):
-    def get_config(self) -> LanguageConfig:
-        syntax_rules = [
-            SyntaxRule(r'<!--.*?-->', "#6A9955"),  # Комментарии
-            SyntaxRule(r'<\/?[^>]+>', "#569CD6"),  # HTML теги
-            SyntaxRule(r'\b(src|href|class|id|style|alt|title)\b', "#9CDCFE"),  # Атрибуты
-            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),
-            SyntaxRule(r"'[^'\\]*(\\.[^'\\]*)*'", "#CE9178"),
-        ]
-        
-        return LanguageConfig(
-            name="HTML",
-            extensions=["html", "htm"],
-            keywords=[],
-            syntax_rules=syntax_rules,
-            auto_indent=False,
-            brace_auto_close=False
-        )
-    
-    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
-        # HTML не требует сложного анализа для автодополнения
-        pass
-    
-    def get_completion_items(self, code: str) -> List[str]:
-        return ["div", "span", "p", "a", "img", "script", "style"]
-
-
-class CSSLanguageProvider(LanguageProvider):
-    def get_config(self) -> LanguageConfig:
-        syntax_rules = [
-            SyntaxRule(r'\/\*[\s\S]*?\*\/', "#6A9955"),  # Комментарии
-            SyntaxRule(r'\.[\w-]+\b', "#D7BA7D"),  # CSS классы
-            SyntaxRule(r'#[\w-]+\b', "#D7BA7D"),  # CSS ID
-            SyntaxRule(r'\b[\w-]+\s*:', "#9CDCFE"),  # CSS свойства
-            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),
-        ]
-        
-        return LanguageConfig(
-            name="CSS",
-            extensions=["css"],
-            keywords=[],
-            syntax_rules=syntax_rules,
-            auto_indent=True,
-            brace_auto_close=True
-        )
-    
-    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
-        patterns = [
-            r'\.([\w-]+)\s*\{',
-            r'#([\w-]+)\s*\{',
-            r'@(\w+)'  # CSS directives
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, code)
-            for match in matches:
-                if match:
-                    analyzer.add_defined_name(match)
-    
-    def get_completion_items(self, code: str) -> List[str]:
-        return ["color", "background", "font-size", "margin", "padding"]
-
-
-class JSONLanguageProvider(LanguageProvider):
-    def get_config(self) -> LanguageConfig:
-        syntax_rules = [
-            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"\s*:', "#9CDCFE"),  # Ключи
-            SyntaxRule(r'"[^"\\]*(\\.[^"\\]*)*"', "#CE9178"),  # Строки
-            SyntaxRule(r'\b(true|false|null)\b', "#569CD6"),
-            SyntaxRule(r'\b\d+\.?\d*([eE][+-]?\d+)?\b', "#B5CEA8"),
-        ]
-        
-        return LanguageConfig(
-            name="JSON",
-            extensions=["json"],
-            keywords=[],
-            syntax_rules=syntax_rules,
-            auto_indent=True,
-            brace_auto_close=True
-        )
-    
-    def analyze_code(self, code: str, analyzer: 'CodeAnalyzer'):
-        try:
-            data = json.loads(code)
-            self._extract_keys(data, analyzer)
-        except:
-            pass
-    
-    def _extract_keys(self, data, analyzer: 'CodeAnalyzer', prefix=""):
-        if isinstance(data, dict):
-            for key in data.keys():
-                analyzer.add_defined_name(key)
-                self._extract_keys(data[key], analyzer, f"{prefix}.{key}" if prefix else key)
-        elif isinstance(data, list):
-            for item in data:
-                self._extract_keys(item, analyzer, prefix)
-    
-    def get_completion_items(self, code: str) -> List[str]:
-        return []  # JSON completion зависит от структуры данных
-
-
-class LanguageProviderFactory:
-    """Фабрика для создания и управления провайдерами языков"""
-    
-    _providers: Dict[str, LanguageProvider] = {}
-    _extension_map: Dict[str, str] = {}
-    
-    @classmethod
-    def register_provider(cls, language: Language, provider: LanguageProvider):
-        """Регистрация провайдера для языка"""
-        config = provider.get_config()
-        cls._providers[language.value] = provider
-        
-        # Регистрируем расширения файлов
-        for ext in config.extensions:
-            cls._extension_map[ext] = language.value
-    
-    @classmethod
-    def get_provider(cls, language: str) -> Optional[LanguageProvider]:
-        """Получение провайдера по идентификатору языка"""
-        return cls._providers.get(language)
-    
-    @classmethod
-    def get_provider_by_extension(cls, extension: str) -> Optional[LanguageProvider]:
-        """Получение провайдера по расширению файла"""
-        language = cls._extension_map.get(extension.lower())
-        return cls.get_provider(language) if language else None
-    
-    @classmethod
-    def get_supported_extensions(cls) -> List[str]:
-        """Получение списка поддерживаемых расширений"""
-        return list(cls._extension_map.keys())
-    
-    @classmethod
-    def get_language_config(cls, language: str) -> Optional[LanguageConfig]:
-        """Получение конфигурации языка"""
-        provider = cls.get_provider(language)
-        return provider.get_config() if provider else None
-
-
-# Регистрация провайдеров по умолчанию
-LanguageProviderFactory.register_provider(Language.PYTHON, PythonLanguageProvider())
-LanguageProviderFactory.register_provider(Language.JAVASCRIPT, JavaScriptLanguageProvider())
-LanguageProviderFactory.register_provider(Language.HTML, HTMLLanguageProvider())
-LanguageProviderFactory.register_provider(Language.CSS, CSSLanguageProvider())
-LanguageProviderFactory.register_provider(Language.JSON, JSONLanguageProvider())
-LanguageProviderFactory.register_provider(Language.CS, CSLanguageProvider())
-
-class CodeAnalyzer:
-    """Анализатор кода с поддержкой различных языков"""
-    
-    def __init__(self, language: str):
-        self.language = language
-        self.provider = LanguageProviderFactory.get_provider(language)
-        self.defined_names: Set[str] = set()
-        
-        # Добавляем ключевые слова языка
-        if self.provider:
-            config = self.provider.get_config()
-            self.defined_names.update(config.keywords)
-    
-    def analyze_code(self, code: str):
-        """Анализ кода с использованием зарегистрированного провайдера"""
-        self.defined_names.clear()
-        
-        if self.provider:
-            # Добавляем ключевые слова обратно после очистки
-            config = self.provider.get_config()
-            self.defined_names.update(config.keywords)
-            
-            # Запускаем специфичный для языка анализ
-            self.provider.analyze_code(code, self)
+    def mousePressEvent(self, event: QMouseEvent):
+        """Обработка нажатия мыши"""
+        if event.modifiers() & Qt.AltModifier:
+            # Начало прямоугольного выделения
+            self.selection_mode = SelectionMode.RECTANGLE
+            self.is_selecting_rectangle = True
+            self.rectangle_start_pos = event.pos()
+            self.rectangle_end_pos = event.pos()
+            self.rectangleSelectionChanged.emit(True)
         else:
-            # Общий анализ для неподдерживаемых языков
-            self._analyze_generic(code)
+            self.selection_mode = SelectionMode.NORMAL
+            self.is_selecting_rectangle = False
+            self.rectangleSelectionChanged.emit(False)
+            super().mousePressEvent(event)
     
-    def add_defined_name(self, name: str):
-        """Добавление определенного имени в список автодополнения"""
-        if name and name.isidentifier():
-            self.defined_names.add(name)
+    def mouseMoveEvent(self, event: QMouseEvent):
+        """Обработка движения мыши"""
+        if self.is_selecting_rectangle:
+            self.rectangle_end_pos = event.pos()
+            self.update_rectangle_selection()
+            self.viewport().update()
+        else:
+            super().mouseMoveEvent(event)
     
-    def _analyze_generic(self, code: str):
-        """Общий анализ для неподдерживаемых языков"""
-        patterns = [
-            r'function\s+(\w+)\s*\(',
-            r'def\s+(\w+)\s*\(',
-            r'class\s+(\w+)',
-            r'(\w+)\s*='
-        ]
-        for pattern in patterns:
-            matches = re.findall(pattern, code)
-            for match in matches:
-                if match and match.isidentifier():
-                    self.add_defined_name(match)
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        """Обработка отпускания мыши"""
+        if self.is_selecting_rectangle:
+            self.is_selecting_rectangle = False
+            self.finalize_rectangle_selection()
+        else:
+            super().mouseReleaseEvent(event)
     
-    def get_completion_list(self) -> List[str]:
-        """Получение списка для автодополнения"""
-        completion_list = sorted(self.defined_names)
+    def keyPressEvent(self, event: QKeyEvent):
+        """Обработка нажатия клавиш"""
+        # Alt + мышка уже обрабатывается в mousePressEvent
+        # Alt + клавиши для управления прямоугольным выделением
+        if event.key() == Qt.Key_Escape and self.selection_mode == SelectionMode.RECTANGLE:
+            self.selection_mode = SelectionMode.NORMAL
+            self.rectangle_selections.clear()
+            self.rectangleSelectionChanged.emit(False)
+            self.viewport().update()
+            return
+            
+        super().keyPressEvent(event)
+    
+    def update_rectangle_selection(self):
+        """Обновление прямоугольного выделения"""
+        self.rectangle_selections.clear()
         
-        # Добавляем специфичные для языка completion items
-        if self.provider:
-            completion_list.extend(self.provider.get_completion_items(""))
+        # Получаем начальную и конечную позиции в координатах текста
+        start_cursor = self.cursorForPosition(self.rectangle_start_pos)
+        end_cursor = self.cursorForPosition(self.rectangle_end_pos)
         
-        return completion_list
+        if not start_cursor.block().isValid() or not end_cursor.block().isValid():
+            return
+        
+        # Определяем границы прямоугольника
+        start_line = min(start_cursor.blockNumber(), end_cursor.blockNumber())
+        end_line = max(start_cursor.blockNumber(), end_cursor.blockNumber())
+        start_col = min(start_cursor.positionInBlock(), end_cursor.positionInBlock())
+        end_col = max(start_cursor.positionInBlock(), end_cursor.positionInBlock())
+        
+        # Создаем выделения для каждой строки в прямоугольнике
+        for line in range(start_line, end_line + 1):
+            cursor = QTextCursor(self.document().findBlockByNumber(line))
+            
+            # Перемещаем курсор в пределах строки
+            line_text = cursor.block().text()
+            line_length = len(line_text)
+            
+            # Если строка достаточно длинная для выделения
+            if start_col <= line_length:
+                actual_end_col = min(end_col, line_length)
+                cursor.setPosition(cursor.block().position() + start_col)
+                cursor.setPosition(cursor.block().position() + actual_end_col, QTextCursor.KeepAnchor)
+                
+                # Создаем дополнительное выделение
+                selection = QTextEdit.ExtraSelection()
+                selection.cursor = cursor
+                
+                # Стиль для прямоугольного выделения
+                selection.format.setBackground(QColor("#264F78"))
+                selection.format.setForeground(QColor("#FFFFFF"))
+                selection.format.setProperty(QTextCharFormat.FullWidthSelection, False)
+                
+                self.rectangle_selections.append(selection)
+    
+    def finalize_rectangle_selection(self):
+        """Финализация прямоугольного выделения"""
+        if self.rectangle_selections:
+            # Устанавливаем курсор в начало выделения
+            first_selection = self.rectangle_selections[0]
+            self.setTextCursor(first_selection.cursor)
+            
+            # Устанавливаем дополнительные выделения
+            self.setExtraSelections(self.rectangle_selections)
+        else:
+            self.setExtraSelections([])
+    
+    def paintEvent(self, event):
+        """Отрисовка редактора с прямоугольным выделением"""
+        # Сначала рисуем стандартный редактор
+        super().paintEvent(event)
+        
+        # Если идет процесс прямоугольного выделения, рисуем прямоугольник
+        if self.is_selecting_rectangle:
+            painter = QPainter(self.viewport())
+            painter.setPen(QPen(QColor("#007ACC"), 1, Qt.DashLine))
+            painter.setBrush(QColor(0, 122, 204, 30))  # Полупрозрачная заливка
+            
+            # Вычисляем прямоугольник
+            rect = QRect(self.rectangle_start_pos, self.rectangle_end_pos).normalized()
+            painter.drawRect(rect)
+    
+    def get_rectangle_selection_text(self) -> str:
+        """Получение текста из прямоугольного выделения"""
+        if not self.rectangle_selections:
+            return ""
+        
+        lines = []
+        for selection in self.rectangle_selections:
+            cursor = selection.cursor
+            text = cursor.selectedText()
+            lines.append(text)
+        
+        return "\n".join(lines)
+    
+    def insert_text_in_rectangle(self, text: str):
+        """Вставка текста в прямоугольное выделение"""
+        if not self.rectangle_selections:
+            return
+        
+        # Начинаем редактирование
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+        
+        try:
+            # Разбиваем вставляемый текст на строки
+            lines_to_insert = text.split('\n')
+            
+            # Вставляем текст в каждую строку выделения
+            for i, selection in enumerate(self.rectangle_selections):
+                if i < len(lines_to_insert):
+                    insert_text = lines_to_insert[i]
+                else:
+                    # Если строк меньше, чем выделений, используем последнюю строку
+                    insert_text = lines_to_insert[-1] if lines_to_insert else ""
+                
+                selection.cursor.insertText(insert_text)
+            
+            # Обновляем выделение
+            self.update_rectangle_selection()
+            
+        finally:
+            cursor.endEditBlock()
+    
+    def delete_rectangle_selection(self):
+        """Удаление прямоугольного выделения"""
+        if not self.rectangle_selections:
+            return
+        
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+        
+        try:
+            # Удаляем текст в каждом выделении
+            for selection in self.rectangle_selections:
+                selection.cursor.removeSelectedText()
+            
+            # Очищаем выделения
+            self.rectangle_selections.clear()
+            self.setExtraSelections([])
+            
+        finally:
+            cursor.endEditBlock()
+    
+    def copy_rectangle_selection(self):
+        """Копирование прямоугольного выделения в буфер обмена"""
+        text = self.get_rectangle_selection_text()
+        if text:
+            QApplication.clipboard().setText(text)
+    
+    def cut_rectangle_selection(self):
+        """Вырезание прямоугольного выделения"""
+        self.copy_rectangle_selection()
+        self.delete_rectangle_selection()
+
+
+class LineNumberArea(QWidget):
+    """Область для отображения номеров строк"""
+    
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor = editor
+    
+    def sizeHint(self):
+        return QSize(self.editor.line_number_area_width(), 0)
+    
+    def paintEvent(self, event):
+        self.editor.line_number_area_paint_event(event)
+
 
 
 class ModernSyntaxHighlighter(QSyntaxHighlighter):
@@ -572,22 +353,8 @@ class SmartCompleter(QCompleter):
         self.animation.start()
 
 
-class LineNumberArea(QWidget):
-    """Область для отображения номеров строк"""
-    
-    def __init__(self, editor):
-        super().__init__(editor)
-        self.editor = editor
-    
-    def sizeHint(self):
-        return QSize(self.editor.line_number_area_width(), 0)
-    
-    def paintEvent(self, event):
-        self.editor.line_number_area_paint_event(event)
-
-
-class CodeEditor(QPlainTextEdit):
-    """Основной редактор кода с поддержкой различных языков"""
+class CodeEditor(EnhancedTextEdit):
+    """Основной редактор кода с поддержкой различных языков и прямоугольного выделения"""
     
     textChangedAnimated = pyqtSignal()
     focusChanged = pyqtSignal(bool)
@@ -612,6 +379,9 @@ class CodeEditor(QPlainTextEdit):
         self.completion_timer = QTimer()
         self.completion_timer.setSingleShot(True)
         self.completion_timer.timeout.connect(self._trigger_completion)
+        
+        # Подключаем сигнал прямоугольного выделения
+        self.rectangleSelectionChanged.connect(self._on_rectangle_selection_changed)
     
     def _get_language_config(self, language: str) -> LanguageConfig:
         """Получение конфигурации языка"""
@@ -683,6 +453,15 @@ class CodeEditor(QPlainTextEdit):
         )
         self.completer.setWidget(self)
         self.completer.insertText.connect(self._insert_completion)
+    
+    def _on_rectangle_selection_changed(self, active: bool):
+        """Обработка изменения режима прямоугольного выделения"""
+        if active:
+            # Меняем курсор на крестик для прямоугольного выделения
+            self.viewport().setCursor(Qt.CrossCursor)
+        else:
+            # Возвращаем стандартный курсор
+            self.viewport().setCursor(Qt.IBeamCursor)
     
     def line_number_area_width(self):
         """Вычисление ширины области номеров строк"""
@@ -763,6 +542,10 @@ class CodeEditor(QPlainTextEdit):
             selection.cursor.clearSelection()
             extra_selections.append(selection)
         
+        # Добавляем прямоугольные выделения, если они есть
+        if hasattr(self, 'rectangle_selections'):
+            extra_selections.extend(self.rectangle_selections)
+        
         self.setExtraSelections(extra_selections)
     
     def _insert_completion(self, completion: str):
@@ -793,7 +576,27 @@ class CodeEditor(QPlainTextEdit):
         self.analyzer.analyze_code(self.toPlainText())
     
     def keyPressEvent(self, event):
-        """Обработка нажатий клавиш"""
+        """Обработка нажатий клавиш с поддержкой прямоугольного выделения"""
+        # Если активно прямоугольное выделение, обрабатываем специальные команды
+        if self.selection_mode == SelectionMode.RECTANGLE and self.rectangle_selections:
+            if event.key() == Qt.Key_Delete or event.key() == Qt.Key_Backspace:
+                self.delete_rectangle_selection()
+                return
+            elif event.modifiers() & Qt.ControlModifier and event.key() == Qt.Key_C:
+                self.copy_rectangle_selection()
+                return
+            elif event.modifiers() & Qt.ControlModifier and event.key() == Qt.Key_X:
+                self.cut_rectangle_selection()
+                return
+            elif event.key() in (Qt.Key_Enter, Qt.Key_Return):
+                # Вставка новой строки в каждую строку прямоугольного выделения
+                self.insert_text_in_rectangle("\n")
+                return
+            elif event.text() and not event.modifiers():
+                # Вставка текста в прямоугольное выделение
+                self.insert_text_in_rectangle(event.text())
+                return
+        
         if event.text() and not event.text().isspace():
             self.completion_timer.start(200)
         
@@ -855,7 +658,9 @@ class CodeEditor(QPlainTextEdit):
 
 
 class ModernCodeEditor(QWidget):
-    """Современный редактор кода с поддержкой различных языков"""
+    """Современный редактор кода с поддержкой различных языков и прямоугольного выделения"""
+    
+    rectangleSelectionActive = pyqtSignal(bool)
     
     def __init__(self, parent=None, language: str = "", settings: dict = None):
         super().__init__(parent)
@@ -865,6 +670,7 @@ class ModernCodeEditor(QWidget):
         
         self._setup_ui()
         self._setup_shortcuts()
+        self._setup_status_bar()
     
     def _setup_ui(self):
         """Настройка пользовательского интерфейса"""
@@ -875,6 +681,62 @@ class ModernCodeEditor(QWidget):
         self.editor = CodeEditor(language=self.language, settings=self.settings)
         layout.addWidget(self.editor)
     
+    def _setup_status_bar(self):
+        """Настройка статус-бара"""
+        self.status_bar = QLabel()
+        self.status_bar.setStyleSheet("""
+            QLabel {
+                background-color: #1E1E1E;
+                color: #D4D4D4;
+                padding: 4px 8px;
+                border-top: 1px solid #3C3C3C;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 10pt;
+            }
+        """)
+        
+        layout = self.layout()
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(self.status_bar)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Добавляем статус-бар в основной layout
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(layout)
+        main_layout.addLayout(status_layout)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Устанавливаем новый layout
+        self.setLayout(main_layout)
+        
+        # Подключаем сигналы для обновления статус-бара
+        self.editor.cursorPositionChanged.connect(self.update_status_bar)
+        self.editor.textChanged.connect(self.update_status_bar)
+        self.editor.rectangleSelectionChanged.connect(self._on_rectangle_selection_status)
+    
+    def _on_rectangle_selection_status(self, active: bool):
+        """Обновление статуса прямоугольного выделения"""
+        self.rectangleSelectionActive.emit(active)
+        self.update_status_bar()
+    
+    def update_status_bar(self):
+        """Обновление статус-бара"""
+        cursor = self.editor.textCursor()
+        line = cursor.blockNumber() + 1
+        column = cursor.positionInBlock() + 1
+        lines = self.editor.document().blockCount()
+        
+        # Информация о выделении
+        if self.editor.selection_mode == SelectionMode.RECTANGLE and self.editor.rectangle_selections:
+            rect_info = f" [RECT: {len(self.editor.rectangle_selections)} lines]"
+        else:
+            rect_info = ""
+        
+        # Информация о режиме
+        mode = "RECT" if self.editor.selection_mode == SelectionMode.RECTANGLE else "INS"
+        
+        self.status_bar.setText(f"Ln {line}, Col {column} | Lines: {lines} | Mode: {mode}{rect_info}")
+    
     def _setup_shortcuts(self):
         """Настройка горячих клавиш"""
         shortcuts = {
@@ -884,6 +746,12 @@ class ModernCodeEditor(QWidget):
             "Ctrl+/": self._toggle_comment,
             "Ctrl+D": self._duplicate_line,
             "Ctrl+Shift+K": self._delete_line,
+            "Alt+LeftButton": self._start_rectangle_selection,
+            "Escape": self._cancel_rectangle_selection,
+            "Alt+C": self._copy_rectangle,
+            "Alt+X": self._cut_rectangle,
+            "Alt+V": self._paste_rectangle,
+            "Alt+Delete": self._delete_rectangle,
         }
         
         for key_sequence, callback in shortcuts.items():
@@ -975,6 +843,38 @@ class ModernCodeEditor(QWidget):
         cursor.select(QTextCursor.LineUnderCursor)
         cursor.removeSelectedText()
     
+    def _start_rectangle_selection(self):
+        """Начало прямоугольного выделения (обрабатывается в mousePressEvent)"""
+        pass
+    
+    def _cancel_rectangle_selection(self):
+        """Отмена прямоугольного выделения"""
+        self.editor.selection_mode = SelectionMode.NORMAL
+        if hasattr(self.editor, 'rectangle_selections'):
+            self.editor.rectangle_selections.clear()
+        self.editor.setExtraSelections([])
+        self.rectangleSelectionActive.emit(False)
+        self.update_status_bar()
+    
+    def _copy_rectangle(self):
+        """Копирование прямоугольного выделения"""
+        self.editor.copy_rectangle_selection()
+    
+    def _cut_rectangle(self):
+        """Вырезание прямоугольного выделения"""
+        self.editor.cut_rectangle_selection()
+    
+    def _paste_rectangle(self):
+        """Вставка в прямоугольное выделение"""
+        clipboard = QApplication.clipboard()
+        text = clipboard.text()
+        if text and self.editor.selection_mode == SelectionMode.RECTANGLE:
+            self.editor.insert_text_in_rectangle(text)
+    
+    def _delete_rectangle(self):
+        """Удаление прямоугольного выделения"""
+        self.editor.delete_rectangle_selection()
+    
     def set_file_path(self, file_path: str):
         """Установка пути к файлу и автоматическое определение языка"""
         self.file_path = Path(file_path)
@@ -1029,35 +929,9 @@ class ModernCodeEditor(QWidget):
         self.editor.setPlainText(code)
 
 
-# Пример использования и демонстрация расширяемости
+# Демонстрационный пример использования
 if __name__ == "__main__":
     import sys
-    
-    # Пример добавления нового провайдера для TypeScript
-    class TypeScriptLanguageProvider(JavaScriptLanguageProvider):
-        def get_config(self) -> LanguageConfig:
-            base_config = super().get_config()
-            
-            # Добавляем TypeScript-специфичные ключевые слова
-            ts_keywords = base_config.keywords + [
-                "type", "interface", "implements", "namespace", "abstract",
-                "public", "private", "protected", "readonly", "enum"
-            ]
-            
-            ts_syntax_rules = base_config.syntax_rules + [
-                SyntaxRule(r'\b(type|interface|enum)\b', "#569CD6"),
-                SyntaxRule(r'\b(public|private|protected|readonly)\b', "#569CD6"),
-            ]
-            
-            return LanguageConfig(
-                name="TypeScript",
-                extensions=["ts", "tsx"],
-                keywords=ts_keywords,
-                syntax_rules=ts_syntax_rules
-            )
-    
-    # Регистрируем новый провайдер
-    LanguageProviderFactory.register_provider(Language.TYPESCRIPT, TypeScriptLanguageProvider())
     
     app = QApplication(sys.argv)
     
@@ -1068,20 +942,50 @@ if __name__ == "__main__":
         "accent_color": "#007ACC"
     }
     
-    # Демонстрация работы с разными языками
+    # Создаем редактор с примером кода
     editor = ModernCodeEditor(language="py", settings=settings)
     
-    example_code = '''# Пример Python кода
-class Calculator:
-    def add(self, x: float, y: float) -> float:
-        return x + y
+    example_code = '''# Пример кода для демонстрации прямоугольного выделения
+# Нажмите Alt и выделите прямоугольник мышкой
+
+class User:
+    def __init__(self, name, age, email):
+        self.name = name
+        self.age = age
+        self.email = email
+    
+    def display_info(self):
+        print(f"Name: {self.name}")
+        print(f"Age: {self.age}")
+        print(f"Email: {self.email}")
+
+# Список пользователей
+users = [
+    User("Alice", 25, "alice@example.com"),
+    User("Bob", 30, "bob@example.com"),
+    User("Charlie", 35, "charlie@example.com"),
+]
+
+# Вывод информации
+for user in users:
+    user.display_info()
 '''
     
     editor.set_code(example_code)
-    editor.setWindowTitle("Modern Code Editor - Multi Language Support")
+    editor.setWindowTitle("Modern Code Editor - Rectangle Selection Demo")
     editor.resize(800, 600)
     editor.show()
     
-    print("Supported extensions:", LanguageProviderFactory.get_supported_extensions())
+    # Выводим горячие клавиши для прямоугольного выделения
+    print("=" * 60)
+    print("ПРЯМОУГОЛЬНОЕ ВЫДЕЛЕНИЕ - ГОРЯЧИЕ КЛАВИШИ:")
+    print("=" * 60)
+    print("Alt + ЛКМ - Начать прямоугольное выделение")
+    print("Alt + C - Копировать прямоугольное выделение")
+    print("Alt + X - Вырезать прямоугольное выделение")
+    print("Alt + V - Вставить в прямоугольное выделение")
+    print("Alt + Delete - Удалить прямоугольное выделение")
+    print("Escape - Отменить прямоугольное выделение")
+    print("=" * 60)
     
     sys.exit(app.exec_())
