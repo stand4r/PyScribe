@@ -1002,6 +1002,40 @@ def test_tool_activity_line_is_transient():
         panel.deleteLater()
 
 
+def test_ai_panel_uses_one_row_header_and_readable_composer():
+    """Header chips share the title row; the input fits a wrapped placeholder."""
+    from widgets.AIAgentPanel import AIAgentPanel
+
+    panel = AIAgentPanel(None)
+    try:
+        header = panel.findChild(QtWidgets.QFrame, "aiHeader")
+        assert header is not None
+        assert header.height() <= 60, header.height()
+        for widget in (panel.reasoning_btn, panel.access_button, panel.more_btn):
+            assert widget.parent() is header, "chips must live on the title row"
+        assert panel.input._min_height >= 56, panel.input._min_height
+        assert panel.input._max_height >= 200
+    finally:
+        panel.deleteLater()
+
+
+def test_ai_panel_typography_scale_matches_chat():
+    """Input, user bubble and code viewer follow the 16px chat body size."""
+    from app.styling import user_appearance_qss
+    from utils.settings_manager import get_settings_manager
+    from widgets.ChatMessage import chat_code_font_px, chat_font_px
+
+    body = chat_font_px()
+    assert body >= 16
+    assert abs(chat_code_font_px() - body) <= 1
+    qss = user_appearance_qss(get_settings_manager().get_all_settings(), 13)
+    assert "QPlainTextEdit#aiInput" in qss
+    assert "QPlainTextEdit#chatCodeView" in qss
+    assert "QToolButton#aiScopeButton" in qss
+    # 16px ≈ 12pt at 96 dpi: the input must not inherit the 9pt editor font.
+    assert "font-size: 12pt" in qss
+
+
 if __name__ == "__main__":
     tests = [(n, o) for n, o in list(globals().items())
              if n.startswith("test_") and callable(o)]

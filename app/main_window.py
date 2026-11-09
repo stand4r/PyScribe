@@ -33,6 +33,8 @@ from widgets.Dialog import CustomDialog
 from widgets.QArgsEditor import ArgsWindow
 from widgets.SettingsWidget import SettingsWidget
 from widgets.AboutDialog import AboutDialog
+from widgets.ShellIntegrationDialog import ShellIntegrationDialog
+from widgets.UpdateDialog import UpdateDialog
 from widgets.WelcomeWidget import Ui_Welcome
 from widgets.TabWidget import TabWidget
 from widgets.PushButtons import *
@@ -121,6 +123,7 @@ class ModernMainWindow(QMainWindow):
         self._welcome_tab = None
         self._settings_tab = None
         self._extensions_tab = None
+        self._update_dialog = None
         self.console_widget = None
         self.terminal_window = None
         self.editor_splitter = None
@@ -154,6 +157,8 @@ class ModernMainWindow(QMainWindow):
             250,
             lambda: self.status_bar.showMessage(f"Среда готова · Python {sys.version.split()[0]}")
         )
+        # Silent update check once a day; a newer release opens the update dialog.
+        QtCore.QTimer.singleShot(3200, self._maybe_check_updates)
 
     def _setup_tray_icon(self):
         """Create a native Windows tray icon with a small workbench menu."""
@@ -863,6 +868,14 @@ class ModernMainWindow(QMainWindow):
         self.file_explorer.open_file_requested.connect(self.file_manager.open_file)
         if hasattr(self.file_explorer, 'preview_markdown_requested'):
             self.file_explorer.preview_markdown_requested.connect(self.file_manager.open_markdown_file)
+        if hasattr(self.file_explorer, 'open_table_requested'):
+            self.file_explorer.open_table_requested.connect(self.file_manager.open_table_file)
+        if hasattr(self.file_explorer, 'open_hex_requested'):
+            self.file_explorer.open_hex_requested.connect(self.file_manager.open_binary_file)
+        if hasattr(self.file_explorer, 'open_text_requested'):
+            self.file_explorer.open_text_requested.connect(self.file_manager.open_text_editor)
+        if hasattr(self.file_explorer, 'open_pdf_requested'):
+            self.file_explorer.open_pdf_requested.connect(self.file_manager.open_pdf_file)
         # Explorer header buttons are connected exactly once in UIManager
         # (_setup_explorer_panel); connecting them here again opened two dialogs.
 
@@ -1113,6 +1126,9 @@ class ModernMainWindow(QMainWindow):
             ("Файл: Открыть файл", "open"),
             ("Файл: Сохранить", "save"),
             ("Файл: Сохранить всё", "save_all"),
+            ("Файл: Открыть в HEX-просмотрщике…", "open_hex"),
+            ("Файл: Открыть как таблицу…", "open_table"),
+            ("Файл: Открыть PDF…", "open_pdf"),
             ("Вид: Переключить терминал", "terminal"),
             ("Вид: Разделить редактор", "split"),
             ("Вид: Проводник", "explorer"),
@@ -1131,6 +1147,8 @@ class ModernMainWindow(QMainWindow):
             ("Проект: Изменить капсулу", "capsule"),
             ("Справка: Руководство пользователя (Документация)", "documentation"),
             ("Справка: Горячие клавиши", "shortcuts"),
+            ("Справка: Проверить обновления…", "updates"),
+            ("Справка: Интеграция с проводником…", "shell"),
             ("Справка: О программе", "about"),
         ]
         dialog = CommandPalette(commands, self)
@@ -1145,6 +1163,8 @@ class ModernMainWindow(QMainWindow):
         """
         actions = {
             "new": self.action_new_file, "open": self.action_open_file,
+            "open_hex": self.action_open_hex_file, "open_table": self.action_open_table_file,
+            "open_pdf": self.action_open_pdf_file,
             "save": self.action_save_file, "save_all": self.action_save_all_files,
             "terminal": self.toggle_terminal, "split": self.split_editor,
             "explorer": lambda: self.activity_bar.set_activity("explorer"),
@@ -1161,6 +1181,8 @@ class ModernMainWindow(QMainWindow):
             "capsule": self.action_change_capsule,
             "documentation": self.action_open_documentation,
             "shortcuts": self.show_keyboard_shortcuts,
+            "updates": self.action_check_updates,
+            "shell": self.action_shell_integration,
             "about": self.action_about,
         }
         handler = actions.get(command)
@@ -1538,6 +1560,30 @@ class ModernMainWindow(QMainWindow):
         )
         for file_path in file_paths:
             self.file_manager.open_file(file_path)
+
+    def action_open_hex_file(self):
+        """Открыть любой файл в HEX-просмотрщике."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Открыть в HEX-просмотрщике", "", "Все файлы (*)"
+        )
+        if file_path:
+            self.file_manager.open_binary_file(file_path)
+
+    def action_open_table_file(self):
+        """Открыть табличный файл в просмотрщике таблиц."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Открыть таблицу", "", "Таблицы (*.csv *.tsv *.tab *.xlsx *.xlsm);;Все файлы (*)"
+        )
+        if file_path:
+            self.file_manager.open_table_file(file_path)
+
+    def action_open_pdf_file(self):
+        """Открыть PDF файл в просмотрщике документов."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Открыть PDF", "", "PDF документы (*.pdf);;Все файлы (*)"
+        )
+        if file_path:
+            self.file_manager.open_pdf_file(file_path)
 
     def action_open_project(self):
         """Выполняет операцию action open project.
@@ -1940,6 +1986,64 @@ class ModernMainWindow(QMainWindow):
     def action_about(self):
         """Показать диалог 'О программе'"""
         AboutDialog(self).exec_()
+
+    # ------------------------------------------------------------------
+    # Updates and Windows Explorer integration
+    # ------------------------------------------------------------------
+    def action_check_updates(self):
+        """«Справка → Проверить обновления…» (manual check, no throttle)."""
+        self._open_update_dialog(auto=False)
+
+    def action_shell_integration(self):
+        """Register/unregister «Открыть в PyScribe» and «Открыть с помощью»."""
+        ShellIntegrationDialog(self).exec_()
+
+    def _maybe_check_updates(self):
+        """Automatic daily check; skipped entirely when disabled in settings."""
+        if os.environ.get("QT_QPA_PLATFORM", "").lower() == "offscreen":
+            return          # tests and headless runs must not touch the network
+        try:
+            from datetime import datetime, timedelta
+            from utils.settings_manager import get_settings_manager
+            manager = get_settings_manager()
+            if not bool(manager.get_setting("update_auto_check", True)):
+                return
+            last = str(manager.get_setting("update_last_check", "") or "")
+            if last:
+                try:
+                    previous = datetime.fromisoformat(last.replace("Z", "+00:00"))
+                except ValueError:
+                    previous = None
+                if previous is not None:
+                    now = datetime.now(previous.tzinfo) if previous.tzinfo else datetime.now()
+                    if now - previous < timedelta(hours=20):
+                        return
+        except Exception:  # noqa: BLE001 - an update check must never break startup
+            return
+        self._open_update_dialog(auto=True)
+
+    def _open_update_dialog(self, auto: bool = False):
+        dialog = getattr(self, "_update_dialog", None)
+        if dialog is not None:
+            try:
+                # Reuse the window and restart the check: never delete a dialog
+                # while its QThread is still running.
+                dialog.show()
+                dialog.raise_()
+                dialog.activateWindow()
+                dialog._start_check()
+                return
+            except RuntimeError:
+                self._update_dialog = None
+        dialog = UpdateDialog(self, auto=auto)
+        dialog.finished.connect(lambda *_: setattr(self, "_update_dialog", None))
+        self._update_dialog = dialog
+        if auto:
+            # Stay hidden while checking: the dialog shows itself only when a
+            # newer release exists, so a daily check never flashes a window.
+            dialog.hide()
+        else:
+            dialog.exec_()
 
     def action_change_capsule(self):
         """Выполняет операцию action change capsule.
@@ -2819,7 +2923,7 @@ class ModernMainWindow(QMainWindow):
         if prop and prop("pyscribeSpecial") in {"welcome", "settings", "extensions"}:
             return True
         cname = widget.__class__.__name__
-        if cname in {"Ui_Welcome", "SettingsWidget", "DocumentViewerWidget", "HexViewer", "MarkdownViewerWidget", "PDFViewerWidget"}:
+        if cname in {"Ui_Welcome", "SettingsWidget", "DocumentViewerWidget", "HexViewer", "MarkdownViewerWidget", "PDFViewerWidget", "TableViewerWidget"}:
             return True
         fp = getattr(widget, "file_path", None)
         if not fp:

@@ -61,7 +61,13 @@ class ProjectHandler:
             return str(Path(project_config).resolve())
         return ""
 
-    def on_project_opened(self, project_config):
+    def on_project_opened(self, project_config, choose_analyzers: bool = True):
+        """Open a project.
+
+        ``choose_analyzers=False`` is used by the command line / Explorer
+        integration: the user double-clicked a folder and expects the project to
+        open immediately, without the analysis-profile dialog.
+        """
         norm_root = self._normalize_root(project_config)
         if not norm_root:
             return
@@ -69,7 +75,7 @@ class ProjectHandler:
         if hasattr(project_config, "root_path"):
             project_config.root_path = norm_root
 
-        analyzers = self._choose_analyzers(project_config)
+        analyzers = self._choose_analyzers(project_config) if choose_analyzers else None
         if analyzers is None:
             analyzers = getattr(project_config, 'analyzers', None)
             if analyzers is None and isinstance(project_config, dict):

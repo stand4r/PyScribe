@@ -41,29 +41,11 @@ class DocumentViewerWidget(QtWidgets.QWidget):
             self.status.setText("Read-only viewer · ошибка загрузки")
 
     def _load_xlsx(self):
-        from openpyxl import load_workbook
-        workbook = load_workbook(self.file_path, read_only=True, data_only=False)
-        tabs = QtWidgets.QTabWidget()
-        tabs.setDocumentMode(True)
-        total = 0
-        for sheet in workbook.worksheets:
-            table = QtWidgets.QTableWidget()
-            rows = list(sheet.iter_rows(values_only=True))
-            total += len(rows)
-            max_cols = max((len(row) for row in rows), default=0)
-            table.setRowCount(len(rows))
-            table.setColumnCount(max_cols)
-            table.setAlternatingRowColors(True)
-            for r, row in enumerate(rows):
-                for c, value in enumerate(row):
-                    item = QtWidgets.QTableWidgetItem("" if value is None else str(value))
-                    table.setItem(r, c, item)
-            table.resizeColumnsToContents()
-            tabs.addTab(table, sheet.title)
-        self.stack.addWidget(tabs)
-        self.stack.setCurrentWidget(tabs)
-        self.status.setText(f"XLSX · {len(workbook.worksheets)} лист(ов) · {total} строк · только чтение")
-        workbook.close()
+        from widgets.TableViewerWidget import TableViewerWidget
+        table_viewer = TableViewerWidget(self.file_path, parent=self)
+        self.stack.addWidget(table_viewer)
+        self.stack.setCurrentWidget(table_viewer)
+        self.status.setVisible(False)
 
     def _load_docx(self):
         from docx import Document

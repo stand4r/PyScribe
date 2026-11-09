@@ -198,10 +198,24 @@ def user_appearance_qss(settings: dict, ui_font_size: int) -> str:
     except (TypeError, ValueError):
         scale = 1.0
     chat_px = max(16, int(round(ui_font_size * scale)) + 2)
+    # Keep every chat-related control on the same typographic scale: the input
+    # used to fall back to the 9pt editor font (12px) while answers were 16px,
+    # and the code viewer inherited that small editor size as well.
+    chat_code_pt = max(11, int(round(chat_px * 0.75)))       # 16px → 12pt
+    chip_px = max(12, int(round(chat_px * 0.78)))            # context/model chips
     return f"""QWidget {{ font-size: {ui_font_size}px; color: {text_primary}; }}
 QMainWindow, QDialog {{ background: {app_background}; }}
 QFrame#workbenchTopBar, QFrame#activityBar, QFrame#sidePanel, QFrame#explorerHeader {{ background: {app_background}; }}
-QLabel#aiUserBubbleText {{ font-size: {chat_px}px; }}
+QLabel#aiUserBubbleText {{ font-size: {chat_code_pt}pt; }}
+QPlainTextEdit#aiInput {{ font-size: {chat_code_pt}pt; padding: 2px 4px; }}
+QPlainTextEdit#chatCodeView {{
+    font-family: '{editor_font}';
+    font-size: {chat_code_pt}pt;
+}}
+QToolButton#aiAccessMode, QToolButton#aiScopeButton, QToolButton#aiModelButton {{
+    font-size: {chip_px}px;
+}}
+QLabel#aiStatsLine {{ font-size: {max(13, chip_px)}px; }}
 QPlainTextEdit, QTextEdit#codeEditor, QTextEdit#terminalScreen {{
     background: {editor_background};
     color: {text_primary};

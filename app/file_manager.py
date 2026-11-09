@@ -39,7 +39,10 @@ class FileManager:
             if suffix == ".pdf":
                 self.open_pdf_file(path_str)
                 return
-            if suffix in {".xlsx", ".docx"}:
+            if suffix in {".csv", ".tsv", ".tab", ".xlsx", ".xlsm"}:
+                self.open_table_file(path_str)
+                return
+            if suffix == ".docx":
                 self.open_document_file(path_str)
                 return
 
@@ -135,6 +138,41 @@ class FileManager:
                 continue
         return data.decode("utf-8", errors="replace")
 
+    def open_table_file(self, file_path: str):
+        """Open CSV/TSV/XLSX in a high-performance table viewer."""
+        try:
+            from widgets.TableViewerWidget import TableViewerWidget
+            path_str = str(Path(file_path).resolve())
+            if self._find_and_focus_table_tab(path_str):
+                return
+
+            viewer = TableViewerWidget(path_str, self.main_window)
+            viewer.open_editor_requested.connect(lambda fp: self.open_text_editor(fp))
+            name = Path(file_path).name
+            tab_index = self.main_window.active_tab_widget.addTab(viewer, f"Таблица: {name}")
+            self.main_window.active_tab_widget.setCurrentIndex(tab_index)
+            self._register_file_open(path_str)
+            self.app_manager.logger.info("Opened table file: %s", file_path)
+        except Exception as e:
+            CustomDialog(f"Ошибка открытия таблицы: {str(e)}").exec_()
+
+    def _find_table_in_group(self, group, path_str: str, cls):
+        for i in range(group.count()):
+            w = group.widget(i)
+            if isinstance(w, cls) and getattr(w, "file_path", None) == path_str:
+                return i
+        return None
+
+    def _find_and_focus_table_tab(self, path_str: str) -> bool:
+        from widgets.TableViewerWidget import TableViewerWidget
+        for group in self.main_window.editor_groups():
+            idx = self._find_table_in_group(group, path_str, TableViewerWidget)
+            if idx is not None:
+                group.setCurrentIndex(idx)
+                self.main_window.active_tab_widget = group
+                return True
+        return False
+
     def open_document_file(self, file_path: str):
         """Open DOCX/XLSX in a read-only native document viewer."""
         viewer = DocumentViewerWidget(file_path, self.main_window)
@@ -145,14 +183,26 @@ class FileManager:
 
     def open_binary_file(self, file_path: str):
         """Open a binary file in a read-only hex editor tab."""
-        viewer = HexViewer(self.main_window)
-        viewer.file_path = Path(file_path)
-        viewer.load_file(Path(file_path).read_bytes())
+        try:
+            path_str = str(Path(file_path).resolve())
+            for group in self.main_window.editor_groups():
+                for i in range(group.count()):
+                    w = group.widget(i)
+                    if isinstance(w, HexViewer) and getattr(w, "file_path", None) == Path(path_str):
+                        group.setCurrentIndex(i)
+                        self.main_window.active_tab_widget = group
+                        return
 
-        name = Path(file_path).name
-        tab_index = self.main_window.active_tab_widget.addTab(viewer, name)
-        self.main_window.active_tab_widget.setCurrentIndex(tab_index)
-        self._register_file_open(file_path)
+            viewer = HexViewer(self.main_window)
+            viewer.file_path = Path(file_path)
+            viewer.load_file(Path(file_path).read_bytes())
+
+            name = Path(file_path).name
+            tab_index = self.main_window.active_tab_widget.addTab(viewer, f"HEX: {name}")
+            self.main_window.active_tab_widget.setCurrentIndex(tab_index)
+            self._register_file_open(path_str)
+        except Exception as e:
+            CustomDialog(f"Ошибка открытия HEX: {str(e)}").exec_()
 
     def open_recent_file(self, file_path: str):
         self.open_file(file_path)
@@ -188,11 +238,12 @@ class FileManager:
             from widgets.PDFViewerWidget import PDFViewerWidget
 
             pdf_viewer = PDFViewerWidget(self.main_window)
-            pdf_viewer.open_pdf(file_path)
-
             file_name = Path(file_path).name
             tab_index = self.main_window.active_tab_widget.addTab(pdf_viewer, file_name)
             self.main_window.active_tab_widget.setCurrentIndex(tab_index)
+            # Load after the tab is current: the viewer needs a real viewport
+            # size to calculate fit-width instead of starting at 100%.
+            pdf_viewer.open_pdf(file_path)
 
             if file_path not in self.app_manager.session_files:
                 self.app_manager.session_files.append(file_path)

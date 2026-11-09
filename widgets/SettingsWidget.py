@@ -64,6 +64,7 @@ class SettingsWidget(QtWidgets.QWidget):
         tabs.addTab(self._behavior_page(), 'Поведение')
         tabs.addTab(self._ai_page(), 'ИИ-агент')
         tabs.addTab(self._extensions_page(), 'Расширения')
+        tabs.addTab(self._system_page(), 'Система')
         hint = QtWidgets.QLabel('Готовые темы: Тёмная, Полночь, Графит, Nord и Светлая. Изменения применяются сразу.')
         hint.setObjectName('settingsHint'); hint.setWordWrap(True)
         root.insertWidget(2, hint)
@@ -382,6 +383,82 @@ class SettingsWidget(QtWidgets.QWidget):
         layout.addWidget(button)
         layout.addStretch()
         return page
+
+    def _system_page(self):
+        """Updates from GitHub releases and Windows Explorer integration."""
+        from core import shell_integration
+        from core.app_version import current_version
+        from services.updater import GITHUB_REPO
+
+        page = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(page)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        title = QtWidgets.QLabel('Обновления PyScribe')
+        title.setObjectName('settingsSectionTitle')
+        layout.addWidget(title)
+        version = QtWidgets.QLabel(
+            f'Установленная версия: v{current_version()} · github.com/{GITHUB_REPO}')
+        version.setObjectName('settingsHint')
+        layout.addWidget(version)
+        layout.addWidget(self._check(
+            'update_auto_check', 'Проверять обновления автоматически при запуске'))
+        check_now = QtWidgets.QPushButton('Проверить обновления…')
+        check_now.clicked.connect(
+            lambda: self.main_window.action_check_updates() if self.main_window else None)
+        layout.addWidget(check_now, 0, QtCore.Qt.AlignLeft)
+        updates_hint = QtWidgets.QLabel(
+            'Обновления берутся из GitHub-релизов stand4r/PyScribe. '
+            'Для установленной версии скачивается установщик, для запуска из '
+            'исходников — git pull, после чего PyScribe перезапускается.')
+        updates_hint.setWordWrap(True)
+        updates_hint.setObjectName('settingsHint')
+        layout.addWidget(updates_hint)
+
+        line = QtWidgets.QFrame()
+        line.setFrameShape(QtWidgets.QFrame.HLine)
+        layout.addWidget(line)
+
+        explorer_title = QtWidgets.QLabel('Проводник Windows')
+        explorer_title.setObjectName('settingsSectionTitle')
+        layout.addWidget(explorer_title)
+        self._shell_box = QtWidgets.QCheckBox(
+            'Добавить «Открыть в PyScribe» в контекстное меню файлов и папок')
+        self._shell_box.setChecked(shell_integration.is_registered())
+        self._shell_box.toggled.connect(self._toggle_shell_integration)
+        layout.addWidget(self._shell_box)
+        self._shell_status = QtWidgets.QLabel(
+            'Интеграция включена.' if shell_integration.is_registered()
+            else 'Интеграция выключена.')
+        self._shell_status.setObjectName('settingsHint')
+        layout.addWidget(self._shell_status)
+        explorer_hint = QtWidgets.QLabel(
+            'PyScribe также появится в системном окне «Открыть с помощью». '
+            'Файлы открываются в редакторе, папки — как проект. Записи создаются '
+            'только для текущего пользователя и не требуют прав администратора.')
+        explorer_hint.setWordWrap(True)
+        explorer_hint.setObjectName('settingsHint')
+        layout.addWidget(explorer_hint)
+        layout.addStretch()
+        return page
+
+    def _toggle_shell_integration(self, checked: bool):
+        from core import shell_integration
+        if checked:
+            ok, errors = shell_integration.register()
+            self._shell_status.setText(
+                'Готово: PyScribe добавлен в меню проводника.' if ok
+                else 'Не удалось добавить записи: ' + '; '.join(errors[:2]))
+        else:
+            ok, errors = shell_integration.unregister()
+            self._shell_status.setText(
+                'Записи удалены.' if ok
+                else 'Не удалось удалить записи: ' + '; '.join(errors[:2]))
+        if not ok:
+            self._shell_box.blockSignals(True)
+            self._shell_box.setChecked(not checked)
+            self._shell_box.blockSignals(False)
 
     def _behavior_page(self):
         page, l = self._page()

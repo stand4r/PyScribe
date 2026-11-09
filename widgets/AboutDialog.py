@@ -128,6 +128,12 @@ class AboutDialog(QtWidgets.QDialog):
             lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://github.com/stand4r/PyScribe/issues"))
         )
         btn_row.addWidget(issues_btn)
+
+        update_btn = QtWidgets.QPushButton("Проверить обновления")
+        update_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        update_btn.setToolTip("Сверить версию с GitHub-релизами и установить обновление")
+        update_btn.clicked.connect(self._check_updates)
+        btn_row.addWidget(update_btn)
         btn_row.addStretch()
 
         close_btn = QtWidgets.QPushButton("Закрыть")
@@ -137,3 +143,11 @@ class AboutDialog(QtWidgets.QDialog):
         close_btn.setMinimumWidth(90)
         btn_row.addWidget(close_btn)
         return btn_row
+
+    def _check_updates(self):
+        """Close «О программе» and open the update dialog on the main window."""
+        self.accept()
+        window = self.parent()
+        handler = getattr(window, "action_check_updates", None)
+        if callable(handler):
+            QtCore.QTimer.singleShot(0, handler)

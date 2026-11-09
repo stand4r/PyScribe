@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from PyQt5 import QtCore
 from PyQt5.QtWidgets import QApplication
 
 from app.styling import _set_windows_app_identity, setup_application_style
@@ -143,6 +144,32 @@ class ApplicationManager:
         }
 
 
+def open_external_target(window, argument) -> str:
+    """Open one Explorer/CLI target. Returns ``file``, ``folder`` or ``missing``.
+
+    A directory becomes the current project without the analysis-profile
+    dialog, because «Открыть с помощью» must feel instant. Split from
+    :func:`main` so the behaviour is unit-testable with a stub window.
+    """
+    path = Path(argument)
+    if path.is_file():
+        window.file_manager.open_file(str(path))
+        return "file"
+    if path.is_dir():
+        from widgets.ProjectManager import ProjectConfig
+        config = ProjectConfig(
+            name=path.name,
+            root_path=str(path),
+            analyzers=["structure", "dependencies"],
+        )
+        window.project_handler.on_project_opened(config, choose_analyzers=False)
+        return "folder"
+    if path.exists():
+        window.file_manager.open_file(str(path))
+        return "file"
+    return "missing"
+
+
 def main():
     """PyScribe main entry function."""
     _set_windows_app_identity()
@@ -166,24 +193,27 @@ def main():
     window = ModernMainWindow(app_manager)
 
     def handle_external(arguments):
-        """
-        Назначение и краткое описание функции `handle_external`.
+        """Open files/folders passed by Explorer ("Открыть с помощью" / CLI).
 
-        Args:
-            arguments: Назначение и ожидаемые данные аргумента.
+        The window is brought to the front first, then every target is opened:
+        a file in the editor, a directory as a project (without the analyzer
+        dialog — the context menu must open instantly).
         """
         window.showNormal()
         window.showMaximized()
         window.raise_()
         window.activateWindow()
         for argument in arguments:
-            path = Path(argument)
-            if path.is_file():
-                window.file_manager.open_file(str(path))
-            elif path.is_dir():
-                window.status_bar.showMessage(f"Получена папка проекта: {path}")
+            try:
+                open_external_target(window, argument)
+            except Exception:  # noqa: BLE001 - never break the launch
+                logger.exception("Не удалось открыть %s", argument)
 
     instance.message_received.connect(handle_external)
     app.aboutToQuit.connect(window.finalize_application)
     window.showMaximized()
+    if len(sys.argv) > 1:
+        # Explorer passes the clicked path as an argument; open it once the
+        # window is actually on screen (the layout is not ready before that).
+        QtCore.QTimer.singleShot(60, lambda: handle_external(sys.argv[1:]))
     sys.exit(app.exec_())

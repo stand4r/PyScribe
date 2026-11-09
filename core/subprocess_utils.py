@@ -23,7 +23,8 @@ import os
 import subprocess
 from typing import Any, Dict
 
-__all__ = ["CREATE_NO_WINDOW", "hidden_process_kwargs", "run_hidden", "popen_hidden"]
+__all__ = ["CREATE_NO_WINDOW", "hidden_process_kwargs", "run_hidden",
+           "popen_hidden", "popen_detached"]
 
 #: ``CreateProcess`` flag: the child must not get a console window.
 CREATE_NO_WINDOW = 0x08000000
@@ -58,3 +59,16 @@ def run_hidden(argv, check: bool = False, **kwargs):
 def popen_hidden(argv, **kwargs):
     """``subprocess.Popen`` that never opens a console window."""
     return subprocess.Popen(argv, **_merge(kwargs))
+
+
+def popen_detached(argv, **kwargs):
+    """Start a GUI program (installer) with no console but a visible window.
+
+    ``popen_hidden`` sets ``STARTUPINFO.wShowWindow = SW_HIDE``; that is right
+    for background tools, but it would also hide an installer wizard. Here only
+    ``CREATE_NO_WINDOW`` is applied, so a GUI child still paints normally.
+    """
+    kwargs.setdefault("close_fds", True)
+    if os.name == "nt":
+        kwargs.setdefault("creationflags", CREATE_NO_WINDOW)
+    return subprocess.Popen(argv, **kwargs)

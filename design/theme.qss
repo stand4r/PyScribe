@@ -1439,3 +1439,81 @@ QDialog#analysisChooser QRadioButton::indicator:unchecked { border-radius: 7px; 
 QDialog#analysisChooser QCheckBox::indicator:unchecked { border-radius: 3px; }
 QDialog#analysisChooser QRadioButton:focus,
 QDialog#analysisChooser QCheckBox:focus { color: @glass_focus@; }
+
+/* ---- Update / Explorer integration dialogs ------------------------------- */
+QDialog#updateDialog, QDialog#shellIntegrationDialog {
+    background: @glass_menu@;
+}
+QLabel#updateTitle {
+    font-size: 18px;
+    font-weight: 600;
+    color: @glass_text@;
+}
+QLabel#updateVersion {
+    font-size: 12px;
+    color: #8B949E;
+}
+QLabel#updateStatus {
+    font-size: 12px;
+    color: #8B949E;
+}
+QTextBrowser#updateNotes {
+    background: @glass_surface@;
+    border: 1px solid @glass_border@;
+    border-radius: 8px;
+    padding: 8px;
+    color: @glass_text@;
+    font-size: 13px;
+}
+QPushButton#updateAction {
+    background: @glass_focus@;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-weight: 600;
+}
+QPushButton#updateAction:hover { background: @glass_focus@; }
+QPushButton#updateAction:disabled { background: @glass_border@; color: #8B949E; }
+
+/* ---- PDF viewer ----------------------------------------------------------- */
+QWidget#pdfToolbar {
+    background: @glass_menu@;
+    border-bottom: 1px solid @glass_border@;
+}
+QToolButton#pdfTool {
+    color: @glass_text@;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 12px;
+    min-height: 24px;
+}
+QToolButton#pdfTool:hover { background: @glass_hover@; border-color: @glass_border@; }
+QToolButton#pdfTool:pressed { background: @glass_border@; }
+QToolButton#pdfTool:disabled { color: #5E5E62; }
+QFrame#pdfSeparator { color: @glass_border@; }
+QSpinBox#pdfPageSpin, QComboBox#pdfZoomCombo, QLineEdit#pdfSearch {
+    background: @glass_surface@;
+    border: 1px solid @glass_border@;
+    border-radius: 6px;
+    color: @glass_text@;
+    padding: 1px 6px;
+    min-height: 24px;
+    font-size: 12px;
+}
+QSpinBox#pdfPageSpin:focus, QComboBox#pdfZoomCombo:focus, QLineEdit#pdfSearch:focus {
+    border-color: @glass_focus@;
+}
+QLabel#pdfTotal { color: #8B949E; font-size: 12px; padding: 0 4px; }
+QScrollArea#pdfScroll { background: #141416; border: none; }
+QWidget#pdfCanvas { background: #141416; }
+QLabel#pdfPage { background: #FFFFFF; border: 1px solid #3A3A3F; }
+QLabel#pdfStatus {
+    color: #8B949E;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-top: 1px solid @glass_border@;
+    background: @glass_menu@;
+}

@@ -421,8 +421,8 @@ class _ComposerInput(QtWidgets.QPlainTextEdit):
         self.setPlaceholderText("Спросите что-нибудь о коде")
         self.setTabChangesFocus(True)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self._min_height = 44
-        self._max_height = 190
+        self._min_height = 56
+        self._max_height = 210
         self.setFixedHeight(self._min_height)
         self.textChanged.connect(self._autosize)
 
@@ -742,33 +742,31 @@ class AIAgentPanel(QtWidgets.QWidget):
     def _build_header(self) -> QtWidgets.QWidget:
         header = QtWidgets.QFrame()
         header.setObjectName("aiHeader")
-        layout = QtWidgets.QVBoxLayout(header)
-        layout.setContentsMargins(12, 7, 9, 8)
-        layout.setSpacing(5)
-        title_row = QtWidgets.QHBoxLayout()
-        title_row.setSpacing(6)
-        layout.addLayout(title_row)
+        try:
+            from app.ui_scale import scale_px
+            header.setFixedHeight(scale_px(40))
+        except Exception:  # noqa: BLE001 - headless/tests
+            header.setFixedHeight(40)
+        layout = QtWidgets.QHBoxLayout(header)
+        layout.setContentsMargins(12, 0, 8, 0)
+        layout.setSpacing(6)
 
         title = QtWidgets.QLabel("ИИ-агент")
         title.setObjectName("aiHeaderTitle")
-        title_row.addWidget(title)
+        layout.addWidget(title)
 
         # Quiet marker shown only while the Socratic mode is active.
         self.mode_badge = QtWidgets.QLabel("наставник")
         self.mode_badge.setObjectName("aiModeBadge")
         self.mode_badge.setToolTip("Агент ведёт вопросами и не выдаёт готовое решение")
         self.mode_badge.hide()
-        title_row.addWidget(self.mode_badge)
-        title_row.addStretch()
-        controls = QtWidgets.QHBoxLayout()
-        controls.setSpacing(6)
-        layout.addLayout(controls)
+        layout.addWidget(self.mode_badge)
+        layout.addStretch(1)
 
         from services.agent_tools import ACCESS_MODES
 
-        # Reasoning depth lives in the header next to the access mode: both are
-        # per-request switches, and the composer row is reserved for context /
-        # model (three chips do not fit into a 300px sidebar).
+        # Per-request switches: reasoning depth and agent permissions. They sit
+        # on the same row as the title so the header stays one compact strip.
         self.reasoning_btn = QtWidgets.QToolButton()
         self.reasoning_btn.setObjectName("aiAccessMode")
         self.reasoning_btn.setAccessibleName("Уровень размышлений")
@@ -779,7 +777,7 @@ class AIAgentPanel(QtWidgets.QWidget):
                                           QtWidgets.QSizePolicy.Fixed)
         self._reasoning_menu = QtWidgets.QMenu(self.reasoning_btn)
         self.reasoning_btn.setMenu(self._reasoning_menu)
-        controls.addWidget(self.reasoning_btn)
+        layout.addWidget(self.reasoning_btn)
 
         self.access_button = QtWidgets.QToolButton()
         self.access_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
@@ -802,12 +800,11 @@ class AIAgentPanel(QtWidgets.QWidget):
         menu.aboutToShow.connect(self._sync_access_button)
         self.access_button.setMenu(menu)
         self._sync_access_button()
-        controls.addWidget(self.access_button)
-        controls.addStretch()
+        layout.addWidget(self.access_button)
 
         self.status_dot = QtWidgets.QLabel("")
         self.status_dot.setObjectName("aiStatusDot")
-        title_row.addWidget(self.status_dot)
+        layout.addWidget(self.status_dot)
 
         # A single "more" button opens the same right-click menu, so the panel
         # keeps only one visible control besides the composer.
@@ -815,7 +812,7 @@ class AIAgentPanel(QtWidgets.QWidget):
         self.more_btn.clicked.connect(
             lambda: self._show_context_menu(self.more_btn.mapToGlobal(QtCore.QPoint(0, self.more_btn.height())))
         )
-        title_row.addWidget(self.more_btn)
+        layout.addWidget(self.more_btn)
 
         # Kept for API compatibility with callers that hide the settings entry.
         self.settings_btn = self.more_btn
@@ -855,7 +852,7 @@ class AIAgentPanel(QtWidgets.QWidget):
         box.setSpacing(8)
 
         self.input = _ComposerInput(self.composer)
-        self.input.setPlaceholderText("Спросите что-нибудь о коде…")
+        self.input.setPlaceholderText("Спросите что-нибудь…")
         self.input.setMinimumHeight(44)
         self.input.submitted.connect(self.send_message)
         self.input.textChanged.connect(self._on_composer_text_changed)
@@ -1264,10 +1261,20 @@ class AIAgentPanel(QtWidgets.QWidget):
             action.triggered.connect(
                 lambda _=False, k=key: self._set_reasoning_effort(k))
             self._reasoning_actions[key] = action
-        short = REASONING_SHORT.get(current, current)
-        self._set_button_label(button, short)
+        self._refresh_reasoning_label()
         button.setToolTip("Уровень размышлений: " + REASONING_LABELS[current]
                           + " — " + REASONING_HINTS[current])
+
+    def _refresh_reasoning_label(self) -> None:
+        """«Мысли: Авто» on a wide panel, compact «Авто» on a narrow one."""
+        button = getattr(self, "reasoning_btn", None)
+        if button is None:
+            return
+        from services.ai_service import REASONING_SHORT
+        current = self._reasoning_effort()
+        short = REASONING_SHORT.get(current, current)
+        text = ("Мысли: " + short) if self.width() >= 430 else short
+        self._set_button_label(button, text)
 
     def _set_reasoning_effort(self, level: str) -> bool:
         from services.ai_service import (REASONING_EFFORTS, REASONING_HINTS,
@@ -1525,6 +1532,7 @@ class AIAgentPanel(QtWidgets.QWidget):
         self._fit_composer_buttons()
         # The composer gets its final width only after the layout pass.
         QtCore.QTimer.singleShot(0, self._fit_composer_buttons)
+        self._refresh_reasoning_label()
 
     def _relayout_transcript(self):
         """Re-measure every bubble after a width change or a text update."""
@@ -1599,9 +1607,19 @@ class AIAgentPanel(QtWidgets.QWidget):
         """Muted one-line activity chip (``› Ran commands``)."""
         safe = html.escape(text)
         self._append_html(
-            f'<div style="margin:4px 0 4px 4px; color:{TEXT_MUTED}; font-size:12px;">'
+            f'<div style="margin:4px 0 4px 4px; color:{TEXT_MUTED};'
+            f' font-size:{self._meta_px()}px;">'
             f'<span style="color:{TEXT_DIM};">{html.escape(icon)}</span>&nbsp;&nbsp;{safe}</div>'
         )
+
+    @staticmethod
+    def _meta_px() -> int:
+        """Size of service lines — one step below the chat body, but readable."""
+        try:
+            from widgets.ChatMessage import chat_font_px
+            return max(12, chat_font_px() - 3)
+        except Exception:  # noqa: BLE001
+            return 13
 
     # -- transient activity line (tool trace, removed when the answer lands) --
     def _show_activity(self, text: str, icon: str = "›"):
@@ -1623,7 +1641,8 @@ class AIAgentPanel(QtWidgets.QWidget):
             self._add_message_widget(label)
             self._activity_label = label
         label.setText(
-            f'<div style="margin:4px 0 4px 4px; color:{TEXT_MUTED}; font-size:12px;">'
+            f'<div style="margin:4px 0 4px 4px; color:{TEXT_MUTED};'
+            f' font-size:{self._meta_px()}px;">'
             f'<span style="color:{TEXT_DIM};">{html.escape(icon)}</span>&nbsp;&nbsp;'
             f'{html.escape(text)}</div>')
         self._scroll_to_bottom()
@@ -1705,7 +1724,8 @@ class AIAgentPanel(QtWidgets.QWidget):
     def _append_notice(self, text: str, kind: str = "info"):
         color = "#E2B86B" if kind == "warn" else TEXT_MUTED
         self._append_html(
-            f'<div style="margin:6px 0; color:{color}; font-size:12px;">{html.escape(text)}</div>'
+            f'<div style="margin:6px 0; color:{color};'
+            f' font-size:{self._meta_px()}px;">{html.escape(text)}</div>'
         )
 
     def clear_conversation(self):
@@ -1794,7 +1814,7 @@ class AIAgentPanel(QtWidgets.QWidget):
         self._history = restored
         self._append_html(
             f'<p align="center" style="margin:10px 0 6px 0; color:{TEXT_DIM};'
-            f' font-size:11px;">Восстановлен диалог: {len(restored)} сообщений'
+            f' font-size:{self._meta_px()}px;">Восстановлен диалог: {len(restored)} сообщений'
             f' &nbsp;·&nbsp; /clear — начать заново</p>')
         return len(restored)
 

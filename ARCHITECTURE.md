@@ -257,8 +257,15 @@ size from `ui_font_size` × `ui_scale_percent` (+2 px, never below 16 px), uses 
 1.65 line height and 12 px paragraph spacing. List items are two-column tables
 with a short marker cell (hanging indent), so wrapped text aligns under the item
 text instead of under its number; a fully bold line is rendered as a subheading.
-Code blocks never go below 11 pt even when the editor font is configured at
-9 pt.
+
+The whole panel shares one type scale: body, user bubble and composer input are
+the same size (16 px at the default settings); code blocks use 12 pt (16 px) and
+never go below 11 pt even when the editor font is configured at 9 pt; inline
+code is 15 px; header/composer chips are 13 px (12 px CSS × UI scale); service
+lines (tool activity, notices, session metrics) are 13 px. The composer input is
+56 px tall so a two-line placeholder at 300 px panel width is never clipped, and
+the header is a single 40 px strip (title, reasoning chip, access chip, menu) —
+the earlier two-row header doubled its height for no benefit.
 
 A single muted metrics line under the composer mirrors the harness status bar:
 answers, tool steps, tokens per second, completion tokens and the local file
@@ -281,3 +288,66 @@ Without this, the agent asked on every edit and never finished a task.
 
 Pressing "Применить" inserts the first fenced code block on its own lines and
 selects it.
+
+### Updates (GitHub releases)
+
+`VERSION` is the single version source (`core/app_version.py` reads it for the
+About dialog, the installer and the updater). `services/updater.py` asks
+`api.github.com/repos/stand4r/PyScribe/releases/latest`, compares semantic
+tuples and picks the installer asset. Two install modes:
+
+- **source checkout** — when `.git` exists, git is available and
+  `git status --porcelain` is empty, the update runs `git pull --ff-only` and
+  offers a restart;
+- **installed build** — the `PyScribe-Setup-*.exe` asset is downloaded to
+  `%TEMP%\PyScribe-updates`, its SHA-256 is verified against the GitHub asset
+  digest and Inno Setup is started with
+  `/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /NORESTART`, so the running
+  app is replaced and relaunched by the installer.
+
+All network work runs on `QThread`s in `widgets/UpdateDialog.py`; the GUI never
+blocks. A daily check is throttled through `update_last_check`, can be disabled
+with `update_auto_check`, and "Позже" remembers `update_skipped_version` so the
+same release is not offered again. A failed check (no network, rate limit)
+shows a readable error and a retry button. Note that the update dialog is only
+auto-shown when a newer release exists — otherwise it stays hidden.
+
+### Explorer integration ("Открыть с помощью")
+
+`core/shell_integration.py` writes per-user entries under
+`HKCU\Software\Classes` (no elevation):
+
+- `Applications\PyScribe` with `SupportedTypes` for common source extensions and
+  a `shell\open\command` — this is what makes PyScribe show up in the Windows
+  **«Открыть с помощью»** dialog;
+- `PyScribe.File` ProgID plus `*\OpenWithProgids` for files with unknown
+  extensions;
+- context-menu commands for `*`, `Directory` and `Directory\Background`
+  («Открыть в PyScribe»).
+
+The launcher is `pythonw.exe main.py "%1"` for source checkouts and
+`PyScribe.exe "%1"` for frozen builds. `main()` forwards `sys.argv[1:]` to the
+running instance through `SingleInstance`; the first launch opens the paths
+itself. A directory opens as a project with `choose_analyzers=False`, so
+Explorer never waits for the analysis-profile dialog. The installer declares the
+same registry keys in `installer/PyScribe.iss` and removes them on uninstall.
+
+### PDF viewer
+
+`widgets/PDFViewerWidget.py` renders pages with PyMuPDF on the global thread pool.
+The page is a `QLabel` inside a `QScrollArea`, so **zoom changes the widget size,
+not just the raster resolution** — the previous code always scaled the pixmap
+back to the label and the slider only affected sharpness. Zoom is expressed in
+percent of 96 CSS dpi; fit-width/fit-page derive it from the viewport and are
+recalculated (debounced) on resize, including the extra pass needed when a
+vertical scrollbar appears.
+
+Rendering uses `scale = (96/72) × zoom × devicePixelRatio` and
+`pixmap.setDevicePixelRatio`, which keeps text crisp on HiDPI without changing
+the logical page size. A generation counter discards stale renders; a small LRU
+cache stores recent pages (large rasters above 12 Mpx are not cached). Rotation
+swaps the page dimensions and rasterises with a pre-rotated matrix. Search scans
+every page in a worker, jumps to the first matching page and draws translucent
+yellow rectangles over the matches while rendering. Panning uses global mouse
+coordinates so the drag can cross the page/canvas widgets; Ctrl+wheel, keyboard
+shortcuts and fit modes are handled in the widget itself.
