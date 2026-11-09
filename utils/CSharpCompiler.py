@@ -1,9 +1,11 @@
-import os
-import subprocess
-import tempfile
+"""PyScribe utils/CSharpCompiler.py: application module and reusable component."""
 import json
+import os
+import tempfile
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+
+from core.subprocess_utils import run_hidden
 
 
 class CSharpCompiler:
@@ -27,25 +29,28 @@ class CSharpCompiler:
             if os.path.exists(path):
                 return path
                 
-        try:
-            result = subprocess.run(["which", "csc"], capture_output=True, text=True)
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except:
-            pass
+        import shutil
+        found = shutil.which("csc")
+        if found:
+            return found
             
         return None
     
     def detect_dotnet(self) -> Optional[str]:
         """Detect .NET CLI"""
+        import shutil
+        found = shutil.which("dotnet")
+        if found:
+            return "dotnet"
         try:
-            result = subprocess.run(["dotnet", "--version"], capture_output=True, text=True)
+            result = run_hidden(["dotnet", "--version"], capture_output=True, text=True)
             if result.returncode == 0:
                 return "dotnet"
-        except:
+        except Exception:
             pass
             
         return None
+
     
     def compile_single_file(self, file_path: str, output_path: str = None, 
                           references: List[str] = None) -> Tuple[bool, str, str]:
@@ -85,7 +90,7 @@ class CSharpCompiler:
         cmd.append(str(file_path))
         
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=file_path.parent)
+            result = run_hidden(cmd, capture_output=True, text=True, cwd=file_path.parent)
             
             if result.returncode == 0:
                 return True, str(output_path), result.stdout
@@ -114,7 +119,7 @@ class CSharpCompiler:
             if output_dir:
                 cmd.extend(["--output", output_dir])
                 
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=project_dir)
+            result = run_hidden(cmd, capture_output=True, text=True, cwd=project_dir)
             
             if result.returncode == 0:
                 # Find output executable
@@ -180,7 +185,7 @@ class CSharpCompiler:
             if args:
                 cmd.extend(args.split())
                 
-            result = subprocess.run(
+            result = run_hidden(
                 cmd, 
                 capture_output=True, 
                 text=True, 
@@ -206,7 +211,7 @@ class CSharpCompiler:
             
         try:
             cmd = [self.dotnet_path, "build", str(solution_path), "--configuration", configuration]
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=solution_path.parent)
+            result = run_hidden(cmd, capture_output=True, text=True, cwd=solution_path.parent)
             
             if result.returncode == 0:
                 return True, result.stdout, result.stderr
@@ -257,7 +262,7 @@ class CSharpProjectManager:
             cmd = [self.compiler.dotnet_path, "new", project_type, 
                   "--name", project_name, "--output", str(project_dir)]
                   
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = run_hidden(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
                 return True, f"Project created successfully in {project_dir}"

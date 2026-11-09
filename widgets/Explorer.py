@@ -7,19 +7,57 @@ import os
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QDesktopServices
 from PyQt5.QtCore import Qt, QFileInfo
+from pathlib import Path
+
+
+IGNORED_NAMES = {
+    ".git", ".hg", ".svn", ".idea", ".vscode", "__pycache__", ".mypy_cache",
+    ".pytest_cache", ".ruff_cache", ".tox", ".gradle", "node_modules", "venv",
+    ".venv", "env", "dist", "build", "target", "vendor", "coverage", ".coverage",
+    ".cache", "tmp", "temp",
+}
+IGNORED_SUFFIXES = {".pyc", ".pyo", ".class", ".o", ".obj", ".a", ".lib", ".tmp", ".log"}
+
+
+class ProjectFileSystemModel(QtWidgets.QFileSystemModel):
+    def _ignored(self, index):
+        try:
+            p = Path(self.filePath(index))
+            return p.name in IGNORED_NAMES or p.suffix.lower() in IGNORED_SUFFIXES
+        except Exception:
+            return False
+
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        value = super().data(index, role)
+        if self._ignored(index):
+            if role == QtCore.Qt.ForegroundRole:
+                return QtGui.QBrush(QtGui.QColor("#68717D"))
+            if role == QtCore.Qt.FontRole:
+                font = super().data(index, QtCore.Qt.FontRole) or QtGui.QFont()
+                font = QtGui.QFont(font)
+                font.setItalic(True)
+                return font
+            if role == QtCore.Qt.ToolTipRole:
+                return "Игнорируется анализом проекта / сгенерированные файлы или кэш"
+        return value
+
 
 
 class Explorer(QtWidgets.QTreeView):
-    """File explorer widget with modern styling"""
+    """Project tree with a compact, task-focused context menu."""
+    root_changed = QtCore.pyqtSignal(str)
+    open_file_requested = QtCore.pyqtSignal(str)
+    preview_markdown_requested = QtCore.pyqtSignal(str)
+    run_requested = QtCore.pyqtSignal(str, bool)
 
     def __init__(self, parent=None):
         super(Explorer, self).__init__(parent=parent)
 
         self.setHeaderHidden(True)
         self.setColumnWidth(0, 300)
-        self.setFixedWidth(400)
+        self.workspace_root = None
 
-        self.model = QtWidgets.QFileSystemModel()
+        self.model = ProjectFileSystemModel()
         self.model.setRootPath(QtCore.QDir.rootPath())
         self.model.setIconProvider(CustomIconProvider())
         self.setModel(self.model)
@@ -30,43 +68,15 @@ class Explorer(QtWidgets.QTreeView):
         self.setColumnHidden(2, True)
         self.setColumnHidden(3, True)
 
-        # Clean Glass стиль с белым текстом
-        self.setStyleSheet(
-            """
-            QTreeView {
-                background-color: rgba(30, 30, 30, 0.9);
-                color: rgba(255, 255, 255, 0.95);
-                border: none;
-                font-size: 14px;
-                padding-top: 5px;
-                border-radius: 12px;
-                margin: 5px;
-                outline: none;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                font-weight: 400;
-            }
-            QTreeView::item {
-                height: 36px;
-                padding: 2px 12px;
-                border-radius: 8px;
-                margin: 2px 5px;
-                border: none;
-                color: rgba(255, 255, 255, 0.95);
-            }
-            QTreeView::item:hover {
-                background-color: rgba(255, 255, 255, 0.15);
-                color: rgba(255, 255, 255, 1);
-            }
-            QTreeView::item:selected {
-                background-color: rgba(255, 255, 255, 0.25);
-                color: rgba(255, 255, 255, 1);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-            }
-            """
-        )
-
-        # Enable anti-aliasing for smoothing
-        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.setObjectName("fileExplorer")
+        self.setUniformRowHeights(True)
+        # VS Code explorer metrics: 22px rows, 8px indent step, 16px icons.
+        self.setIndentation(8)
+        self.setIconSize(QtCore.QSize(16, 16))
+        self.setAnimated(True)
+        self.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.setMouseTracking(True)
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground, False)
         
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_context_menu)
@@ -75,6 +85,25 @@ class Explorer(QtWidgets.QTreeView):
         self.clipboard = QtWidgets.QApplication.clipboard()
         self.copied_path = None
 
+    def set_workspace_root(self, root_path):
+        self.workspace_root = os.path.realpath(root_path) if root_path else None
+
+    def _is_allowed_path(self, candidate, allow_missing=False):
+        if not self.workspace_root:
+            return True
+        try:
+            candidate = os.path.realpath(candidate)
+            root = self.workspace_root
+            if candidate == root:
+                return True
+            if not candidate.startswith(root + os.sep):
+                return False
+            if not allow_missing and not os.path.exists(candidate):
+                return False
+            return True
+        except OSError:
+            return False
+
     def go_up(self):
         """Navigate to parent directory"""
         current_index = self.currentIndex()
@@ -82,82 +111,90 @@ class Explorer(QtWidgets.QTreeView):
         if parent_index.isValid():
             self.setRootIndex(parent_index)
             self.setCurrentIndex(parent_index)
+            self.root_changed.emit(self.model.filePath(parent_index))
 
     def refresh_model(self):
-        """Refresh the file system model"""
+        """Refresh the file system model without jumping to the drive root.
+
+        ``setRootPath`` also moves the view's root index, so the previous root
+        index is captured and restored afterwards.
+        """
         current_path = self.model.rootPath()
+        current_root_index = self.rootIndex()
         self.model.setRootPath("")
-        self.model.setRootPath(current_path)
+        new_root = self.model.setRootPath(current_path)
+        if current_root_index.isValid():
+            self.setRootIndex(current_root_index)
+        elif new_root.isValid():
+            self.setRootIndex(new_root)
+        # Short feedback so the user sees the refresh actually happened.
+        try:
+            from widgets.animations import flash
+            flash(self.viewport(), color="#00F2FE", alpha=28, duration=320)
+        except Exception:
+            pass
 
     def open_context_menu(self, position):
-        """Open styled context menu in Clean Glass style"""
-        index = self.currentIndex()
-        
+        index = self.indexAt(position)
+        if index.isValid():
+            self.setCurrentIndex(index)
+        path = self.model.filePath(index) if index.isValid() else self.model.rootPath()
+        is_dir = bool(index.isValid() and self.model.isDir(index))
         menu = QtWidgets.QMenu(self)
-        menu.setStyleSheet(
-            """
-            QMenu {
-                background-color: rgba(40, 40, 40, 0.95);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                border-radius: 12px;
-                padding: 8px;
-                color: rgba(255, 255, 255, 0.95);
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                font-size: 12px;
-            }
-            QMenu::item {
-                padding: 8px 16px;
-                border-radius: 6px;
-                margin: 2px;
-                color: rgba(255, 255, 255, 0.95);
-            }
-            QMenu::item:selected {
-                background-color: rgba(255, 255, 255, 0.2);
-                color: rgba(255, 255, 255, 1);
-            }
-            QMenu::separator {
-                height: 1px;
-                background: rgba(255, 255, 255, 0.2);
-                margin: 4px 8px;
-            }
-            """
-        )
 
-        # New file action
-        new_file_action = menu.addAction("📄 New File")
-        new_file_action.triggered.connect(self.create_new_file)
+        new_file = menu.addAction("Новый файл")
+        new_folder = menu.addAction("Новая папка")
+        new_file.triggered.connect(self.create_new_file)
+        new_folder.triggered.connect(self.create_new_folder)
 
-        # New folder action
-        new_folder_action = menu.addAction("📁 New Folder")
-        new_folder_action.triggered.connect(self.create_new_folder)
-
-        menu.addSeparator()
-
-        # Open action - only for files
-        if index.isValid() and not self.model.isDir(index):
-            open_action = menu.addAction("📂 Open")
-            open_action.triggered.connect(self.open_item)
-
-        menu.addSeparator()
-
-        # Copy action
         if index.isValid():
-            copy_action = menu.addAction("📋 Copy")
-            copy_action.triggered.connect(self.copy_item)
-
-        # Paste action - only if we have something to paste
-        if self.copied_path:
-            paste_action = menu.addAction("📎 Paste")
-            paste_action.triggered.connect(self.paste_item)
-
-        menu.addSeparator()
-
-        # Delete action - only for valid items
-        if index.isValid():
-            delete_action = menu.addAction("🗑️ Delete")
+            menu.addSeparator()
+            if not is_dir:
+                open_action = menu.addAction("Открыть")
+                open_action.triggered.connect(self.open_item)
+                if Path(path).suffix.lower() in {".md", ".markdown"}:
+                    preview_action = menu.addAction("Предпросмотр Markdown")
+                    preview_action.triggered.connect(lambda checked=False, p=path: self.preview_markdown_requested.emit(p))
+                if Path(path).suffix.lower() in {".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".java", ".cs", ".go", ".rs", ".php", ".rb", ".kt", ".swift", ".sh", ".lua", ".pl"}:
+                    menu.addSeparator()
+                    run_action = menu.addAction("Запуск")
+                    run_action.triggered.connect(lambda checked=False, p=path: self.run_requested.emit(p, False))
+            rename_action = menu.addAction("Переименовать")
+            rename_action.triggered.connect(self.rename_item)
+            copy_path_action = menu.addAction("Копировать путь")
+            copy_path_action.triggered.connect(lambda: QtWidgets.QApplication.clipboard().setText(path))
+            reveal_action = menu.addAction("Показать в проводнике")
+            reveal_action.triggered.connect(lambda: QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(os.path.dirname(path) if not is_dir else path)))
+            menu.addSeparator()
+            delete_action = menu.addAction("Удалить")
             delete_action.triggered.connect(self.delete_item)
 
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def rename_item(self):
+        index = self.currentIndex()
+        if not index.isValid():
+            return
+        old_path = self.model.filePath(index)
+        old_name = os.path.basename(old_path)
+        new_name, ok = QtWidgets.QInputDialog.getText(self, "Переименовать", "Новое имя:", text=old_name)
+        if not ok or not new_name or new_name == old_name:
+            return
+        new_path = os.path.join(os.path.dirname(old_path), new_name)
+        if not self._is_allowed_path(new_path, allow_missing=True):
+            QtWidgets.QMessageBox.warning(self, "Переименовать", "Целевой путь должен оставаться внутри папки проекта.")
+            return
+        try:
+            if os.path.exists(new_path):
+                QtWidgets.QMessageBox.warning(self, "Переименовать", "Файл или папка с таким именем уже существует.")
+                return
+            os.rename(old_path, new_path)
+            self.refresh_model()
+            new_index = self.model.index(new_path)
+            if new_index.isValid():
+                self.setCurrentIndex(new_index)
+        except OSError as exc:
+            QtWidgets.QMessageBox.warning(self, "Ошибка переименования", str(exc))
 
     def create_new_file(self):
         """Create a new file in current directory"""
@@ -174,13 +211,16 @@ class Explorer(QtWidgets.QTreeView):
         # Create input dialog for file name
         file_name, ok = QtWidgets.QInputDialog.getText(
             self, 
-            "New File", 
-            "Enter file name:",
+            "Новый файл", 
+            "Введите имя файла:",
             text="new_file.txt"
         )
         
         if ok and file_name:
             file_path = os.path.join(directory, file_name)
+            if not self._is_allowed_path(file_path, allow_missing=True):
+                QtWidgets.QMessageBox.warning(self, "Новый файл", "Файл должен оставаться внутри папки проекта.")
+                return
             
             # Create empty file
             try:
@@ -199,8 +239,8 @@ class Explorer(QtWidgets.QTreeView):
             except (IOError, OSError) as e:
                 QtWidgets.QMessageBox.warning(
                     self, 
-                    "Error", 
-                    f"Could not create file: {str(e)}"
+                    "Ошибка", 
+                    f"Не удалось создать файл: {str(e)}"
                 )
 
     def create_new_folder(self):
@@ -218,13 +258,16 @@ class Explorer(QtWidgets.QTreeView):
         # Create input dialog for folder name
         folder_name, ok = QtWidgets.QInputDialog.getText(
             self, 
-            "New Folder", 
-            "Enter folder name:",
-            text="New Folder"
+            "Новая папка", 
+            "Введите имя папки:",
+            text="Новая папка"
         )
         
         if ok and folder_name:
             folder_path = os.path.join(directory, folder_name)
+            if not self._is_allowed_path(folder_path, allow_missing=True):
+                QtWidgets.QMessageBox.warning(self, "Новая папка", "Папка должна оставаться внутри папки проекта.")
+                return
             
             # Create directory
             try:
@@ -242,8 +285,8 @@ class Explorer(QtWidgets.QTreeView):
             except (OSError, IOError) as e:
                 QtWidgets.QMessageBox.warning(
                     self, 
-                    "Error", 
-                    f"Could not create folder: {str(e)}"
+                    "Ошибка", 
+                    f"Не удалось создать папку: {str(e)}"
                 )
 
     def open_item(self):
@@ -251,7 +294,7 @@ class Explorer(QtWidgets.QTreeView):
         index = self.currentIndex()
         if index.isValid() and not self.model.isDir(index):
             file_path = self.model.filePath(index)
-            QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(file_path))
+            self.open_file_requested.emit(file_path)
 
     def copy_item(self):
         """Copy selected item path for later paste operation"""
@@ -279,6 +322,9 @@ class Explorer(QtWidgets.QTreeView):
                 # Get source name and create destination path
                 source_name = os.path.basename(self.copied_path)
                 dest_path = os.path.join(dest_dir, source_name)
+                if not self._is_allowed_path(dest_path, allow_missing=True):
+                    QtWidgets.QMessageBox.warning(self, "Вставить", "Целевой путь должен оставаться внутри папки проекта.")
+                    return
                 
                 # Copy file or directory
                 if os.path.isfile(self.copied_path):
@@ -296,8 +342,8 @@ class Explorer(QtWidgets.QTreeView):
             except (OSError, IOError, shutil.Error) as e:
                 QtWidgets.QMessageBox.warning(
                     self,
-                    "Error",
-                    f"Could not paste item: {str(e)}"
+                    "Ошибка",
+                    f"Не удалось вставить: {str(e)}"
                 )
 
     def delete_item(self):
@@ -307,13 +353,16 @@ class Explorer(QtWidgets.QTreeView):
             return
             
         file_path = self.model.filePath(index)
+        if not self._is_allowed_path(file_path):
+            QtWidgets.QMessageBox.warning(self, "Удаление", "Выбранный элемент находится вне папки проекта.")
+            return
         item_name = os.path.basename(file_path)
         
         # Confirm deletion
         reply = QtWidgets.QMessageBox.question(
             self,
-            "Confirm Delete",
-            f"Are you sure you want to delete '{item_name}'?",
+            "Подтверждение удаления",
+            f"Вы уверены, что хотите удалить «{item_name}»?",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
             QtWidgets.QMessageBox.No
         )
@@ -334,28 +383,43 @@ class Explorer(QtWidgets.QTreeView):
             except (OSError, IOError, shutil.Error) as e:
                 QtWidgets.QMessageBox.warning(
                     self,
-                    "Error",
-                    f"Could not delete item: {str(e)}"
+                    "Ошибка",
+                    f"Не удалось удалить элемент: {str(e)}"
                 )
 
     def set_root_path(self, path):
         """Set root path for explorer"""
+        self.set_workspace_root(path)
         if os.path.exists(path):
             self.model.setRootPath(path)
             self.setRootIndex(self.model.index(path))
 
 
 class CustomIconProvider(QtWidgets.QFileIconProvider):
-    """Custom icon provider for file explorer"""
-    
-    def icon(self, type):
-        if type == QtWidgets.QFileIconProvider.Folder:
-            # Try to load custom folder icon, fallback to default
-            try:
-                return QIcon("src/explorer.png")
-            except:
-                return super().icon(type)
-        return super().icon(type)
+    """Stable project icons. QFileSystemModel passes QFileInfo, not the enum type."""
+    def icon(self, info):
+        icon_dir = Path(__file__).resolve().parent.parent / "src" / "icons"
+        try:
+            if isinstance(info, QtCore.QFileInfo):
+                if info.isDir():
+                    return QIcon(str(icon_dir / "folder.svg"))
+                suffix = info.suffix().lower()
+                mapping = {
+                    "py": "python.svg", "pyw": "python.svg",
+                    "js": "javascript.svg", "mjs": "javascript.svg", "cjs": "javascript.svg",
+                    "ts": "typescript.svg", "tsx": "typescript.svg",
+                    "html": "html.svg", "htm": "html.svg",
+                    "css": "css.svg", "scss": "css.svg", "sass": "css.svg",
+                    "json": "json.svg", "jsonc": "json.svg",
+                    "md": "markdown.svg", "markdown": "markdown.svg",
+                    "txt": "text.svg", "log": "text.svg",
+                    "c": "c.svg", "h": "c.svg",
+                    "cpp": "cpp.svg", "cc": "cpp.svg", "cxx": "cpp.svg", "hpp": "cpp.svg",
+                }
+                return QIcon(str(icon_dir / mapping.get(suffix, "file.svg")))
+        except Exception:
+            pass
+        return super().icon(info)
 
 
 class YouTubeStyleToolBar(QtWidgets.QWidget):

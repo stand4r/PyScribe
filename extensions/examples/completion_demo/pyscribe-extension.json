@@ -1,0 +1,7 @@
+{
+  "id": "example.completion-demo",
+  "name": "Completion Demo",
+  "version": "1.0.0",
+  "entry": "extension.py",
+  "class": "CompletionDemoExtension"
+}

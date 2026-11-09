@@ -1,3 +1,4 @@
+"""PyScribe utils/__init__.py: application module and reusable component."""
 # utils/programs/__init__.py
 class EditorSettings:
     def __init__(self):

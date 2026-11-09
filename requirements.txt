@@ -24,3 +24,21 @@ pytest-cov==4.1.0
 black==23.3.0
 flake8==6.0.0
 mypy==1.2.0
+# Project Intelligence - optional advanced analyzers
+# Tree-sitter language pack provides parsers for many programming languages.
+tree-sitter-language-pack>=1.1.0
+# Executable format parsing: PE / ELF / Mach-O and related formats.
+lief>=0.16
+# Multi-architecture disassembly backend.
+capstone>=5.0
+# Python complexity / maintainability / Halstead metrics.
+radon>=6.0
+# Python AST security analysis.
+bandit>=1.7
+
+# Optional graph algorithms / centrality / cycle analysis
+networkx>=3.2
+
+# Office document viewers (read-only)
+openpyxl>=3.1
+python-docx>=1.1

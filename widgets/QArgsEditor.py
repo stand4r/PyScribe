@@ -1,127 +1,90 @@
-from json import load, dumps
+﻿"""PyScribe launch arguments editor widget."""
 from os import path
-
-from PyQt5 import QtCore, QtWidgets, QtGui
+from json import dumps, load
+from pathlib import Path
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class ArgsWindow(QtWidgets.QWidget):
-    def __init__(self, filename, filepath, lang):
+    def __init__(self, filename: str, scriptDir: str, filepath: str, lang: str):
         super().__init__()
         self.filename = filename
+        self.scriptDir = scriptDir
         self.filepath = filepath
         self.lang = lang
-        self.scriptDir = path.dirname(path.realpath(__file__))
-        self.config_path = self.scriptDir + r"\config\launchArgs.json"
+        self.config_path = str(Path(self.scriptDir) / "config" / "launchArgs.json")
         self.exist_args = self.load_args(self.config_path, self.filepath)
         self.setupUi()
 
     def setupUi(self):
         self.setObjectName("ArgsWindow")
-        self.resize(634, 224)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.sizePolicy().hasHeightForWidth())
-        self.setSizePolicy(sizePolicy)
-        self.setMinimumSize(QtCore.QSize(634, 224))
-        self.setMaximumSize(QtCore.QSize(634, 224))
-        self.setAutoFillBackground(False)
-        self.setStyleSheet("background-color: #1e1f1e;")
-        self.label = QtWidgets.QLabel(self)
-        self.label.setGeometry(QtCore.QRect(20, 20, 91, 31))
-        font = QtGui.QFont()
-        font.setFamily("MS UI Gothic")
-        font.setPointSize(12)
-        font.setUnderline(False)
-        self.label.setFont(font)
-        self.label.setStyleSheet("color: white;")
-        self.label.setObjectName("label")
-        self.file_label = QtWidgets.QLabel(self)
-        self.file_label.setGeometry(QtCore.QRect(70, 20, 221, 31))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.file_label.sizePolicy().hasHeightForWidth())
-        self.file_label.setSizePolicy(sizePolicy)
-        font = QtGui.QFont()
-        font.setFamily("MS UI Gothic")
-        font.setPointSize(12)
-        self.file_label.setFont(font)
-        self.file_label.setStyleSheet("color: white;")
-        self.file_label.setText(self.filename)
-        self.file_label.setObjectName("file_label")
-        self.label_3 = QtWidgets.QLabel(self)
-        self.label_3.setGeometry(QtCore.QRect(320, 20, 111, 31))
-        font = QtGui.QFont()
-        font.setFamily("MS UI Gothic")
-        font.setPointSize(12)
-        self.label_3.setFont(font)
-        self.label_3.setStyleSheet("color: white;")
-        self.label_3.setObjectName("label_3")
-        self.language_label = QtWidgets.QLabel(self)
-        self.language_label.setGeometry(QtCore.QRect(410, 20, 161, 31))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.language_label.sizePolicy().hasHeightForWidth())
-        self.language_label.setSizePolicy(sizePolicy)
-        font = QtGui.QFont()
-        font.setFamily("MS UI Gothic")
-        font.setPointSize(12)
-        self.language_label.setFont(font)
-        self.language_label.setStyleSheet("color: white;")
-        self.language_label.setText(self.lang.capitalize())
-        self.language_label.setObjectName("language_label")
-        self.label_5 = QtWidgets.QLabel(self)
-        self.label_5.setGeometry(QtCore.QRect(20, 110, 41, 31))
-        font = QtGui.QFont()
-        font.setFamily("MS UI Gothic")
-        font.setPointSize(12)
-        self.label_5.setFont(font)
-        self.label_5.setStyleSheet("color: white;")
-        self.label_5.setObjectName("label_5")
-        self.args_edit = QtWidgets.QLineEdit(self)
-        self.args_edit.setGeometry(QtCore.QRect(70, 110, 511, 31))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.args_edit.sizePolicy().hasHeightForWidth())
-        self.args_edit.setSizePolicy(sizePolicy)
-        font = QtGui.QFont()
-        font.setFamily("MS UI Gothic")
-        font.setPointSize(12)
-        self.args_edit.setFont(font)
-        self.args_edit.setStyleSheet("border: 1px solid white;\n"
-                                     "color: white;")
-        self.args_edit.setObjectName("args_edit")
+        self.setWindowTitle("Параметры запуска файла")
+        self.setFixedSize(580, 200)
+        self.setStyleSheet("""
+            QWidget { background-color: #1e1e1e; color: #d4d4d4; , sans-serif; font-size: 12px; }
+            QLineEdit { background-color: #252526; border: 1px solid #3c3c3c; border-radius: 4px; padding: 6px; color: #ffffff; }
+            QLineEdit:focus { border: 1px solid #007acc; }
+            QPushButton { background-color: #0e639c; color: white; border: none; border-radius: 4px; padding: 6px 16px; font-weight: 600; }
+            QPushButton:hover { background-color: #1177bb; }
+        """)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
+
+        layout.addLayout(self._create_header_info())
+        layout.addLayout(self._create_args_input())
+        layout.addLayout(self._create_button_row())
+
+    def _create_header_info(self) -> QtWidgets.QHBoxLayout:
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(16)
+
+        f_lbl = QtWidgets.QLabel("Файл:")
+        f_lbl.setStyleSheet("color: #888888; font-weight: 600;")
+        self.file_label = QtWidgets.QLabel(self.filename)
+        self.file_label.setStyleSheet("color: #58a6ff; font-weight: bold;")
+        row.addWidget(f_lbl)
+        row.addWidget(self.file_label)
+        row.addSpacing(20)
+
+        l_lbl = QtWidgets.QLabel("Язык:")
+        l_lbl.setStyleSheet("color: #888888; font-weight: 600;")
+        self.language_label = QtWidgets.QLabel(self.lang.capitalize())
+        self.language_label.setStyleSheet("color: #4ec9b0; font-weight: bold;")
+        row.addWidget(l_lbl)
+        row.addWidget(self.language_label)
+        row.addStretch()
+        return row
+
+    def _create_args_input(self) -> QtWidgets.QHBoxLayout:
+        row = QtWidgets.QHBoxLayout()
+        row.setSpacing(10)
+
+        label = QtWidgets.QLabel("Аргументы:")
+        label.setStyleSheet("color: #cccccc;")
+        self.args_edit = QtWidgets.QLineEdit()
+        self.args_edit.setPlaceholderText("Например: --debug --port 8080 -v")
         self.args_edit.setText(self.exist_args)
-        self.pushButton = QtWidgets.QPushButton(self)
-        self.pushButton.setGeometry(QtCore.QRect(20, 170, 101, 28))
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.pushButton.sizePolicy().hasHeightForWidth())
-        self.pushButton.setSizePolicy(sizePolicy)
-        font = QtGui.QFont()
-        font.setFamily("MS Sans Serif")
-        font.setPointSize(10)
-        self.pushButton.setFont(font)
-        self.pushButton.setStyleSheet("color: white;\n"
-                                      "background-color: blue;\n"
-                                      "border-radius: 15px")
-        self.pushButton.setObjectName("pushButton")
+        row.addWidget(label)
+        row.addWidget(self.args_edit, 1)
+        return row
+
+    def _create_button_row(self) -> QtWidgets.QHBoxLayout:
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch()
+
+        self.pushButton = QtWidgets.QPushButton("Сохранить")
+        self.pushButton.setCursor(QtCore.Qt.PointingHandCursor)
         self.pushButton.clicked.connect(self.saveSettings)
+        row.addWidget(self.pushButton)
 
-        self.retranslateUi()
-        QtCore.QMetaObject.connectSlotsByName(self)
-
-    def retranslateUi(self):
-        _translate = QtCore.QCoreApplication.translate
-        self.setWindowTitle(_translate("ArgsWindow", "Args Window"))
-        self.label.setText(_translate("ArgsWindow", "File:"))
-        self.label_3.setText(_translate("ArgsWindow", "Language:"))
-        self.label_5.setText(_translate("ArgsWindow", "Args:"))
-        self.pushButton.setText(_translate("ArgsWindow", "Save"))
+        cancel_btn = QtWidgets.QPushButton("Отмена")
+        cancel_btn.setStyleSheet("background-color: #333333; color: #cccccc;")
+        cancel_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        cancel_btn.clicked.connect(self.close)
+        row.addWidget(cancel_btn)
+        return row
 
     def saveSettings(self):
         flags = self.args_edit.text()
@@ -134,32 +97,37 @@ class ArgsWindow(QtWidgets.QWidget):
         return path.exists(config)
 
     def create_config(self, config):
-        open(config, "w").write("{\n\t\n}")
+        Path(config).parent.mkdir(parents=True, exist_ok=True)
+        Path(config).write_text("{\n\n}", encoding="utf-8")
 
     def clear_file(self, config):
-        return open(config, "r").readline() == ""
+        try:
+            return Path(config).read_text(encoding="utf-8").strip() == ""
+        except Exception:
+            return True
 
     def dump_args(self, config, filepath, args):
-        jsonFile = open(config, "r")  # Open the JSON file for reading
-        data = load(jsonFile)  # Read the JSON into the buffer
-        jsonFile.close()  # Close the JSON file
-
-        ## Working with buffered content
+        try:
+            p = Path(config)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            data = load(open(config, "r", encoding="utf-8")) if p.exists() else {}
+        except Exception:
+            data = {}
         data[filepath] = args
-
-        ## Save our changes to JSON file
-        jsonFile = open(config, "w+")
-        jsonFile.write(dumps(data))
-        jsonFile.close()
+        Path(config).write_text(dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def load_args(self, config, filepath) -> str:
         try:
-            return load(open(config, "r"))[filepath]
-        except:
+            p = Path(config)
+            if not p.exists():
+                return ""
+            data = load(open(config, "r", encoding="utf-8"))
+            return str(data.get(filepath, ""))
+        except Exception:
             return ""
 
     def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Enter:
+        if event.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
             self.saveSettings()
         else:
             super().keyPressEvent(event)

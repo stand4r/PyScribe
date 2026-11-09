@@ -1,3 +1,5 @@
+"""PyScribe widgets/QNewFileDialog.py: application module and reusable component."""
+from core.logging_config import get_logger
 from fileinput import filename
 
 from PyQt5.QtWidgets import QWidget, QFileDialog
@@ -20,4 +22,7 @@ class FileSaveWindow(QWidget):
 
         if fileName:
             self.file.append(filename)
-            print("Selected file:", fileName)
+            logger.info("Selected file:", fileName)
+
+
+logger = get_logger("QNewFileDialog")

@@ -1,3 +1,4 @@
+"""PyScribe utils/utils_manager.py: application module and reusable component."""
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import Qt
 

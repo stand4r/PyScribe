@@ -1,4 +1,5 @@
-import pickle
+"""PyScribe utils/programs.py: application module and reusable component."""
+from core.logging_config import get_logger
 import shutil
 from os import path, getlogin, name, environ, remove, makedirs, listdir
 from dataclasses import dataclass, asdict
@@ -8,90 +9,113 @@ from pathlib import Path
 
 try:
     from os import getuid
-except:
+except ImportError:
     pass
 from json import load, dumps
 
 
-def saveSession(files_array: list):
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
+import hashlib
 
-        if temp_dir:
-            file_path = path.join(temp_dir, "session.pkl")
+
+def _state_dir() -> Path:
+    """Stable per-user state directory, independent of current working directory."""
+    import tempfile
+    root = Path(tempfile.gettempdir()) / "PyScribe"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _state_file(filename: str) -> Path:
+    return _state_dir() / filename
+
+
+def _project_session_file(project_path: str) -> Path:
+    sessions_dir = _state_dir() / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    norm = str(Path(project_path).resolve()).lower()
+    h = hashlib.sha256(norm.encode("utf-8")).hexdigest()[:16]
+    return sessions_dir / f"proj_{h}.json"
+
+
+def saveSession(files_array: list, project_path: str = None):
+    """Save session files. If project_path is provided, files are stored strictly for that project."""
+    clean_files = [str(x) for x in files_array if str(x) and not str(x).startswith("<") and Path(str(x)).exists()]
+    clean_files = list(dict.fromkeys(clean_files))
+
+    if project_path:
+        target = _project_session_file(project_path)
+        payload = {
+            "project_path": str(Path(project_path).resolve()),
+            "files": clean_files
+        }
+        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     else:
-        file_path = "session.pkl"
-    with open(file_path, 'wb') as f:
-        pickle.dump((files_array), f)
+        target = _state_file("session_standalone.json")
+        target.write_text(json.dumps(clean_files, ensure_ascii=False, indent=2), encoding="utf-8")
+        _state_file("session.json").write_text(json.dumps(clean_files, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def loadSession() -> list:
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
-        if temp_dir:
-            file_path = path.join(temp_dir, "session.pkl")
-    else:
-        file_path = "session.pkl"
+def loadSession(project_path: str = None) -> list:
+    """Load session files. If project_path is provided, only files belonging to that project are returned."""
     try:
-        with open(file_path, 'rb') as f:
-            files_array = pickle.load(f)
-    except FileNotFoundError:
-        with open(file_path, 'wb') as f:
-            pickle.dump([], f)
-        files_array = []
-    return files_array
+        if project_path:
+            target = _project_session_file(project_path)
+            if not target.exists():
+                return []
+            data = json.loads(target.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                files = data.get("files", [])
+            elif isinstance(data, list):
+                files = data
+            else:
+                files = []
+            return [str(x) for x in files if Path(str(x)).exists()]
+        else:
+            target = _state_file("session_standalone.json")
+            if not target.exists():
+                target = _state_file("session.json")
+            if not target.exists():
+                return []
+            data = json.loads(target.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return [str(x) for x in data if Path(str(x)).exists()]
+            return []
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
 
 
 def saveRecent(recent_files: list):
-    recent_files = list(set(recent_files))
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
-        if temp_dir:
-            file_path = path.join(temp_dir, "recent.pkl")
-    else:
-        file_path = "recent.pkl"
-    with open(file_path, 'wb') as f:
-        pickle.dump((recent_files), f)
+    unique = list(dict.fromkeys(str(x) for x in recent_files))
+    _state_file("recent.json").write_text(json.dumps(unique, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def removeRecentFile():
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
-        if temp_dir:
-            file_path = path.join(temp_dir, "recent.pkl")
-    else:
-        file_path = "recent.pkl"
-    remove(file_path)
+    try:
+        _state_file("recent.json").unlink()
+    except FileNotFoundError:
+        pass
 
 
 def clearCache():
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
-        if temp_dir:
-            file_path_recent = path.join(temp_dir, "recent.pkl")
-            file_path_session = path.join(temp_dir, "session.pkl")
-    else:
-        file_path_recent = "recent.pkl"
-        file_path_session = "session.pkl"
-    remove(file_path_recent)
-    remove(file_path_session)
+    for filename in ("recent.json", "session.json", "session_standalone.json", "recent.pkl", "session.pkl"):
+        try:
+            _state_file(filename).unlink()
+        except FileNotFoundError:
+            pass
+    sessions_dir = _state_dir() / "sessions"
+    if sessions_dir.exists():
+        try:
+            shutil.rmtree(sessions_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 
 def loadRecent() -> list:
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
-        if temp_dir:
-            file_path = path.join(temp_dir, "recent.pkl")
-    else:
-        file_path = "recent.pkl"
     try:
-        with open(file_path, 'rb') as f:
-            files_array = pickle.load(f)
-            files_array = list(set(files_array))
-            return files_array
-    except FileNotFoundError:
-        with open(file_path, 'wb') as f:
-            pickle.dump([], f)
+        data = json.loads(_state_file("recent.json").read_text(encoding="utf-8"))
+        return list(dict.fromkeys(str(x) for x in data)) if isinstance(data, list) else []
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        saveRecent([])
         return []
 
 
@@ -122,7 +146,7 @@ def loadConfigFromJson(file_path, need_dict):
     try:
         with open(file_path, "r") as file_json:
             return load(file_json)[need_dict]
-    except:
+    except Exception:
         return None
 
 
@@ -132,7 +156,7 @@ def dumpJsonFile(file_path, json_data):
             f.seek(0)
             f.write(dumps(json_data))
             f.truncate()
-    except:
+    except Exception:
         return None
 
 
@@ -142,7 +166,7 @@ def loadJsonFile(file_path):
     try:
         with open(file_path, "r") as file_json:
             return load(file_json)
-    except:
+    except Exception:
         return None
 
 
@@ -204,35 +228,24 @@ def backup(file):
             f.write(f"# Encoding: {original_encoding}\n")
             
     except Exception as e:
-        print(f"Error creating backup for {file}: {e}")
+        logger.exception("Error creating backup for {file}: ")
 
 
 def clear_backup():
-    backup_folder = 'backups'
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
-        if temp_dir:
-            file_path = path.join(temp_dir, backup_folder)
-    else:
-        file_path = backup_folder
-    if path.exists(file_path):
-        for name_file in listdir(file_path):
-            remove(path.join(file_path, name_file))
+    file_path = _state_dir() / 'backups'
+    if file_path.exists():
+        for child in file_path.iterdir():
+            if child.is_file():
+                try:
+                    child.unlink()
+                except OSError:
+                    pass
 
 
 def check_backups():
-    files = list()
-    backup_folder = 'backups'
-    if name == 'nt':
-        temp_dir = environ.get('TEMP', None)
-        if temp_dir:
-            file_path = path.join(temp_dir, backup_folder)
-    else:
-        file_path = backup_folder
-    if path.exists(file_path):
-        for name_file in listdir(file_path):
-            files.append(path.join(file_path, name_file))
-        return files
+    file_path = _state_dir() / 'backups'
+    if file_path.exists():
+        return [str(p) for p in file_path.iterdir() if p.is_file()]
     return []
 
 
@@ -261,9 +274,9 @@ def restore_backup():
                     try:
                         text = binary_content.decode('utf-8', errors='ignore')
                         content = text.splitlines(True)
-                    except:
+                    except Exception:
                         # Если всё равно ошибка, пропускаем файл
-                        print(f"Could not decode backup file: {file}")
+                        logger.info(f"Could not decode backup file: {file}")
                         continue
             
             if content and len(content) > 1:
@@ -273,12 +286,12 @@ def restore_backup():
                     # Записываем содержимое (все строки кроме последней)
                     with open(original_file, "w", encoding='utf-8') as f:
                         f.write("".join(content[0:-1]))
-                    print(f"Restored backup for: {original_file}")
+                    logger.info(f"Restored backup for: {original_file}")
                 else:
-                    print(f"Original file not found: {original_file}")
+                    logger.info(f"Original file not found: {original_file}")
                     
         except Exception as e:
-            print(f"Error restoring backup {file}: {e}")
+            logger.exception("Error restoring backup {file}: ")
             continue
     
     # Очищаем backup после восстановления
@@ -326,7 +339,7 @@ class SettingsManager:
                 data = json.load(f)
             return EditorSettings.from_dict(data.get("settings", {}))
         except Exception as e:
-            print(f"Error loading settings: {e}")
+            logger.exception("Error loading settings: ")
             return EditorSettings()
     
     def save_settings(self):
@@ -339,7 +352,7 @@ class SettingsManager:
                     json.dump(data, f, indent=2)
                     f.truncate()
             except Exception as e:
-                print(f"Error saving settings: {e}")
+                logger.exception("Error saving settings: ")
     
     def get_setting(self, key: str):
         return getattr(self.settings, key, None)
@@ -351,3 +364,5 @@ class SettingsManager:
 
 # Глобальный экземпляр
 settings_manager = SettingsManager()
+
+logger = get_logger("programs")
