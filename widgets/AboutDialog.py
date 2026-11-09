@@ -51,7 +51,12 @@ class AboutDialog(QtWidgets.QDialog):
         title.setObjectName("aboutTitle")
         title_row.addWidget(title)
 
-        badge = QtWidgets.QLabel("v1.0.2")
+        version_path = base_src.parent / "VERSION"
+        try:
+            version = version_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            version = ""
+        badge = QtWidgets.QLabel(f"v{version}" if version else "")
         badge.setObjectName("aboutBadge")
         title_row.addWidget(badge)
         title_row.addStretch()
