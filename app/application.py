@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtGui
 from PyQt5.QtWidgets import QApplication
 
 from app.styling import _set_windows_app_identity, setup_application_style
@@ -170,17 +170,51 @@ def open_external_target(window, argument) -> str:
     return "missing"
 
 
+def _initialize_browser(base_path: Path) -> str:
+    """Prepare Qt WebEngine before creating the QApplication."""
+    if getattr(sys, "frozen", False) and os.name == "nt":
+        qt_root = base_path / "PyQt5" / "Qt5"
+        helper = qt_root / "bin" / "QtWebEngineProcess.exe"
+        resources = qt_root / "resources"
+        locales = qt_root / "translations" / "qtwebengine_locales"
+        if not (helper.is_file() and (resources / "qtwebengine_resources.pak").is_file()
+                and (resources / "icudtl.dat").is_file() and (locales / "en-US.pak").is_file()):
+            logger.error("Qt WebEngine runtime files missing from %s", qt_root)
+            return "В установке PyScribe отсутствуют компоненты встроенного браузера."
+        os.environ.setdefault("QTWEBENGINEPROCESS_PATH", str(helper))
+        os.environ.setdefault("QTWEBENGINE_RESOURCES_PATH", str(resources))
+        os.environ.setdefault("QTWEBENGINE_LOCALES_PATH", str(locales))
+    if os.name == "nt":
+        # Use Chromium's software path across Windows graphics drivers and VMs.
+        os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+    try:
+        from PyQt5.QtWebEngine import QtWebEngine
+        QtWebEngine.initialize()
+    except (ImportError, OSError):
+        logger.exception("Qt WebEngine initialization failed")
+        return "Не удалось загрузить компоненты встроенного браузера."
+    return ""
+
+
 def main():
     """PyScribe main entry function."""
     _set_windows_app_identity()
+    QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
+    QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
     QApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
-    app = QApplication(sys.argv)
+    QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+        QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
 
     if getattr(sys, "frozen", False):
         base_path = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
     else:
         # Resolve to project root (parent directory of app/)
         base_path = Path(__file__).resolve().parent.parent
+
+    browser_error = _initialize_browser(base_path)
+    app = QApplication(sys.argv)
+    app._pyscribe_browser_error = browser_error
 
     instance = SingleInstance("PyScribe")
     if not instance.acquire(sys.argv[1:]):
@@ -213,6 +247,9 @@ def main():
     instance.message_received.connect(handle_external)
     app.aboutToQuit.connect(window.finalize_application)
     window.showMaximized()
+    handle = window.windowHandle()
+    handle.screenChanged.connect(window.apply_screen_metrics)
+    window.apply_screen_metrics(handle.screen())
     if len(sys.argv) > 1:
         # Explorer passes the clicked path as an argument; open it once the
         # window is actually on screen (the layout is not ready before that).

@@ -111,7 +111,7 @@ class ModernMainWindow(QMainWindow):
         super().__init__()
         self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.Window)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
-        self.setMinimumSize(1000, 700)
+        self.apply_screen_metrics(self.screen())
         self.app_manager = app_manager
         self.unsaved_files_count = 0
         self.sidebar_visible = True
@@ -416,15 +416,29 @@ class ModernMainWindow(QMainWindow):
             qss += "\n/* User appearance overrides */\n"
             qss += user_appearance_qss(s, ui_font_size)
             # Accessibility: apply the global workbench scale to every metric.
-            from app.ui_scale import apply_ui_scale, normalize_scale
-            scale = normalize_scale(s.get('ui_scale_percent', 100))
+            from app.ui_scale import apply_ui_scale, effective_scale
+            scale = effective_scale(self.screen(), s.get('ui_scale_percent', 100))
             self._current_ui_scale = scale
             apply_ui_scale(app, scale, stylesheet_provider=lambda: qss)
             # Keep native dialogs and popups on the same face as the stylesheet.
             from app.styling import ui_qfont
-            app.setFont(ui_qfont(9))
+            font = ui_qfont(9)
+            font.setPointSizeF(9 * scale / 100)
+            app.setFont(font)
         self.apply_interface_settings()
         self.apply_accessibility_scale()
+
+    def apply_screen_metrics(self, screen):
+        from app.ui_scale import effective_scale
+
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        self.setMinimumSize(min(1000, available.width()), min(700, available.height()))
+        if hasattr(self, "_current_ui_scale"):
+            percent = get_settings_manager().get_setting("ui_scale_percent", 100)
+            if effective_scale(screen, percent) != self._current_ui_scale:
+                self.apply_application_theme()
 
     def _is_ai_view_active(self) -> bool:
         """True when the sidebar currently shows the AI agent chat."""
@@ -594,9 +608,9 @@ class ModernMainWindow(QMainWindow):
         self._set_interface_scale(100)
 
     def _step_interface_scale(self, direction: int):
-        from app.ui_scale import available_scales, current_scale
+        from app.ui_scale import available_scales, normalize_scale
         presets = available_scales()
-        now = current_scale()
+        now = normalize_scale(get_settings_manager().get_setting("ui_scale_percent", 100))
         if direction > 0:
             nxt = next((p for p in presets if p > now), presets[-1])
         else:
@@ -614,14 +628,16 @@ class ModernMainWindow(QMainWindow):
 
     def apply_interface_settings(self):
         """Apply dimensions and editor/terminal presentation settings immediately."""
+        from app.ui_scale import scale_px
+
         sm = get_settings_manager()
         s = sm.get_all_settings()
         if hasattr(self, 'workspace_splitter') and self.workspace_splitter:
-            width = int(s.get('sidebar_width', 280))
-            total = max(width + 500, self.workspace_splitter.width())
+            width = scale_px(int(s.get('sidebar_width', 280)))
+            total = max(width + scale_px(500), self.workspace_splitter.width())
             self.workspace_splitter.setSizes([width, max(1, total - width)])
         # Update tab height
-        tab_h = int(s.get('tab_height', 36))
+        tab_h = scale_px(int(s.get('tab_height', 36)))
         for group in self.editor_groups():
             if hasattr(group, 'tabBar') and group.tabBar():
                 group.tabBar().setMinimumHeight(tab_h)
@@ -640,7 +656,7 @@ class ModernMainWindow(QMainWindow):
                 self.auto_save_timer.stop()
         # Update editor widgets without forcing a destructive document reload.
         editor_font = str(s.get('editor_font', 'Cascadia Code'))
-        editor_size = int(s.get('editor_font_size', 13))
+        editor_size = scale_px(int(s.get('editor_font_size', 13)))
         word_wrap = bool(s.get('word_wrap', False))
         show_ln = bool(s.get('show_line_numbers', True))
         syntax_hl = bool(s.get('syntax_highlighting', True))
@@ -1861,11 +1877,16 @@ class ModernMainWindow(QMainWindow):
             group.widget(index).focus_entry()
             self._sync_special_activity()
             return
+        browser_error = getattr(QtWidgets.QApplication.instance(), "_pyscribe_browser_error", "")
+        if browser_error:
+            CustomDialog(browser_error).exec_()
+            return
         try:
             from widgets.WebBrowserWidget import WebBrowserWidget
             browser = WebBrowserWidget(self)
-        except ImportError:
-            CustomDialog("Для встроенного браузера установите PyQtWebEngine.").exec_()
+        except Exception:
+            logger.exception("Не удалось открыть встроенный браузер")
+            CustomDialog("Не удалось запустить встроенный браузер. Подробности записаны в журнал PyScribe.").exec_()
             return
         group = self.active_tab_widget
         index = group.addTab(browser, "Браузер")
@@ -2365,7 +2386,8 @@ class ModernMainWindow(QMainWindow):
             return
         f = ed.font()
         f.setFamily(str(s.get('editor_font', 'Cascadia Code')))
-        f.setPointSize(int(s.get('editor_font_size', 13)))
+        from app.ui_scale import scale_px
+        f.setPointSize(scale_px(int(s.get('editor_font_size', 13))))
         ed.setFont(f)
         if hasattr(ed, 'setLineWrapMode'):
             wrap = QtWidgets.QPlainTextEdit.WidgetWidth if s.get('word_wrap', False) else QtWidgets.QPlainTextEdit.NoWrap

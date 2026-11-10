@@ -193,13 +193,7 @@ def user_appearance_qss(settings: dict, ui_font_size: int) -> str:
     editor_font_size = int(settings.get('editor_font_size', 13) or 13)
     terminal_font_size = int(settings.get('terminal_font_size', 11) or 11)
     tab_height = int(settings.get('tab_height', 35) or 35)
-    # The chat reads like prose, not like chrome: keep its text a notch larger
-    # than the workbench font and in step with the UI scale.
-    try:
-        scale = float(settings.get('ui_scale_percent', 100) or 100) / 100.0
-    except (TypeError, ValueError):
-        scale = 1.0
-    chat_px = max(16, int(round(ui_font_size * scale)) + 2)
+    chat_px = max(16, ui_font_size + 2)
     # Keep every chat-related control on the same typographic scale: the input
     # used to fall back to the 9pt editor font (12px) while answers were 16px,
     # and the code viewer inherited that small editor size as well.

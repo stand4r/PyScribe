@@ -108,6 +108,24 @@ def test_ui_titlebar_facade():
     assert TITLE_BAR_HEIGHT == 40
 
 
+def test_workbench_scale_uses_logical_screen_size():
+    from types import SimpleNamespace
+
+    from PyQt5.QtCore import QRect
+    from app.ui_scale import effective_scale
+
+    def screen(width, height):
+        return SimpleNamespace(geometry=lambda: QRect(0, 0, width, height))
+
+    assert effective_scale(screen(1366, 768)) == 100
+    assert effective_scale(screen(1920, 1080)) == 100
+    assert effective_scale(screen(3440, 1080)) == 100
+    assert effective_scale(screen(2560, 1440)) == 133
+    assert effective_scale(screen(3840, 2160)) == 150
+    assert effective_scale(screen(2560, 1440), 125) == 167
+    assert effective_scale(None, 125) == 125
+
+
 def test_console_widget_problems_export():
     """Verify ConsoleWidget problem formatting and export capabilities."""
     app = QApplication.instance() or QApplication([])

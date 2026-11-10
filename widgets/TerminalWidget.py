@@ -209,7 +209,7 @@ class InteractiveTerminalEdit(QtWidgets.QTextEdit):
         term_font = QtGui.QFont(self.terminal_font_family, self.terminal_font_size)
         term_font.setStyleHint(QtGui.QFont.Monospace)
         term_font.setFixedPitch(True)
-        term_font.setPixelSize(max(11, round(self.terminal_font_size * 1.34)))
+        term_font.setPixelSize(self._terminal_px())
         self.setFont(term_font)
         self.document().setDefaultFont(term_font)
         # Per-widget stylesheet: wins over the application theme so the user's
@@ -230,7 +230,9 @@ class InteractiveTerminalEdit(QtWidgets.QTextEdit):
 
     def _terminal_px(self) -> int:
         """Terminal text size in device-independent pixels."""
-        return max(11, round(int(self.terminal_font_size) * 1.34))
+        from app.ui_scale import scale_px
+
+        return scale_px(max(11, round(int(self.terminal_font_size) * 1.34)))
 
     def _fmt_font(self) -> QtGui.QFont:
         font = QtGui.QFont(self.terminal_font_family)

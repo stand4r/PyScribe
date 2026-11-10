@@ -1,25 +1,4 @@
-"""Application-wide UI scaling for accessibility (low-vision support).
-
-The workbench is sized in device-independent pixels (row heights, icon sizes,
-fonts), so scaling the *font* alone would not enlarge the chrome. Instead this
-module scales Qt's own metric system (``QT_SCALE_FACTOR`` equivalent via
-``QApplication.setAttribute`` + a scale-aware stylesheet) and exposes:
-
-``apply_ui_scale(app, percent)``
-    Apply ``percent`` (75..200) to the running application: sets Qt's global
-    scale factor, re-applies the stylesheet with scaled metrics and returns the
-    factor actually used.
-``current_scale()`` / ``scale_px(px)``
-    Helpers for widgets that need a scaled pixel value at runtime.
-``available_scales()``
-    Preset percentages shown in Settings.
-
-How it works: Qt reads ``QGUIApplication::setAttribute(Qt::AA_EnableHighDpiScaling)``
-only at start-up, so a *runtime* change uses the private-but-stable
-``QT_SCALE_FACTOR`` equivalent: we rebuild the app stylesheet with every
-``px`` metric multiplied by the factor and bump the default font size. Widgets
-that use layout managers (all of the workbench) then reflow automatically.
-"""
+"""Scale the workbench in logical pixels on top of Qt's per-monitor DPI."""
 from __future__ import annotations
 
 import re
@@ -33,6 +12,7 @@ __all__ = [
     "DEFAULT_SCALE",
     "available_scales",
     "normalize_scale",
+    "effective_scale",
     "scale_px",
     "current_scale",
     "apply_ui_scale",
@@ -48,8 +28,7 @@ SCALE_PRESETS: List[int] = [75, 80, 90, 100, 110, 125, 150, 175, 200]
 
 _current = DEFAULT_SCALE
 
-# Matches "12px" but not "112px"; leaves "%", "pt", colors and selectors alone.
-_PX_RE = re.compile(r"(?<![\w.#-])(\d+(?:\.\d+)?)px\b")
+_LENGTH_RE = re.compile(r"(?<![\w.#-])(\d+(?:\.\d+)?)(px|pt)\b")
 
 
 def available_scales() -> List[int]:
@@ -60,9 +39,20 @@ def normalize_scale(percent) -> int:
     """Clamp/round a user supplied scale to the supported range."""
     try:
         value = int(round(float(percent)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return DEFAULT_SCALE
     return max(MIN_SCALE, min(MAX_SCALE, value))
+
+
+def effective_scale(screen: QtGui.QScreen | None, percent=DEFAULT_SCALE) -> int:
+    """Use the 1920×1080 layout as a base and enlarge it when both axes allow."""
+    if screen is None:
+        return normalize_scale(percent)
+    size = screen.geometry().size()
+    # Qt has already applied Windows display scaling to this geometry.
+    fit = min(size.width() / 1920, size.height() / 1080)
+    baseline = max(1.0, min(1.5, fit))
+    return normalize_scale(normalize_scale(percent) * baseline)
 
 
 def current_scale() -> int:
@@ -75,19 +65,20 @@ def scale_px(px: float) -> int:
 
 
 def scale_stylesheet(qss: str, percent: int) -> str:
-    """Multiply every ``Npx`` length in *qss* by ``percent``."""
+    """Scale stylesheet lengths while retaining their units."""
 
     def repl(match: re.Match) -> str:
         value = float(match.group(1))
+        unit = match.group(2)
         scaled = value * percent / 100.0
         # Keep sub-pixel borders at >= 1px so hairlines never disappear.
-        if value > 0 and scaled < 1:
+        if unit == "px" and value > 0 and scaled < 1:
             scaled = 1
         if abs(scaled - round(scaled)) < 0.01:
-            return f"{int(round(scaled))}px"
-        return f"{scaled:.1f}px"
+            return f"{int(round(scaled))}{unit}"
+        return f"{scaled:.1f}{unit}"
 
-    return _PX_RE.sub(repl, qss)
+    return _LENGTH_RE.sub(repl, qss)
 
 
 def _base_font(app: QtWidgets.QApplication) -> QtGui.QFont:

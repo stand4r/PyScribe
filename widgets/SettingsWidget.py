@@ -295,7 +295,7 @@ class SettingsWidget(QtWidgets.QWidget):
         lay.addLayout(line)
 
         hint = QtWidgets.QLabel(
-            'Масштабируется весь интерфейс: значки, строки, меню и текст. '
+            '100% — базовый масштаб для текущего монитора. Ползунок меняет размер всего интерфейса. '
             'Горячие клавиши: Ctrl+Alt+= / Ctrl+Alt+− / Ctrl+Alt+0.'
         )
         hint.setWordWrap(True)

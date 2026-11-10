@@ -5,8 +5,10 @@ from design.icons import line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineView
 
-
+from core.logging_config import get_logger
 from services.browser_settings import BUILTIN_PROFILE_IDS, default_profile, profiles, search_url, user_agent
+
+logger = get_logger("browser")
 
 def address_url(text):
     text = text.strip()
@@ -193,6 +195,7 @@ class _BrowserTab(QtWidgets.QStackedWidget):
         self.profile_settings = profile
         self.view = None
         self.progress = 100
+        self.web_error = ""
         self.home = _StartPage(browser, self)
         self.home_scroll = QtWidgets.QScrollArea()
         self.home_scroll.setObjectName("browserHomeScroll")
@@ -256,6 +259,10 @@ class WebBrowserWidget(QtWidgets.QWidget):
         self.progress.setFixedHeight(3)
         self.progress.hide()
         layout.addWidget(self.progress)
+        self.web_error = QtWidgets.QLabel()
+        self.web_error.setWordWrap(True)
+        self.web_error.hide()
+        layout.addWidget(self.web_error)
         self.stack = QtWidgets.QStackedWidget()
         layout.addWidget(self.stack, 1)
         # Pages in the stack are destroyed before the profiles owned here.
@@ -468,8 +475,9 @@ class WebBrowserWidget(QtWidgets.QWidget):
         return next((i for i in range(self.tabs.count()) if self.tabs.tabData(i) is tab), -1)
 
     def _create_view(self, tab):
+        profile = self._profile_for_tab(tab)
         view = QWebEngineView(tab)
-        page = _WebPage(self._profile_for_tab(tab), view)
+        page = _WebPage(profile, view)
         view.setPage(page)
         page.settings().setAttribute(QWebEngineSettings.JavascriptCanOpenWindows, False)
         page.settings().setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, False)
@@ -481,9 +489,19 @@ class WebBrowserWidget(QtWidgets.QWidget):
         view.iconChanged.connect(lambda icon: self.tabs.setTabIcon(self._tab_index(tab), icon)
                                  if self._tab_index(tab) >= 0 else None)
         view.urlChanged.connect(lambda _url: self._sync_navigation() if self.stack.currentWidget() is tab else None)
-        view.loadStarted.connect(lambda: self._set_progress(tab, 0))
+        view.loadStarted.connect(lambda: self._load_started(tab))
         view.loadProgress.connect(lambda value: self._set_progress(tab, value))
         view.loadFinished.connect(lambda _ok: self._set_progress(tab, 100))
+        view.renderProcessTerminated.connect(lambda status, code: self._renderer_stopped(tab, status, code))
+
+    def _load_started(self, tab):
+        tab.web_error = ""
+        self._set_progress(tab, 0)
+
+    def _renderer_stopped(self, tab, status, code):
+        logger.error("WebEngine renderer stopped (status=%s, exit=%s)", status, code)
+        tab.web_error = "Процесс браузера остановился. Обновите страницу или откройте её в системном браузере."
+        self._set_progress(tab, 100)
 
     def _title_changed(self, tab, title):
         index = self._tab_index(tab)
@@ -511,6 +529,7 @@ class WebBrowserWidget(QtWidgets.QWidget):
         tab = self.stack.currentWidget()
         if tab is None:
             return
+        tab.web_error = ""
         tab.setCurrentWidget(tab.home_scroll)
         index = self._tab_index(tab)
         self.tabs.setTabText(index, "Новая вкладка")
@@ -522,9 +541,16 @@ class WebBrowserWidget(QtWidgets.QWidget):
     def navigate(self, url, tab=None):
         if _web_url(url):
             tab = tab or self.stack.currentWidget()
-            if tab.view is None:
-                self._create_view(tab)
-            self._profile_for_tab(tab)
+            try:
+                if tab.view is None:
+                    self._create_view(tab)
+                else:
+                    self._profile_for_tab(tab)
+            except (OSError, RuntimeError):
+                logger.exception("WebEngine page initialization failed")
+                tab.web_error = "Не удалось запустить страницу. Подробности записаны в журнал PyScribe."
+                self._set_progress(tab, 100)
+                return
             tab.setCurrentWidget(tab.view)
             self._title_changed(tab, url.host())
             tab.view.load(url)
@@ -537,6 +563,8 @@ class WebBrowserWidget(QtWidgets.QWidget):
     def _sync_navigation(self, force_address=False):
         tab = self.stack.currentWidget()
         view = tab.view if tab and tab.showing_web() else None
+        self.web_error.setText(tab.web_error if tab else "")
+        self.web_error.setVisible(bool(self.web_error.text()))
         self.back.setEnabled(bool(view and view.history().canGoBack()))
         self.forward.setEnabled(bool(view and view.history().canGoForward()))
         self.refresh.setEnabled(view is not None)
