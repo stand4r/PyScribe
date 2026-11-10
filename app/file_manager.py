@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING, Optional
 
 from utils.programs import saveRecent, backup
 from widgets.Dialog import CustomDialog
-from widgets.DocumentViewerWidget import DocumentViewerWidget
+from widgets.DocumentViewerWidget import DOCUMENT_EXTENSIONS, DocumentViewerWidget
 from widgets.HexViewer import HexViewer
+from widgets.DiagramViewerWidget import DIAGRAM_EXTENSIONS, DiagramViewerWidget
 
 if TYPE_CHECKING:
     from app.main_window import ModernMainWindow
@@ -36,13 +37,16 @@ class FileManager:
                 return
 
             suffix = file_path_obj.suffix.lower()
+            if suffix in DIAGRAM_EXTENSIONS:
+                self.open_diagram_file(path_str)
+                return
             if suffix == ".pdf":
                 self.open_pdf_file(path_str)
                 return
             if suffix in {".csv", ".tsv", ".tab", ".xlsx", ".xlsm"}:
                 self.open_table_file(path_str)
                 return
-            if suffix == ".docx":
+            if suffix in DOCUMENT_EXTENSIONS:
                 self.open_document_file(path_str)
                 return
 
@@ -174,7 +178,7 @@ class FileManager:
         return False
 
     def open_document_file(self, file_path: str):
-        """Open DOCX/XLSX in a read-only native document viewer."""
+        """Open a native Office document tab."""
         viewer = DocumentViewerWidget(file_path, self.main_window)
         viewer.file_path = Path(file_path)
         index = self.main_window.active_tab_widget.addTab(viewer, Path(file_path).name)
@@ -251,17 +255,28 @@ class FileManager:
         except Exception as e:
             CustomDialog(f"Ошибка открытия PDF: {str(e)}").exec()
 
-    def open_markdown_file(self, file_path: str):
+    def open_diagram_file(self, path_str: str):
+        viewer = DiagramViewerWidget(path_str, self.main_window)
+        viewer.open_editor_requested.connect(self.open_text_editor)
+        group = self.main_window.active_tab_widget
+        index = group.addTab(viewer, f"Диаграмма: {Path(path_str).name}")
+        group.setCurrentIndex(index)
+        self._register_file_open(path_str)
+
+    def open_markdown_file(self, file_path: str, source=None):
         """Открыть Markdown файл в rich-режиме предпросмотра."""
         try:
             from widgets.MarkdownViewerWidget import MarkdownViewerWidget
             path_str = str(Path(file_path).resolve())
 
-            if self._find_and_focus_markdown_tab(path_str):
+            if self._find_and_focus_markdown_tab(path_str, source):
                 return
 
             viewer = MarkdownViewerWidget(file_path=path_str, parent=self.main_window)
-            viewer.open_editor_requested.connect(lambda fp: self.open_text_editor(fp))
+            if source is not None:
+                viewer.bind_source(source)
+            viewer.open_editor_requested.connect(self.open_text_editor)
+            viewer.open_preview_requested.connect(self.open_markdown_file)
 
             file_name = Path(file_path).name
             tab_index = self.main_window.active_tab_widget.addTab(viewer, f"Просмотр: {file_name}")
@@ -278,14 +293,18 @@ class FileManager:
                 return i
         return None
 
-    def _find_and_focus_markdown_tab(self, path_str: str) -> bool:
+    def _find_and_focus_markdown_tab(self, path_str: str, source=None) -> bool:
         from widgets.MarkdownViewerWidget import MarkdownViewerWidget
         for group in self.main_window.editor_groups():
             idx = self._find_markdown_in_group(group, path_str, MarkdownViewerWidget)
             if idx is not None:
                 group.setCurrentIndex(idx)
                 self.main_window.active_tab_widget = group
-                group.widget(idx).reload()
+                viewer = group.widget(idx)
+                if source is not None:
+                    viewer.bind_source(source)
+                else:
+                    viewer.reload()
                 return True
         return False
 
@@ -305,7 +324,7 @@ class FileManager:
     def _find_text_in_group(self, group, path_str: str):
         for i in range(group.count()):
             w = group.widget(i)
-            if isinstance(w, HexViewer) or hasattr(w, "browser"):
+            if isinstance(w, (HexViewer, DiagramViewerWidget)) or hasattr(w, "browser"):
                 continue
             if getattr(w, "file_path", None) == path_str:
                 return i

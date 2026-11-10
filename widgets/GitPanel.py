@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from design.icons import line_icon, set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QDesktopServices
@@ -62,7 +63,8 @@ class GitHubLoginDialog(QtWidgets.QDialog):
         step3.setWordWrap(True)
         gl.addWidget(step3)
 
-        open_browser_btn = QtWidgets.QPushButton("Создать токен на GitHub ↗")
+        open_browser_btn = QtWidgets.QPushButton("Создать токен на GitHub")
+        set_line_icon(open_browser_btn, "external")
         open_browser_btn.setCursor(QtCore.Qt.PointingHandCursor)
         open_browser_btn.setStyleSheet("background: #238636; color: #FFFFFF; font-weight: bold; padding: 7px 14px; border-radius: 4px;")
         open_browser_btn.clicked.connect(self._open_token_page)
@@ -78,7 +80,7 @@ class GitHubLoginDialog(QtWidgets.QDialog):
         token_row = QtWidgets.QHBoxLayout()
         token_row.addWidget(self.token_edit, 1)
         self.show_token_btn = QtWidgets.QToolButton()
-        self.show_token_btn.setText("👁")
+        set_line_icon(self.show_token_btn, "eye")
         self.show_token_btn.setToolTip("Показать/скрыть токен")
         self.show_token_btn.clicked.connect(self._toggle_echo_mode)
         token_row.addWidget(self.show_token_btn)
@@ -156,7 +158,7 @@ class GitHubReposDialog(QtWidgets.QDialog):
         header.addWidget(title)
         header.addStretch()
         refresh_btn = QtWidgets.QToolButton()
-        refresh_btn.setText("↻")
+        set_line_icon(refresh_btn, "reload")
         refresh_btn.setToolTip("Обновить список")
         refresh_btn.clicked.connect(self._load_repos)
         header.addWidget(refresh_btn)
@@ -330,7 +332,8 @@ class CloneGitHubDialog(QtWidgets.QDialog):
         # Quick button if logged in to pick from user's repos
         if self.github_service.is_authenticated():
             pick_box = QtWidgets.QHBoxLayout()
-            pick_btn = QtWidgets.QPushButton("📋 Выбрать из моих репозиториев GitHub…")
+            pick_btn = QtWidgets.QPushButton("Выбрать из моих репозиториев GitHub…")
+            set_line_icon(pick_btn, "outline")
             pick_btn.setStyleSheet("background: #21262D; border: 1px solid #30363D; color: #58A6FF; padding: 6px 12px; font-weight: bold; border-radius: 4px;")
             pick_btn.clicked.connect(self._open_repo_picker)
             pick_box.addWidget(pick_btn)
@@ -567,8 +570,8 @@ class GitPanel(QtWidgets.QFrame):
         abl.setContentsMargins(8, 6, 8, 6)
         abl.setSpacing(6)
 
-        self.user_avatar_label = QtWidgets.QLabel("🐙")
-        self.user_avatar_label.setStyleSheet("font-size: 16px;")
+        self.user_avatar_label = QtWidgets.QLabel()
+        self.user_avatar_label.setPixmap(line_icon("profile", "#8B949E").pixmap(16, 16))
         abl.addWidget(self.user_avatar_label)
 
         self.auth_status_label = QtWidgets.QLabel("GitHub: не подключен")
@@ -578,7 +581,8 @@ class GitPanel(QtWidgets.QFrame):
         abl.addWidget(self.auth_status_label, 1)
 
         self.login_action_btn = QtWidgets.QToolButton()
-        self.login_action_btn.setText("Войти 🔑")
+        self.login_action_btn.setText("Войти")
+        set_line_icon(self.login_action_btn, "key")
         self.login_action_btn.setToolTip("Авторизоваться на GitHub через токен")
         self.login_action_btn.setStyleSheet("color: #58A6FF; font-weight: bold; padding: 2px 6px;")
         self.login_action_btn.clicked.connect(self._handle_auth_action)
@@ -689,18 +693,18 @@ class GitPanel(QtWidgets.QFrame):
         user = self.github_service.get_user_info()
         if user and user.get("token"):
             login = user.get("login", "user")
-            self.user_avatar_label.setText("✓")
-            self.user_avatar_label.setStyleSheet("color: #3FB950; font-size: 14px; font-weight: bold;")
+            self.user_avatar_label.setPixmap(line_icon("check", "#3FB950").pixmap(16, 16))
             self.auth_status_label.setText(f"@{login}")
             self.auth_status_label.setStyleSheet("color: #E6EDF3; font-weight: bold; font-size: 12px;")
-            self.login_action_btn.setText("Меню ▾")
+            self.login_action_btn.setText("Меню")
+            set_line_icon(self.login_action_btn, "down")
             self.login_action_btn.setToolTip(f"Подключен аккаунт @{login}")
         else:
-            self.user_avatar_label.setText("🐙")
-            self.user_avatar_label.setStyleSheet("font-size: 16px;")
+            self.user_avatar_label.setPixmap(line_icon("profile", "#8B949E").pixmap(16, 16))
             self.auth_status_label.setText("GitHub не подключен")
             self.auth_status_label.setStyleSheet("color: #8B949E; font-size: 12px;")
-            self.login_action_btn.setText("Войти 🔑")
+            self.login_action_btn.setText("Войти")
+            set_line_icon(self.login_action_btn, "key")
             self.login_action_btn.setToolTip("Войти через Personal Access Token")
 
     def _handle_auth_action(self):
@@ -1230,9 +1234,9 @@ class GitPanel(QtWidgets.QFrame):
         menu.addAction("Получить (Pull)", self.git_pull)
         if self.github_repo:
             menu.addSeparator()
-            menu.addAction("Открыть репозиторий на GitHub ↗", self.open_github_repo)
-            menu.addAction("Pull Requests на GitHub ↗", self.open_github_prs)
-            menu.addAction("Задачи (Issues) на GitHub ↗", self.open_github_issues)
+            menu.addAction(line_icon("external"), "Открыть репозиторий на GitHub", self.open_github_repo)
+            menu.addAction(line_icon("external"), "Pull Requests на GitHub", self.open_github_prs)
+            menu.addAction(line_icon("external"), "Задачи (Issues) на GitHub", self.open_github_issues)
 
         menu.exec_(self.files.viewport().mapToGlobal(pos))
 

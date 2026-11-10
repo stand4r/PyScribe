@@ -14,6 +14,7 @@ from utils.settings_manager import get_settings_manager
 # and 13px text, matching the rest of the chrome typography.
 TITLE_BAR_HEIGHT = 40
 MENU_BUTTON_HEIGHT = 24
+MENU_SEARCH_SPACING = 16
 WINDOW_CONTROL_SIZE = QSize(46, 30)
 
 
@@ -25,16 +26,10 @@ class OmniSearchPill(QtWidgets.QFrame):
         self.setObjectName("omniSearchPill")
         self.setCursor(QtCore.Qt.PointingHandCursor)
         self.setFixedHeight(26)
-        self.setFixedWidth(420)
-        # Flat box with a hairline border — the same treatment as an input field.
-        self.setStyleSheet("""
-            QFrame#omniSearchPill {
-                background: #313131;
-                border: 1px solid #313131;
-                border-radius: 2px;
-            }
-            QFrame#omniSearchPill:hover { border: 1px solid #454545; }
-        """)
+        self.setMinimumWidth(36)
+        self.setMaximumWidth(420)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.setToolTip("Поиск файлов и команд (Ctrl+P)")
         pill_layout = QtWidgets.QHBoxLayout(self)
         pill_layout.setContentsMargins(6, 0, 8, 0)
         pill_layout.setSpacing(6)
@@ -46,9 +41,17 @@ class OmniSearchPill(QtWidgets.QFrame):
         pill_layout.addWidget(lens_icon, 0, QtCore.Qt.AlignVCenter)
 
         prompt = QtWidgets.QLabel("Поиск файлов и команд")
-        prompt.setStyleSheet("background: transparent; border: none; color: #9D9D9D; font-size: 13px;")
-        pill_layout.addWidget(prompt, 0, QtCore.Qt.AlignVCenter)
-        pill_layout.addStretch()
+        prompt.setObjectName("omniSearchPrompt")
+        prompt.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        pill_layout.addWidget(prompt, 1, QtCore.Qt.AlignVCenter)
+        self._prompt = prompt
+
+    def sizeHint(self):
+        return QSize(self.maximumWidth(), self.height())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._prompt.setVisible(event.size().width() > 150)
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
@@ -65,9 +68,16 @@ class WorkbenchTopBar(QtWidgets.QFrame):
         self.window = window
         self.setObjectName("workbenchTopBar")
         self.setFixedHeight(TITLE_BAR_HEIGHT)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(12, 0, 0, 0)
         layout.setSpacing(2)
+        self.menu_group = QtWidgets.QWidget(self)
+        self.menu_group.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
+        menu_layout = QtWidgets.QHBoxLayout(self.menu_group)
+        menu_layout.setContentsMargins(0, 0, 0, 0)
+        menu_layout.setSpacing(2)
+        layout.addWidget(self.menu_group)
 
         base_path = getattr(getattr(window, "app_manager", None), "base_path", Path(__file__).resolve().parent.parent)
         self._base_path = Path(base_path)
@@ -90,39 +100,45 @@ class WorkbenchTopBar(QtWidgets.QFrame):
         else:
             icon = self._base_path / "src" / "icon_app_32.png"
             brand.setPixmap(QtGui.QIcon(str(icon)).pixmap(16, 16))
-        layout.addWidget(brand, 0, QtCore.Qt.AlignVCenter)
+        menu_layout.addWidget(brand, 0, QtCore.Qt.AlignVCenter)
 
         title = QtWidgets.QLabel("PyScribe")
         title.setObjectName("appTitle")
         title.setStyleSheet("background: transparent; border: none; color: #CCCCCC; font-size: 13px;")
-        layout.addWidget(title, 0, QtCore.Qt.AlignVCenter)
-        layout.addSpacing(10)
+        menu_layout.addWidget(title, 0, QtCore.Qt.AlignVCenter)
+        menu_layout.addSpacing(10)
 
         self.menus = {}
-        for name, definitions in self._definitions().items():
-            button = QtWidgets.QToolButton()
-            button.setText(name)
-            button.setPopupMode(QtWidgets.QToolButton.InstantPopup)
-            button.setMenu(self._make_menu(definitions))
-            button.setCursor(QtCore.Qt.PointingHandCursor)
-            button.setStyleSheet(
-                "QToolButton { border-radius: 3px; padding: 0 8px; font-size: 13px; "
-                "color: #CCCCCC; background: transparent; border: none; }"
-                "QToolButton:hover { background: #2A2D2E; color: #FFFFFF; }"
-                "QToolButton::menu-indicator { image: none; width: 0; }"
-            )
-            self.menus[name.lower()] = button.menu()
-            layout.addWidget(button, 0, QtCore.Qt.AlignVCenter)
+        self.menu_strip = QtWidgets.QWidget()
+        self.menu_strip.setObjectName("workbenchMenuStrip")
+        strip = QtWidgets.QHBoxLayout(self.menu_strip)
+        strip.setContentsMargins(0, 0, 0, 0)
+        strip.setSpacing(1)
+        self.compact_menu = self._menu_button("Меню")
+        overflow = QtWidgets.QMenu(self.compact_menu)
+        overflow.setObjectName("workbenchPopup")
+        self.compact_menu.setMenu(overflow)
+        for name, sections in self._definitions().items():
+            button = self._menu_button(name)
+            menu = self._make_menu(sections)
+            menu.setTitle(name)
+            button.setMenu(menu)
+            self.menus[name.lower()] = menu
+            strip.addWidget(button)
+            overflow.addMenu(menu)
+        menu_layout.addWidget(self.menu_strip)
+        menu_layout.addWidget(self.compact_menu)
+        self.compact_menu.hide()
+        layout.addSpacing(MENU_SEARCH_SPACING)
 
-        layout.addStretch(1)
-
-        # Command palette entry point, styled like VS Code's centre search box.
         self.search_pill = OmniSearchPill(self._base_path, self)
-        self.search_pill.clicked.connect(getattr(self.window, "action_quick_open", lambda: None))
+        self.search_pill.clicked.connect(self.window.action_quick_open)
+        layout.addStretch()
         layout.addWidget(self.search_pill, 0, QtCore.Qt.AlignVCenter)
-        layout.addSpacing(12)
-
-        layout.addStretch(1)
+        layout.addStretch()
+        self.search_balance = QtWidgets.QSpacerItem(0, 0)
+        layout.addItem(self.search_balance)
+        layout.addSpacing(6)
 
         # Retain self.project so external callers do not error, but omit from layout
         self.project = QtWidgets.QLabel("")
@@ -131,6 +147,7 @@ class WorkbenchTopBar(QtWidgets.QFrame):
         # Native title-bar replacement, right-aligned like VS Code on Windows.
         self.window_controls = QtWidgets.QWidget(self)
         self.window_controls.setObjectName("windowControls")
+        self.window_controls.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
         self.window_controls.setStyleSheet("background: transparent; border: none;")
         controls = QtWidgets.QHBoxLayout(self.window_controls)
         controls.setContentsMargins(0, 0, 0, 0)
@@ -202,109 +219,206 @@ class WorkbenchTopBar(QtWidgets.QFrame):
             event.accept()
         super().mouseDoubleClickEvent(event)
 
+    @staticmethod
+    def _menu_button(label):
+        button = QtWidgets.QToolButton()
+        button.setObjectName("workbenchMenuButton")
+        button.setText(label)
+        button.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        button.setCursor(QtCore.Qt.PointingHandCursor)
+        return button
+
     def _definitions(self):
         w = self.window
+
+        def activity(key):
+            return lambda: w.activity_bar.set_activity(key)
+
+        def git(method):
+            def invoke():
+                panel = getattr(w, "git_panel", None)
+                if panel is None:
+                    return
+                w.activity_bar.set_activity("git")
+                if method == "commit":
+                    panel.message.setFocus()
+                else:
+                    getattr(panel, method)()
+            return invoke
+
+        version_control = (
+            ("Рабочая копия", (
+                ("Панель Git", None, activity("git")),
+                ("Подготовить коммит…", None, git("commit")),
+                ("Добавить все файлы в индекс", None, git("stage_all")),
+                ("Снять индексацию всех файлов", None, git("unstage_all")),
+                ("Создать ветку…", None, git("_create_branch_dialog")),
+                ("Капсула изменений", None, w.action_change_capsule),
+            )),
+            ("Удалённый репозиторий", (
+                ("Получить изменения · Pull", None, git("git_pull")),
+                ("Отправить изменения · Push", None, git("git_push")),
+                ("Синхронизировать проект", None, git("git_sync")),
+            )),
+            ("GitHub", (
+                ("Клонировать репозиторий…", None, git("show_clone_dialog")),
+                ("Опубликовать проект…", None, git("_publish_to_github")),
+                ("Мои репозитории…", None, git("_open_user_repos")),
+                ("Аккаунт GitHub…", None, git("_handle_auth_action")),
+                ("Открыть репозиторий на GitHub", None, git("open_github_repo")),
+            )),
+        )
         return {
-            "Файл": [
-                ("Новый файл", None, w.action_new_file),
-                ("Открыть файл…", None, w.action_open_file),
-                ("Открыть проект…", None, w.action_open_project),
-                ("---", None, None),
-                ("Открыть как таблицу…", None, w.action_open_table_file),
-                ("Открыть в HEX-просмотрщике…", None, w.action_open_hex_file),
-                ("Открыть PDF…", None, w.action_open_pdf_file),
-                ("---", None, None),
-                ("Сохранить", None, w.action_save_file),
-                ("Сохранить как…", None, w.action_save_as_file),
-                ("Закрыть редактор", None, w.action_close_file),
-                ("Выход", None, w.action_exit),
-            ],
-            "Правка": [
-                ("Отменить", None, w.action_undo),
-                ("Повторить", None, w.action_redo),
-                ("Вырезать", None, w.action_cut),
-                ("Копировать", None, w.action_copy),
-                ("Вставить", None, w.action_paste),
-                ("Выделить всё", None, w.action_select_all),
-            ],
-            "Вид": [
-                ("Проводник", None, lambda: w.activity_bar.set_activity("explorer")),
-                ("Поиск", None, lambda: w.activity_bar.set_activity("search")),
-                ("Управление версиями", None, lambda: w.activity_bar.set_activity("git")),
-                ("Анализ проекта", None, lambda: w.activity_bar.set_activity("intelligence")),
-                ("ИИ-агент", "Ctrl+Shift+I", w.show_ai_agent),
-                ("---", None, None),
-                ("Архитектурный граф", None, lambda: w.open_graph_editor(None, 'modules')),
-                ("Архитектурный паспорт проекта", None, w.open_defense_guide),
-                ("Предпросмотр Markdown", "Ctrl+Shift+V", w.action_preview_markdown),
-                ("Боковая панель", None, w.toggle_sidebar),
-                ("Терминал", "Ctrl+`", w.toggle_terminal),
-                ("Разделить редактор", None, w.split_editor),
-                ("---", None, None),
-                ("Увеличить масштаб интерфейса", "Ctrl+Alt+=", w.action_zoom_interface_in),
-                ("Уменьшить масштаб интерфейса", "Ctrl+Alt+-", w.action_zoom_interface_out),
-                ("Сбросить масштаб интерфейса (100%)", "Ctrl+Alt+0", w.action_reset_interface_zoom),
-            ],
-            "Запуск": [
-                ("Запустить текущий файл", "F5", w.action_run_file),
-                ("Запустить проект", "Ctrl+F5", w.action_run_project),
-                ("Запустить выделенный фрагмент кода", "Ctrl+Enter", w.action_run_selected_snippet),
-                ("---", None, None),
-                ("Объяснить код с помощью ИИ", "Ctrl+Alt+E", w.action_ai_explain_selection),
-                ("Применить код из ответа ИИ", None, w.action_ai_apply_code),
-            ],
-            "Терминал": [
-                ("Новый терминал", None, w.new_terminal),
-                ("Показать/скрыть терминал", None, w.toggle_terminal),
-            ],
-            "Git": [
-                ("Панель контроля версий", None, lambda: w.activity_bar.set_activity("git")),
-                ("Синхронизировать проект (Sync)", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel.git_sync())),
-                ("Зафиксировать (Commit)…", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel.message.setFocus())),
-                ("---", None, None),
-                ("Отправить изменения (Push)", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel.git_push())),
-                ("Получить изменения (Pull)", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel.git_pull())),
-                ("Индексировать все файлы (Stage All)", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel.stage_all())),
-                ("Снять индексацию (Unstage All)", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel.unstage_all())),
-                ("---", None, None),
-                ("Создать новую ветку…", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel._create_branch_dialog())),
-                ("Капсула изменений (История)", None, w.action_change_capsule),
-                ("---", None, None),
-                ("Клонировать с GitHub…", None, lambda: getattr(w, "git_panel", None) and w.git_panel.show_clone_dialog()),
-                ("Опубликовать проект на GitHub 🚀", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel._publish_to_github())),
-                ("Мои репозитории GitHub…", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel._open_user_repos())),
-                ("Аккаунт GitHub (Авторизация PAT)…", None, lambda: (w.activity_bar.set_activity("git"), getattr(w, "git_panel", None) and w.git_panel._handle_auth_action())),
-                ("Открыть репозиторий на GitHub ↗", None, lambda: getattr(w, "git_panel", None) and w.git_panel.open_github_repo()),
-            ],
-            "Справка": [
-                ("Руководство пользователя (Документация)", None, w.action_open_documentation),
-                ("---", None, None),
-                ("Палитра команд", None, w.show_command_palette),
-                ("Горячие клавиши", None, w.show_keyboard_shortcuts),
-                ("GitHub Issues", None, w.action_github_issues),
-                ("---", None, None),
-                ("Проверить обновления…", None, w.action_check_updates),
-                ("Интеграция с проводником…", None, w.action_shell_integration),
-                ("---", None, None),
-                ("О программе", None, w.action_about),
-            ],
+            "Файл": (
+                ("Создание и открытие", (
+                    ("Новый файл", "Ctrl+N", w.action_new_file),
+                    ("Открыть файл…", "Ctrl+O", w.action_open_file),
+                    ("Быстрый переход к файлу", "Ctrl+P", w.action_quick_open),
+                )),
+                ("Сохранение и закрытие", (
+                    ("Сохранить", "Ctrl+S", w.action_save_file),
+                    ("Сохранить как…", "Ctrl+Shift+S", w.action_save_as_file),
+                    ("Сохранить все файлы", None, w.action_save_all_files),
+                    ("Закрыть вкладку", "Ctrl+W", w.action_close_file),
+                    ("Выход", None, w.action_exit),
+                )),
+            ),
+            "Правка": (
+                ("История правок", (
+                    ("Отменить", "Ctrl+Z", w.action_undo),
+                    ("Повторить", "Ctrl+Y", w.action_redo),
+                )),
+                ("Буфер обмена", (
+                    ("Вырезать", "Ctrl+X", w.action_cut),
+                    ("Копировать", "Ctrl+C", w.action_copy),
+                    ("Вставить", "Ctrl+V", w.action_paste),
+                    ("Выделить всё", "Ctrl+A", w.action_select_all),
+                )),
+                ("Поиск и навигация", (
+                    ("Найти в файле", "Ctrl+F", w._trigger_find),
+                    ("Заменить в файле", "Ctrl+H", w._trigger_replace),
+                    ("Перейти к строке…", "Ctrl+G", w.action_goto_line),
+                )),
+            ),
+            "Проект": (
+                ("Рабочая папка", (
+                    ("Открыть проект…", "Ctrl+Shift+O", w.action_open_project),
+                    ("Настройки проекта…", None, w.action_project_settings),
+                    ("Закрыть проект", None, w.action_close_project),
+                )),
+                ("Анализ и версии", (
+                    ("Анализ проекта", None, activity("intelligence")),
+                    ("Архитектурный граф", None, lambda: w.open_graph_editor(None, "modules")),
+                    ("Архитектурный паспорт", None, w.open_defense_guide),
+                    ("Git и GitHub", None, version_control),
+                )),
+            ),
+            "Вид": (
+                ("Панели", (
+                    ("Проводник", None, activity("explorer")),
+                    ("Поиск по проекту", "Ctrl+Shift+F", w._focus_search),
+                    ("Показать или скрыть боковую панель", None, w.toggle_sidebar),
+                    ("Показать или скрыть терминал", "Ctrl+`", w.toggle_terminal),
+                )),
+                ("Редактор", (
+                    ("Разделить редактор", None, w.split_editor),
+                    ("Предпросмотр Markdown", "Ctrl+Shift+V", w.action_preview_markdown),
+                )),
+                ("Масштаб интерфейса", (
+                    ("Увеличить", "Ctrl+Alt+=", w.action_zoom_interface_in),
+                    ("Уменьшить", "Ctrl+Alt+−", w.action_zoom_interface_out),
+                    ("Сбросить до 100%", "Ctrl+Alt+0", w.action_reset_interface_zoom),
+                )),
+            ),
+            "Запуск": (
+                ("Выполнение кода", (
+                    ("Запустить текущий файл", "F5", w.action_run_file),
+                    ("Запустить проект", "Ctrl+F5", w.action_run_project),
+                    ("Запустить выделенный фрагмент", None, w.action_run_selected_snippet),
+                )),
+                ("Терминал", (("Новый терминал", None, w.new_terminal),)),
+            ),
+            "Инструменты": (
+                ("Рабочая среда", (
+                    ("Настройки", None, w.action_open_settings),
+                    ("Браузер", None, w.action_open_browser),
+                    ("Расширения", None, w.action_open_extensions),
+                    ("Интеграция с проводником…", None, w.action_shell_integration),
+                )),
+                ("ИИ-агент", (
+                    ("Открыть ИИ-агента", "Ctrl+Shift+I", w.show_ai_agent),
+                    ("Объяснить код", "Ctrl+Alt+E", w.action_ai_explain_selection),
+                    ("Применить код из ответа", None, w.action_ai_apply_code),
+                )),
+            ),
+            "Справка": (
+                ("Документация", (
+                    ("Руководство пользователя", "F1", w.action_open_documentation),
+                    ("Горячие клавиши", None, w.show_keyboard_shortcuts),
+                    ("Палитра команд", "Ctrl+Shift+P", w.show_command_palette),
+                )),
+                ("О PyScribe", (
+                    ("О программе", None, w.action_about),
+                    ("Проверить обновления…", None, w.action_check_updates),
+                    ("Сообщить о проблеме на GitHub", None, w.action_github_issues),
+                )),
+            ),
         }
 
-    def _make_menu(self, definitions):
+    def _make_menu(self, sections):
         menu = QtWidgets.QMenu(self)
-        for item in definitions:
-            if item is None or (isinstance(item, (list, tuple)) and item[0] in ("---", "separator")):
+        menu.setObjectName("workbenchPopup")
+        for index, (heading, items) in enumerate(sections):
+            if index:
                 menu.addSeparator()
-                continue
-            text, shortcut, handler = item
-            # Shortcuts are dispatched centrally by ModernMainWindow. Keeping
-            # them off popup QMenus avoids the classic PyQt bug where bindings
-            # work only while the menu is open.
-            action = QtWidgets.QAction(text, menu)
-            if handler:
+            label = QtWidgets.QLabel(heading.upper())
+            label.setObjectName("workbenchMenuSection")
+            label.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+            section = QtWidgets.QWidgetAction(menu)
+            section.setDefaultWidget(label)
+            menu.addAction(section)
+            for text, shortcut, handler in items:
+                if isinstance(handler, tuple):
+                    submenu = self._make_menu(handler)
+                    submenu.setTitle(text)
+                    menu.addMenu(submenu)
+                    continue
+                # The suffix is presentation only; bindings live in the
+                # workbench and its focused widgets.
+                action = QtWidgets.QAction(f"{text}\t{shortcut}" if shortcut else text, menu)
                 action.triggered.connect(handler)
-            menu.addAction(action)
+                menu.addAction(action)
         return menu
+
+    def _fit_menu_strip(self):
+        if not hasattr(self, "window_controls"):
+            return
+        chrome = self.window_controls.sizeHint().width() + 165 + MENU_SEARCH_SPACING
+        compact = self.width() < self.menu_strip.sizeHint().width() + chrome
+        self.menu_strip.setVisible(not compact)
+        self.compact_menu.setVisible(compact)
+        self._center_search()
+
+    def _center_search(self):
+        layout = self.layout()
+        margins = layout.contentsMargins()
+        left = margins.left() + self.menu_group.layout().sizeHint().width() + MENU_SEARCH_SPACING
+        right = margins.right() + self.window_controls.sizeHint().width() + 6
+        # Balance the unequal side groups only when there is room for the full search field.
+        spare = self.width() - left - right - self.search_pill.maximumWidth() - 2 * layout.spacing()
+        balance = max(0, min(left - right, spare))
+        if balance != self.search_balance.sizeHint().width():
+            self.search_balance.changeSize(balance, 0, QtWidgets.QSizePolicy.Fixed)
+            layout.invalidate()
+
+    def event(self, event):
+        if event.type() == QtCore.QEvent.LayoutRequest and hasattr(self, "window_controls"):
+            self._center_search()
+        return super().event(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_menu_strip()
 
     def set_project(self, name):
         self.project.setText(name or "")
@@ -315,12 +429,13 @@ class WorkbenchTopBar(QtWidgets.QFrame):
         self.setFixedHeight(scale_px(TITLE_BAR_HEIGHT))
         try:
             self.search_pill.setFixedHeight(scale_px(26))
-            self.search_pill.setFixedWidth(scale_px(420))
+            self.search_pill.setMaximumWidth(scale_px(420))
         except Exception:
             pass
         for button in (self.minimize_button, self.maximize_button, self.close_button):
             button.setFixedSize(scale_px(46), scale_px(30))
             button.setIconSize(QtCore.QSize(scale_px(16), scale_px(16)))
+        self._fit_menu_strip()
 
 
 class ExplorerHeader(QtWidgets.QFrame):

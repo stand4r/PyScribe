@@ -1,4 +1,5 @@
 """PyScribe widgets/SettingsWidget.py: application module and reusable component."""
+from design.icons import set_line_icon
 from PyQt5 import QtWidgets, QtCore, QtGui
 from utils.settings_manager import get_settings_manager
 
@@ -37,56 +38,138 @@ class SettingsWidget(QtWidgets.QWidget):
         return self.settings_manager.get_setting(key, DEFAULTS[key])
 
     def _build(self):
+        self.setObjectName("settingsWorkbench")
         root = QtWidgets.QVBoxLayout(self)
-        root.setContentsMargins(20, 16, 20, 16)
-        root.setSpacing(10)
+        root.setContentsMargins(14, 12, 14, 10)
+        root.setSpacing(8)
 
-        title = QtWidgets.QLabel('Настройки')
-        title.setObjectName('settingsTitle')
+        title = QtWidgets.QLabel("Настройки")
+        title.setObjectName("settingsTitle")
         root.addWidget(title)
-        subtitle = QtWidgets.QLabel('Настройки интерфейса, редактора, терминала и поведения PyScribe')
-        subtitle.setObjectName('settingsSubtitle')
-        root.addWidget(subtitle)
+        self._compact_navigation = QtWidgets.QComboBox()
+        self._compact_navigation.setObjectName("settingsCompactNavigation")
+        self._compact_navigation.setAccessibleName("Раздел настроек")
+        self._compact_navigation.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        root.addWidget(self._compact_navigation)
+        self._compact_navigation.hide()
 
-        tabs = QtWidgets.QTabWidget()
-        tabs.setMinimumHeight(360)
-        tabs.setUsesScrollButtons(True)
-        tabs.tabBar().setExpanding(False)
-        root.addWidget(tabs, 1)
-        tabs.addTab(self._appearance_page(), 'Интерфейс')
-        tabs.addTab(self._editor_page(), 'Редактор')
-        tabs.addTab(self._terminal_page(), 'Терминал')
-        tabs.addTab(self._toolchains_page(), 'Компиляторы и интерпретаторы')
-        tabs.addTab(self._run_page(), 'Запуск')
-        tabs.addTab(self._analysis_page(), 'Анализ')
-        tabs.addTab(self._projects_page(), 'Проекты')
-        tabs.addTab(self._windows_page(), 'Окна')
-        tabs.addTab(self._behavior_page(), 'Поведение')
-        tabs.addTab(self._ai_page(), 'ИИ-агент')
-        tabs.addTab(self._extensions_page(), 'Расширения')
-        tabs.addTab(self._system_page(), 'Система')
-        hint = QtWidgets.QLabel('Готовые темы: Тёмная, Полночь, Графит, Nord и Светлая. Изменения применяются сразу.')
-        hint.setObjectName('settingsHint'); hint.setWordWrap(True)
-        root.insertWidget(2, hint)
+        body = QtWidgets.QHBoxLayout()
+        body.setSpacing(10)
+        root.addLayout(body, 1)
+        self._navigation = QtWidgets.QListWidget()
+        self._navigation.setObjectName("settingsNavigation")
+        self._navigation.setAccessibleName("Разделы настроек")
+        self._navigation.setFixedWidth(188)
+        self._navigation.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        body.addWidget(self._navigation)
+        self._pages = QtWidgets.QStackedWidget()
+        self._pages.setObjectName("settingsPages")
+        body.addWidget(self._pages, 1)
 
-        buttons = QtWidgets.QHBoxLayout()
-        buttons.addStretch()
-        reset = QtWidgets.QPushButton('Сбросить')
-        apply_btn = QtWidgets.QPushButton('Применить')
-        save = QtWidgets.QPushButton('Сохранить')
-        reset.clicked.connect(self.reset_to_default)
-        apply_btn.clicked.connect(self.apply_settings)
-        save.clicked.connect(self.save_settings)
-        buttons.addWidget(reset)
-        buttons.addWidget(apply_btn)
-        buttons.addWidget(save)
-        root.addLayout(buttons)
+        groups = (
+            ("Рабочая среда", (
+                ("Оформление", "Тема, масштаб, шрифты и размеры панелей.", self._appearance_page),
+                ("Редактор", "Текст, подсветка и автосохранение.", self._editor_page),
+                ("Терминал", "Размер панели и текста терминала.", self._terminal_page),
+            )),
+            ("Проекты и запуск", (
+                ("Проекты и сеанс", "Недавние проекты и восстановление работы после запуска.", self._projects_page),
+                ("Компиляторы", "Пути к интерпретаторам и компиляторам.", self._toolchains_page),
+            )),
+            ("Инструменты", (
+                ("ИИ-агент", "Подключение модели, ответы и разрешения.", self._ai_page),
+                ("Браузер", "Поисковик, профили и User-Agent.", self._browser_page),
+                ("Расширения", "Дополнительные инструменты PyScribe.", self._extensions_page),
+            )),
+            ("Приложение", (
+                ("Система", "Версия, обновления и интеграция с Windows.", self._system_page),
+            )),
+        )
+        self._nav_items = []
+        for group, sections in groups:
+            heading = QtWidgets.QListWidgetItem(group.upper())
+            heading.setFlags(QtCore.Qt.NoItemFlags)
+            self._navigation.addItem(heading)
+            for label, description, build in sections:
+                index = self._pages.count()
+                item = QtWidgets.QListWidgetItem(label)
+                item.setData(QtCore.Qt.UserRole, index)
+                self._nav_items.append(item)
+                self._navigation.addItem(item)
+                self._compact_navigation.addItem(label, index)
+                self._pages.addWidget(self._scroll_page(label, description, build()))
+        self._navigation.currentItemChanged.connect(
+            lambda item, _: self._select_page(item.data(QtCore.Qt.UserRole)) if item else None
+        )
+        self._compact_navigation.currentIndexChanged.connect(self._select_page)
+        self._select_page(0)
+
+        self.footer = QtWidgets.QFrame()
+        self.footer.setObjectName("settingsFooter")
+        buttons = QtWidgets.QHBoxLayout(self.footer)
+        buttons.setContentsMargins(12, 8, 10, 8)
+        self._apply_status = QtWidgets.QLabel("Настройки сохраняются после применения")
+        self._apply_status.setObjectName("settingsHint")
+        self._apply_status.setWordWrap(True)
+        buttons.addWidget(self._apply_status, 1)
+        self.apply_button = QtWidgets.QPushButton("Применить")
+        self.apply_button.setObjectName("primary")
+        self.apply_button.clicked.connect(lambda: self.apply_settings(save_file=True))
+        buttons.addWidget(self.apply_button)
+        root.addWidget(self.footer)
+
+    def _scroll_page(self, label, description, page):
+        for combo in page.findChildren(QtWidgets.QComboBox):
+            combo.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(12)
+        scroll = QtWidgets.QScrollArea()
+        scroll.setObjectName("settingsPageScroll")
+        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        scroll.setWidgetResizable(True)
+        content = QtWidgets.QWidget()
+        content.setObjectName("settingsPageContent")
+        layout = QtWidgets.QVBoxLayout(content)
+        layout.setContentsMargins(14, 10, 14, 14)
+        layout.setSpacing(8)
+        heading = QtWidgets.QLabel(label)
+        heading.setObjectName("settingsPageTitle")
+        layout.addWidget(heading)
+        hint = QtWidgets.QLabel(description)
+        hint.setWordWrap(True)
+        hint.setObjectName("settingsHint")
+        layout.addWidget(hint)
+        layout.addWidget(page)
+        layout.addStretch(1)
+        scroll.setWidget(content)
+        return scroll
+
+    def _select_page(self, index):
+        if index is None or not 0 <= index < self._pages.count():
+            return
+        with QtCore.QSignalBlocker(self._navigation), QtCore.QSignalBlocker(self._compact_navigation):
+            self._pages.setCurrentIndex(index)
+            self._navigation.setCurrentItem(self._nav_items[index])
+            self._compact_navigation.setCurrentIndex(index)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        compact = event.size().width() < 720
+        self._navigation.setVisible(not compact)
+        self._compact_navigation.setVisible(compact)
+
+    @staticmethod
+    def _section(layout, title):
+        heading = QtWidgets.QLabel(title)
+        heading.setObjectName("settingsSectionTitle")
+        layout.addRow(heading)
 
     def _page(self):
         page = QtWidgets.QWidget()
         layout = QtWidgets.QFormLayout(page)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(9)
+        layout.setRowWrapPolicy(QtWidgets.QFormLayout.WrapLongRows)
+        layout.setFieldGrowthPolicy(QtWidgets.QFormLayout.AllNonFixedFieldsGrow)
         return page, layout
 
     def _combo(self, key, values):
@@ -149,16 +232,12 @@ class SettingsWidget(QtWidgets.QWidget):
 
     def _appearance_page(self):
         page, l = self._page()
+        self._section(l, 'Тема и масштаб')
         l.addRow('Тема', self._theme_combo())
         # Accessibility: scales the entire workbench (icons, rows, menus, text),
         # not just the font — useful for users with low vision.
         l.addRow('Масштаб интерфейса', self._scale_row())
-        for key, label in [
-            ('accent_color','Акцент'), ('app_background','Фон приложения'),
-            ('editor_background','Фон редактора'), ('sidebar_background','Фон боковой панели'),
-            ('panel_background','Фон нижней панели'), ('input_background','Фон полей'),
-            ('hover_background','Hover'), ('text_primary','Основной текст'), ('text_secondary','Вторичный текст')]:
-            l.addRow(label, self._color(key))
+        self._section(l, "Шрифт")
         # Installed families only: a name the system does not have would
         # silently fall back to the Qt default and look like a broken setting.
         from app.styling import is_font_available, resolve_ui_font, UI_FONT_CANDIDATES
@@ -178,15 +257,22 @@ class SettingsWidget(QtWidgets.QWidget):
                               'наиболее подходящий установленный шрифт.')
         self.controls['ui_font'] = font_combo
         l.addRow('Шрифт интерфейса', font_combo)
-        l.addRow('Размер интерфейса', self._spin('ui_font_size', 9, 20))
-        l.addRow('Ширина Explorer', self._spin('sidebar_width', 220, 500))
-        l.addRow('Высота нижней панели', self._spin('bottom_panel_height', 120, 800))
+        l.addRow('Размер текста интерфейса', self._spin('ui_font_size', 12, 15))
+        self._section(l, 'Размеры')
+        l.addRow('Ширина боковой панели', self._spin('sidebar_width', 220, 500))
         l.addRow('Высота вкладок', self._spin('tab_height', 28, 48))
+        self._section(l, "Цвета темы")
+        for key, label in [
+            ('accent_color','Акцент'), ('app_background','Фон приложения'),
+            ('editor_background','Фон редактора'), ('sidebar_background','Фон боковой панели'),
+            ('panel_background','Фон нижней панели'), ('input_background','Фон полей'),
+            ('hover_background','При наведении'), ('text_primary','Основной текст'), ('text_secondary','Вторичный текст')]:
+            l.addRow(label, self._color(key))
         return page
 
     def _scale_row(self):
-        """UI scale slider + preset buttons, applied immediately."""
-        from app.ui_scale import available_scales, normalize_scale
+        """Preview interface scaling while the slider moves."""
+        from app.ui_scale import normalize_scale
         row = QtWidgets.QWidget()
         lay = QtWidgets.QVBoxLayout(row)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -207,17 +293,6 @@ class SettingsWidget(QtWidgets.QWidget):
         line.addWidget(slider, 1)
         line.addWidget(label)
         lay.addLayout(line)
-
-        presets = QtWidgets.QHBoxLayout()
-        presets.setSpacing(4)
-        for preset in available_scales():
-            btn = QtWidgets.QPushButton(f'{preset}%')
-            btn.setToolTip(f'Установить масштаб интерфейса {preset}%')
-            btn.setFlat(True)
-            btn.clicked.connect(lambda _=False, p=preset: self._apply_scale_now(p))
-            presets.addWidget(btn)
-        presets.addStretch()
-        lay.addLayout(presets)
 
         hint = QtWidgets.QLabel(
             'Масштабируется весь интерфейс: значки, строки, меню и текст. '
@@ -270,18 +345,22 @@ class SettingsWidget(QtWidgets.QWidget):
         l.addRow('', self._check('show_line_numbers','Показывать номера строк'))
         l.addRow('', self._check('syntax_highlighting','Подсветка синтаксиса'))
         l.addRow('', self._check('word_wrap','Перенос строк'))
+        self._section(l, 'Сохранение')
+        l.addRow('Автосохранение, сек.', self._spin('auto_save_interval', 0, 3600))
         return page
 
     def _terminal_page(self):
         page, l = self._page()
         l.addRow('Высота панели терминала', self._spin('terminal_panel_height', 120, 800))
         l.addRow('Размер шрифта', self._spin('terminal_font_size', 9, 24))
-        l.addRow('', self._check('terminal_highlighting','Подсветка терминала'))
         return page
 
     def _toolchains_page(self):
         page, l = self._page()
-        l.addRow('Описание', QtWidgets.QLabel('Отдельный путь к компилятору или интерпретатору для каждого языка. Пустое поле означает поиск в PATH.'))
+        hint = QtWidgets.QLabel('Пустое поле означает автоматический поиск программы в PATH.')
+        hint.setWordWrap(True)
+        hint.setObjectName('settingsHint')
+        l.addRow(hint)
         languages = [
             ('python', 'Python', 'python'), ('javascript', 'JavaScript', 'node'), ('typescript', 'TypeScript', 'tsc'),
             ('go', 'Go', 'go'), ('rust', 'Rust', 'rustc'), ('c', 'C', 'gcc'), ('cpp', 'C++', 'g++'),
@@ -295,7 +374,8 @@ class SettingsWidget(QtWidgets.QWidget):
             self.controls[f'toolchain_{key}'] = edit
             l.addRow(label, edit)
 
-        detect_btn = QtWidgets.QPushButton('🔍 Автопоиск инструментов в системе')
+        detect_btn = QtWidgets.QPushButton('Автопоиск инструментов в системе')
+        set_line_icon(detect_btn, 'search')
         detect_btn.setStyleSheet("""
             QPushButton { background-color: #0078D4; color: #FFFFFF; font-weight: 600; padding: 6px 14px; border-radius: 6px; }
             QPushButton:hover { background-color: #1A8AD8; }
@@ -325,39 +405,13 @@ class SettingsWidget(QtWidgets.QWidget):
         return page
 
 
-    def _run_page(self):
-        page, l = self._page()
-        l.addRow('Аргументы запуска', self._line('run_arguments', ''))
-        l.addRow('Рабочая директория', self._line('run_working_directory', ''))
-        l.addRow('', self._check('run_save_before_launch', 'Сохранять файл перед запуском'))
-        l.addRow('', self._check('run_use_terminal', 'Запускать программы через встроенный Terminal'))
-        l.addRow('', self._check('run_confirm_unsafe', 'Предупреждать перед запуском неизвестного типа файла'))
-        return page
-
-    def _analysis_page(self):
-        page, l = self._page()
-        l.addRow('', self._check('analysis_enabled', 'Разрешить фоновый анализ'))
-        l.addRow('', self._check('analysis_on_open', 'Анализировать проект при открытии'))
-        l.addRow('', self._check('analysis_on_save', 'Обновлять анализ после сохранения'))
-        l.addRow('Задержка анализа, мс', self._spin('analysis_delay_ms', 100, 5000))
-        l.addRow('Макс. размер файла, МБ', self._spin('analysis_max_file_mb', 1, 128))
-        return page
-
     def _projects_page(self):
         page, l = self._page()
-        l.addRow('Максимум последних проектов', self._spin('recent_projects_limit', 3, 30))
+        self._section(l, "Проекты")
         l.addRow('', self._check('project_restore_last', 'Восстанавливать последний проект'))
-        l.addRow('', self._check('project_open_readme', 'Открывать README при открытии проекта'))
-        l.addRow('', self._check('project_deduplicate_recent', 'Удалять дубли из списка последних проектов'))
-        return page
-
-    def _windows_page(self):
-        page, l = self._page()
-        l.addRow('', self._check('floating_terminal', 'Открывать Terminal поверх редактора'))
-        l.addRow('', self._check('reuse_settings_tab', 'Использовать одну вкладку Settings'))
-        l.addRow('', self._check('reuse_welcome_tab', 'Использовать одну вкладку Welcome'))
-        l.addRow('', self._check('focus_new_tabs', 'Фокусировать новые вкладки'))
-        l.addRow('', self._check('remember_window_geometry', 'Запоминать размер и положение окна'))
+        self._section(l, 'Сеанс приложения')
+        l.addRow('', self._check('restore_session', 'Восстанавливать открытые файлы при запуске'))
+        l.addRow('', self._check('show_welcome', 'Показывать стартовую страницу'))
         return page
 
     def _line(self, key, placeholder):
@@ -374,7 +428,7 @@ class SettingsWidget(QtWidgets.QWidget):
         title = QtWidgets.QLabel('Расширения')
         title.setObjectName('settingsSectionTitle')
         layout.addWidget(title)
-        hint = QtWidgets.QLabel('Управление расширениями находится здесь, а не в боковой панели. Откройте менеджер расширений, чтобы управлять установленными расширениями.')
+        hint = QtWidgets.QLabel('Установку и управление расширениями можно открыть в отдельной вкладке.')
         hint.setWordWrap(True)
         hint.setObjectName('settingsHint')
         layout.addWidget(hint)
@@ -424,7 +478,7 @@ class SettingsWidget(QtWidgets.QWidget):
         explorer_title.setObjectName('settingsSectionTitle')
         layout.addWidget(explorer_title)
         self._shell_box = QtWidgets.QCheckBox(
-            'Добавить «Открыть в PyScribe» в контекстное меню файлов и папок')
+            'Пункт «Открыть в PyScribe» в проводнике')
         self._shell_box.setChecked(shell_integration.is_registered())
         self._shell_box.toggled.connect(self._toggle_shell_integration)
         layout.addWidget(self._shell_box)
@@ -460,21 +514,171 @@ class SettingsWidget(QtWidgets.QWidget):
             self._shell_box.setChecked(not checked)
             self._shell_box.blockSignals(False)
 
-    def _behavior_page(self):
-        page, l = self._page()
-        l.addRow('Автосохранение, сек.', self._spin('auto_save_interval', 0, 3600))
-        l.addRow('', self._check('restore_session','Восстанавливать сессию при запуске'))
-        l.addRow('', self._check('show_welcome','Показывать Welcome при запуске'))
-        info = QtWidgets.QLabel('Горячие клавиши являются глобальными для Workbench и не зависят от того, открыто ли меню.')
-        info.setWordWrap(True); info.setObjectName('settingsHint')
-        l.addRow(info)
-        return page
-
     def _live_apply(self, *args):
         # Ordinary controls are edited locally and committed only by Apply/Save.
         # This prevents opening Settings and touching a control from causing a
         # cascade of unrelated persistence changes.
         return
+
+    def _browser_page(self):
+        from services.browser_settings import BUILTIN_PROFILE_IDS, SEARCH_ENGINES, default_profile, profiles
+
+        page, form = self._page()
+        engine = QtWidgets.QComboBox()
+        for key, (label, _, _) in SEARCH_ENGINES.items():
+            engine.addItem(label, key)
+        engine.setCurrentIndex(max(0, engine.findData(self._value("browser_search_engine"))))
+        self.controls["browser_search_engine"] = engine
+        self._section(form, "Поиск")
+        form.addRow("Основной поиск", engine)
+
+        default = QtWidgets.QComboBox()
+        self.controls["browser_default_profile"] = default
+        self._section(form, "Профили")
+        form.addRow("Профиль по умолчанию", default)
+        hint = QtWidgets.QLabel(
+            "Приватные профили хранят данные сайтов только в памяти. Постоянные профили "
+            "сохраняют cookies и данные сайтов отдельно друг от друга. "
+            "Выбор поиска и профиля по умолчанию вступит в силу после «Применить»."
+        )
+        hint.setObjectName("settingsHint")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+
+        profile_list = QtWidgets.QListWidget()
+        profile_list.setMinimumHeight(120)
+        form.addRow(profile_list)
+        actions = QtWidgets.QHBoxLayout()
+        add = QtWidgets.QPushButton("Добавить")
+        edit = QtWidgets.QPushButton("Изменить")
+        remove = QtWidgets.QPushButton("Убрать из списка")
+        remove.setToolTip("Убрать профиль из меню, сохранив его локальные данные")
+        for button in (add, edit, remove):
+            actions.addWidget(button)
+        actions.addStretch(1)
+        form.addRow(actions)
+
+        def refresh():
+            with QtCore.QSignalBlocker(default):
+                default.clear()
+                profile_list.clear()
+                for profile in profiles():
+                    default.addItem(profile["name"], profile["id"])
+                    if profile["id"] not in BUILTIN_PROFILE_IDS:
+                        mode = "постоянный" if profile["persistent"] else "приватный"
+                        item = QtWidgets.QListWidgetItem(f'{profile["name"]} · {mode}')
+                        item.setData(QtCore.Qt.UserRole, profile["id"])
+                        profile_list.addItem(item)
+                default.setCurrentIndex(default.findData(default_profile()["id"]))
+            edit.setEnabled(False)
+            remove.setEnabled(False)
+
+        def selected():
+            item = profile_list.currentItem()
+            key = item.data(QtCore.Qt.UserRole) if item else None
+            return next((profile for profile in profiles() if profile["id"] == key), None)
+
+        def change(profile=None):
+            updated = self._edit_browser_profile(profile)
+            if updated is None:
+                return
+            entries = [entry for entry in profiles()
+                       if entry["id"] not in BUILTIN_PROFILE_IDS and entry["id"] != updated["id"]]
+            if len(entries) >= 40:
+                QtWidgets.QMessageBox.information(self, "Браузер", "Доступно до 40 профилей.")
+                return
+            entries.append(updated)
+            self._save_browser_profiles(entries)
+            refresh()
+
+        def delete():
+            profile = selected()
+            if profile is not None:
+                self._save_browser_profiles([entry for entry in profiles()
+                                             if entry["id"] not in BUILTIN_PROFILE_IDS and entry["id"] != profile["id"]])
+                refresh()
+
+        profile_list.currentItemChanged.connect(
+            lambda item, _previous: (edit.setEnabled(item is not None), remove.setEnabled(item is not None))
+        )
+        add.clicked.connect(lambda: change())
+        edit.clicked.connect(lambda: change(selected()) if selected() else None)
+        remove.clicked.connect(delete)
+        refresh()
+        engine.currentIndexChanged.connect(self._live_apply)
+        default.currentIndexChanged.connect(self._live_apply)
+        return page
+
+    def _save_browser_profiles(self, entries):
+        from services.browser_settings import BUILTIN_PROFILE_IDS
+
+        manager = self.settings_manager
+        previous = manager.get_setting("browser_profiles", [])
+        previous_default = manager.get_setting("browser_default_profile", "standard")
+        manager.settings["browser_profiles"] = entries
+        if previous_default not in BUILTIN_PROFILE_IDS and not any(entry["id"] == previous_default for entry in entries):
+            manager.settings["browser_default_profile"] = "standard"
+        if not manager.save_settings():
+            manager.settings["browser_profiles"] = previous
+            manager.settings["browser_default_profile"] = previous_default
+            QtWidgets.QMessageBox.warning(self, "Браузер", "Не удалось сохранить профили.")
+
+    def _edit_browser_profile(self, profile):
+        from uuid import uuid4
+        from services.browser_settings import UA_MODES, valid_agent
+
+        profile = profile or {}
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Профиль браузера")
+        form = QtWidgets.QFormLayout(dialog)
+        name = QtWidgets.QLineEdit(profile.get("name", ""))
+        name.setMaxLength(48)
+        form.addRow("Название", name)
+        persistent = QtWidgets.QCheckBox("Хранить данные сайтов и сеансы на диске")
+        persistent.setChecked(profile.get("persistent", False))
+        form.addRow("Режим профиля", persistent)
+        mode = QtWidgets.QComboBox()
+        for key, label in UA_MODES.items():
+            mode.addItem(label, key)
+        mode.setCurrentIndex(mode.findData(profile.get("ua_mode", "native")))
+        form.addRow("User-Agent", mode)
+        agent = QtWidgets.QLineEdit(profile.get("ua", ""))
+        agent.setMaxLength(512)
+        agent.setEnabled(mode.currentData() == "custom")
+        mode.currentIndexChanged.connect(lambda _: agent.setEnabled(mode.currentData() == "custom"))
+        form.addRow("Свой User-Agent", agent)
+        hint = QtWidgets.QLabel("User-Agent меняет строку, которую браузер сообщает сайтам.")
+        hint.setWordWrap(True)
+        hint.setObjectName("settingsHint")
+        form.addRow(hint)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Save | QtWidgets.QDialogButtonBox.Cancel)
+        buttons.button(QtWidgets.QDialogButtonBox.Save).setText("Сохранить")
+        buttons.button(QtWidgets.QDialogButtonBox.Cancel).setText("Отмена")
+        form.addRow(buttons)
+
+        def accept():
+            if not name.text().strip():
+                hint.setText("Укажите название профиля.")
+            elif mode.currentData() == "custom" and (not agent.text().strip() or not valid_agent(agent.text())):
+                hint.setText("Укажите User-Agent из печатных символов ASCII.")
+            else:
+                dialog.accept()
+
+        buttons.accepted.connect(accept)
+        buttons.rejected.connect(dialog.reject)
+        dialog.resize(480, 0)
+        if dialog.exec_() != QtWidgets.QDialog.Accepted:
+            dialog.deleteLater()
+            return None
+        result = {
+            "id": profile.get("id") or uuid4().hex,
+            "name": name.text().strip(),
+            "persistent": persistent.isChecked(),
+            "ua_mode": mode.currentData(),
+            "ua": agent.text().strip() if mode.currentData() == "custom" else "",
+        }
+        dialog.deleteLater()
+        return result
 
     def _ai_page(self):
         """AI assistant configuration (OpenAI-compatible chat completions API)."""
@@ -494,6 +698,8 @@ class SettingsWidget(QtWidgets.QWidget):
 
         form = QtWidgets.QFormLayout()
         form.setSpacing(8)
+        form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapLongRows)
+        self._section(form, "Подключение")
 
         enabled = QtWidgets.QCheckBox('Включить ИИ-агента')
         enabled.setChecked(bool(self._value('ai_enabled')))
@@ -567,6 +773,7 @@ class SettingsWidget(QtWidgets.QWidget):
         temp.setDecimals(1)
         temp.setValue(max(0.0, min(2.0, float(self._value('ai_temperature')) / 10.0)))
         self.controls['_ai_temperature_float'] = temp
+        self._section(form, 'Настройка ответов')
         form.addRow('Температура', temp)
 
         tokens = QtWidgets.QSpinBox()
@@ -608,6 +815,7 @@ class SettingsWidget(QtWidgets.QWidget):
         idx = scope.findData(str(self._value('ai_context_scope')))
         scope.setCurrentIndex(max(0, idx))
         self.controls['ai_context_scope'] = scope
+        self._section(form, 'Контекст и поведение')
         form.addRow('Контекст запроса', scope)
 
         show_reasoning = QtWidgets.QCheckBox('Показывать, сколько модель размышляет')
@@ -648,7 +856,8 @@ class SettingsWidget(QtWidgets.QWidget):
         mode.currentIndexChanged.connect(lambda _idx: _sync_strictness_state())
         _sync_strictness_state()
 
-        tools_box = QtWidgets.QGroupBox('Инструменты агента')
+        layout.addLayout(form)
+        tools_box = QtWidgets.QGroupBox('Разрешения и инструменты')
         tools_layout = QtWidgets.QVBoxLayout(tools_box)
         tools_layout.setSpacing(6)
         from services.agent_tools import ACCESS_MODES, normalize_access_mode
@@ -672,8 +881,6 @@ class SettingsWidget(QtWidgets.QWidget):
         self.controls['ai_allow_commands'] = allow_cmds
         tools_layout.addWidget(allow_cmds)
         layout.addWidget(tools_box)
-
-        layout.addLayout(form)
 
         # ---------------------------------------------------------------
         # MCP servers
@@ -709,11 +916,11 @@ class SettingsWidget(QtWidgets.QWidget):
         layout.addWidget(mcp_box)
 
         test_row = QtWidgets.QHBoxLayout()
-        test_btn = QtWidgets.QPushButton('Проверить подключение')
+        test_btn = QtWidgets.QPushButton('Проверить API')
         test_btn.clicked.connect(self._test_ai_connection)
         clear_btn = QtWidgets.QPushButton('Очистить ключ')
         clear_btn.clicked.connect(lambda: key_edit.setText(''))
-        open_agent = QtWidgets.QPushButton('Открыть ИИ-агента')
+        open_agent = QtWidgets.QPushButton('Открыть агента')
         open_agent.clicked.connect(self._open_ai_agent)
         test_row.addWidget(test_btn)
         test_row.addWidget(clear_btn)
@@ -912,8 +1119,10 @@ class SettingsWidget(QtWidgets.QWidget):
                        'fontsize': str(sm.get_setting('editor_font_size', 13)),
                        'font_size_tab': str(sm.get_setting('ui_font_size', 13))})
         sm.settings['settings'] = legacy
-        if save_file:
-            sm.save_settings()
+        if save_file and not sm.save_settings():
+            self._apply_status.setText("Не удалось сохранить настройки")
+            return
+        self._apply_status.setText("Настройки применены" if not save_file else "Настройки сохранены")
 
         if self.main_window and hasattr(self.main_window, 'app_manager'):
             self.main_window.app_manager.settings = sm.get_all_settings()
@@ -927,26 +1136,4 @@ class SettingsWidget(QtWidgets.QWidget):
             self.main_window.status_bar.showMessage('Настройки применены')
 
     def save_settings(self):
-        self.apply_settings()
-        self.settings_manager.save_settings()
-
-    def reset_to_default(self):
-        self.settings_manager.settings.update(DEFAULTS)
-        self.settings_manager.save_settings()
-        toolchains = self.settings_manager.get_setting('toolchains', {}) or {}
-        for key, widget in self.controls.items():
-            if key.startswith('toolchain_'):
-                ext = key.split('_', 1)[1]
-                widget.setText(str((toolchains.get(ext) or {}).get('command', '')))
-                continue
-            value = DEFAULTS.get(key)
-            if isinstance(widget, QtWidgets.QCheckBox):
-                widget.setChecked(bool(value))
-            elif isinstance(widget, QtWidgets.QSpinBox):
-                widget.setValue(int(value))
-            elif isinstance(widget, QtWidgets.QComboBox):
-                idx = widget.findData(value)
-                widget.setCurrentIndex(idx if idx >= 0 else widget.findText(str(value)))
-            elif value is not None:
-                widget.setText(str(value))
         self.apply_settings()

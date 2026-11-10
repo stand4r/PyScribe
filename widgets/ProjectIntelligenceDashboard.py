@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
+from design.icons import line_icon, set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from core.logging_config import get_logger
@@ -579,8 +580,8 @@ class ProjectGraphEditorWidget(QtWidgets.QWidget):
 
         self.expand = QtWidgets.QToolButton(); self.expand.setText('Развернуть всё'); self.expand.clicked.connect(self.graph_expand)
         self.collapse = QtWidgets.QToolButton(); self.collapse.setText('Свернуть всё'); self.collapse.clicked.connect(self.graph_collapse)
-        self.zoom_out_button = QtWidgets.QToolButton(); self.zoom_out_button.setText('−'); self.zoom_out_button.setToolTip('Уменьшить'); self.zoom_out_button.clicked.connect(lambda: self.graph.zoom_out())
-        self.zoom_in_button = QtWidgets.QToolButton(); self.zoom_in_button.setText('+'); self.zoom_in_button.setToolTip('Увеличить'); self.zoom_in_button.clicked.connect(lambda: self.graph.zoom_in())
+        self.zoom_out_button = QtWidgets.QToolButton(); set_line_icon(self.zoom_out_button, 'minus'); self.zoom_out_button.setToolTip('Уменьшить'); self.zoom_out_button.clicked.connect(lambda: self.graph.zoom_out())
+        self.zoom_in_button = QtWidgets.QToolButton(); set_line_icon(self.zoom_in_button, 'add'); self.zoom_in_button.setToolTip('Увеличить'); self.zoom_in_button.clicked.connect(lambda: self.graph.zoom_in())
         self.fit_button = QtWidgets.QToolButton(); self.fit_button.setText('По размеру'); self.fit_button.clicked.connect(lambda: self.graph.reset_zoom())
         self.open_button = QtWidgets.QToolButton(); self.open_button.setText('Открыть исходник'); self.open_button.clicked.connect(self._open_selected)
         for col, widget in enumerate((self.expand, self.collapse, self.zoom_out_button, self.zoom_in_button, self.fit_button, self.open_button), start=4):
@@ -845,7 +846,7 @@ class ProjectIntelligenceDashboard(QtWidgets.QWidget):
             label.setMinimumWidth(0)
 
         self.refresh_button = QtWidgets.QToolButton()
-        self.refresh_button.setText('↻')
+        set_line_icon(self.refresh_button, 'reload')
         self.refresh_button.setToolTip('Повторно проанализировать проект')
         self.refresh_button.setStyleSheet(secondary_button_qss())
         self.refresh_button.clicked.connect(self.refresh)
@@ -1269,17 +1270,17 @@ class ProjectIntelligenceDashboard(QtWidgets.QWidget):
         menu = QtWidgets.QMenu(self)
 
         if item:
-            act_copy_one = menu.addAction("📋 Скопировать выбранное замечание")
+            act_copy_one = menu.addAction(line_icon("copy"), "Скопировать выбранное замечание")
             act_copy_one.triggered.connect(lambda: self._copy_single_tip(item))
-            act_open = menu.addAction("🔍 Перейти к строке в файле")
+            act_open = menu.addAction(line_icon("search"), "Перейти к строке в файле")
             act_open.triggered.connect(lambda: self._open_tip_item(item, 0))
             menu.addSeparator()
 
         total = self.tips_tree.topLevelItemCount()
-        act_copy_all = menu.addAction(f"📋 Скопировать все замечания ({total})")
+        act_copy_all = menu.addAction(line_icon("copy"), f"Скопировать все замечания ({total})")
         act_copy_all.triggered.connect(self._copy_tips)
 
-        act_save = menu.addAction("💾 Сохранить список в файл…")
+        act_save = menu.addAction(line_icon("save"), "Сохранить список в файл…")
         act_save.triggered.connect(self._save_tips_to_file)
 
         menu.exec_(self.tips_tree.viewport().mapToGlobal(pos))

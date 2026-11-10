@@ -1,5 +1,6 @@
 """Bottom Workbench panel: integrated terminal, file-scoped Problems and Output."""
 from pathlib import Path
+from design.icons import line_icon, set_line_icon
 from PyQt5 import QtWidgets, QtCore, QtGui
 from .TerminalWidget import TerminalWidget
 from design.icons import codicon_icon
@@ -181,12 +182,14 @@ class ConsoleWidget(QtWidgets.QWidget):
         label = QtWidgets.QLabel("Проблемы"); label.setObjectName("panelTitle")
         self.problems_context = QtWidgets.QLabel("Активный файл"); self.problems_context.setObjectName("panelContext")
         
-        copy_btn = QtWidgets.QPushButton("📋 Скопировать")
+        copy_btn = QtWidgets.QPushButton("Скопировать")
+        set_line_icon(copy_btn, "copy")
         copy_btn.setObjectName("panelToolButton")
         copy_btn.setToolTip("Скопировать список проблем в буфер обмена")
         copy_btn.clicked.connect(self.copy_problems)
 
-        save_btn = QtWidgets.QPushButton("💾 Сохранить в файл…")
+        save_btn = QtWidgets.QPushButton("Сохранить в файл…")
+        set_line_icon(save_btn, "save")
         save_btn.setObjectName("panelToolButton")
         save_btn.setToolTip("Экспортировать проблемы в файл (.txt, .md, .json)")
         save_btn.clicked.connect(self.save_problems_to_file)
@@ -215,20 +218,20 @@ class ConsoleWidget(QtWidgets.QWidget):
         menu = QtWidgets.QMenu(self)
         curr = self.problems_list.itemAt(pos)
         if curr:
-            act_copy_one = menu.addAction("📋 Скопировать выбранную проблему")
+            act_copy_one = menu.addAction(line_icon("copy"), "Скопировать выбранную проблему")
             act_copy_one.triggered.connect(lambda: self._copy_single_problem(curr))
-            act_open = menu.addAction("🔍 Перейти к строке")
+            act_open = menu.addAction(line_icon("search"), "Перейти к строке")
             act_open.triggered.connect(lambda: self._open_problem(curr))
             menu.addSeparator()
 
-        act_copy_all = menu.addAction("📋 Скопировать все проблемы")
+        act_copy_all = menu.addAction(line_icon("copy"), "Скопировать все проблемы")
         act_copy_all.triggered.connect(self.copy_problems)
 
-        act_save = menu.addAction("💾 Сохранить список в файл…")
+        act_save = menu.addAction(line_icon("save"), "Сохранить список в файл…")
         act_save.triggered.connect(self.save_problems_to_file)
 
         menu.addSeparator()
-        act_clear = menu.addAction("🗑 Очистить список")
+        act_clear = menu.addAction(line_icon("trash"), "Очистить список")
         act_clear.triggered.connect(self.clear_problems)
         menu.exec_(self.problems_list.mapToGlobal(pos))
 

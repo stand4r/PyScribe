@@ -27,7 +27,7 @@ from typing import Dict, List, Optional
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from core.logging_config import get_logger
-from design.icons import codicon_icon
+from design.icons import codicon_icon, line_icon
 from services.ai_commands import COMMANDS, find_command, parse_input
 from services.ai_providers import PROVIDERS, get_provider, models_for
 from services.ai_service import AIMessage, AIService, AIError, extract_code_blocks
@@ -457,20 +457,16 @@ class _RoundActionButton(QtWidgets.QAbstractButton):
     is deterministic on Windows.
     """
 
-    def __init__(self, glyph: str, tooltip: str = "", diameter: int = 30,
+    def __init__(self, icon_name: str, tooltip: str = "", diameter: int = 30,
                  accent: bool = True, parent=None):
         super().__init__(parent)
-        self._glyph = glyph
-        self._diameter = diameter
+        self._icon_name = icon_name
         self._accent = accent
         self.setFixedSize(diameter, diameter)
         self.setCursor(QtCore.Qt.PointingHandCursor)
         self.setFocusPolicy(QtCore.Qt.NoFocus)
         self.setToolTip(tooltip)
-
-    def set_glyph(self, glyph: str):
-        self._glyph = glyph
-        self.update()
+        self.setAccessibleName(tooltip)
 
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
@@ -488,12 +484,9 @@ class _RoundActionButton(QtWidgets.QAbstractButton):
         painter.setPen(QtCore.Qt.NoPen)
         painter.setBrush(background)
         painter.drawEllipse(rect)
-        font = QtGui.QFont(self.font())
-        font.setPointSize(max(9, int(self._diameter * 0.42)))
-        font.setBold(True)
-        painter.setFont(font)
-        painter.setPen(text_color)
-        painter.drawText(rect, QtCore.Qt.AlignCenter, self._glyph)
+        icon_rect = QtCore.QRect(0, 0, 16, 16)
+        icon_rect.moveCenter(self.rect().center())
+        line_icon(self._icon_name, text_color).paint(painter, icon_rect)
 
     def enterEvent(self, event):
         self.update()
@@ -898,7 +891,7 @@ class AIAgentPanel(QtWidgets.QWidget):
         toolbar.addWidget(self.model_btn)
         toolbar.addStretch()
 
-        self.stop_btn = _RoundActionButton("■", "Остановить ответ (Esc)", 30, accent=False)
+        self.stop_btn = _RoundActionButton("stop", "Остановить ответ (Esc)", 30, accent=False)
         self.stop_btn.setToolTip("Остановить ответ (Esc)")
         self.stop_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.stop_btn.setVisible(False)
@@ -906,7 +899,7 @@ class AIAgentPanel(QtWidgets.QWidget):
         self.stop_btn.clicked.connect(self.stop_request)
         toolbar.addWidget(self.stop_btn)
 
-        self.send_btn = _RoundActionButton("↑", "Отправить (Enter)", 30, accent=True)
+        self.send_btn = _RoundActionButton("send", "Отправить (Enter)", 30, accent=True)
         self.send_btn.setToolTip("Отправить (Enter)")
         self.send_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self.send_btn.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -1414,7 +1407,7 @@ class AIAgentPanel(QtWidgets.QWidget):
         problem = service.configuration_problem()
         if problem:
             self.status_dot.setVisible(True)
-            self.status_dot.setText("⚠")
+            self.status_dot.setPixmap(line_icon("warning", "#E2B86B").pixmap(14, 14))
             self.status_dot.setToolTip(problem)
             self.status_label.setText(problem)
             self.status_label.setVisible(True)

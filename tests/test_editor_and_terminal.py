@@ -184,6 +184,49 @@ def test_zoom_shortcuts_single_effect():
     assert ed.editor.current_font_size == start
 
 
+def test_editor_shortcuts_with_workbench_shortcuts_installed():
+    """Use real Qt shortcut dispatch with both scopes present."""
+    from PyQt5.QtTest import QTest
+    from app.main_window import ModernMainWindow
+    from widgets.QCodeEditor import ModernCodeEditor
+
+    class Workbench(QtWidgets.QWidget):
+        def __getattr__(self, name):
+            # Supply inert handlers for workbench actions outside this test.
+            return lambda: None
+
+    host = Workbench()
+    ModernMainWindow._install_global_shortcuts(host)
+    editor = ModernCodeEditor(parent=host, language="python", settings={})
+    QtWidgets.QVBoxLayout(host).addWidget(editor)
+    host.show()
+    host.activateWindow()
+    editor.editor.setFocus()
+    _app().processEvents()
+    try:
+        assert editor.editor.hasFocus()
+        QTest.keyClick(editor.editor, QtCore.Qt.Key_F, QtCore.Qt.ControlModifier)
+        assert editor.find_bar.isVisible()
+
+        editor.find_bar.hide_bar()
+        editor.editor.setFocus()
+        QTest.keyClick(editor.editor, QtCore.Qt.Key_H, QtCore.Qt.ControlModifier)
+        assert editor.find_bar.replace_input.isVisible()
+
+        editor.find_bar.hide_bar()
+        editor.editor.setFocus()
+        original_size = editor.editor.current_font_size
+        QTest.keyClick(editor.editor, QtCore.Qt.Key_Equal, QtCore.Qt.ControlModifier)
+        assert editor.editor.current_font_size == original_size + 1
+
+        editor.set_code("first\nsecond")
+        QTest.keyClick(editor.editor, QtCore.Qt.Key_K,
+                       QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier)
+        assert editor.get_code() == "second"
+    finally:
+        host.close()
+
+
 def test_rectangle_selection_copy_insert_delete():
     ed = _make_editor("aaaa\nbbbb\ncccc\n")
     cursor = QtGui.QTextCursor(ed.editor.document())

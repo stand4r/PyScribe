@@ -1,226 +1,350 @@
-"""PyScribe widgets/MarkdownViewerWidget.py: Modern Markdown previewer with dark theme styling."""
+"""A native Markdown reading view with navigation and live editor updates."""
+from bisect import bisect_right
 from pathlib import Path
+import re
+import unicodedata
+
+from design.icons import set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-MARKDOWN_CSS = """
-body, div, p {
-    color: #D4D4D4;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif;
-    font-size: 13px;
-    line-height: 1.6;
-}
-h1 {
-    color: #58A6FF;
-    font-size: 20px;
-    font-weight: 700;
-    border-bottom: 1px solid #30363D;
-    padding-bottom: 6px;
-    margin-top: 16px;
-    margin-bottom: 12px;
-}
-h2 {
-    color: #79C0FF;
-    font-size: 16px;
-    font-weight: 600;
-    border-bottom: 1px solid #21262D;
-    padding-bottom: 4px;
-    margin-top: 14px;
-    margin-bottom: 10px;
-}
-h3 {
-    color: #E6EDF3;
-    font-size: 14px;
-    font-weight: 600;
-    margin-top: 12px;
-    margin-bottom: 8px;
-}
-h4, h5, h6 {
-    color: #A8A8A8;
-    font-size: 13px;
-    font-weight: 600;
-}
-code {
-    font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
-    background: #24292F;
-    color: #F0883E;
-    padding: 2px 5px;
-    border-radius: 4px;
-    font-size: 12px;
-}
-pre {
-    background: #161B22;
-    border: 1px solid #30363D;
-    border-radius: 6px;
-    padding: 10px 14px;
-    color: #E6EDF3;
-    font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
-    font-size: 12px;
-    margin: 10px 0;
-}
-blockquote {
-    border-left: 4px solid #58A6FF;
-    background: #161B22;
-    padding: 8px 14px;
-    margin: 10px 0;
-    color: #A8A8A8;
-}
-table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 12px 0;
-}
-th {
-    background: #161B22;
-    color: #FFFFFF;
-    font-weight: 600;
-    border: 1px solid #30363D;
-    padding: 6px 12px;
-    text-align: left;
-}
-td {
-    border: 1px solid #30363D;
-    padding: 6px 12px;
-    color: #D4D4D4;
-}
-tr:nth-child(even) {
-    background: #12161C;
-}
-hr {
-    border: none;
-    border-top: 1px solid #30363D;
-    margin: 16px 0;
-}
-ul, ol {
-    padding-left: 22px;
-    margin: 8px 0;
-}
-li {
-    margin-bottom: 4px;
-}
-a {
-    color: #58A6FF;
-    text-decoration: none;
-}
-a:hover {
-    text-decoration: underline;
-}
-"""
+class _ReadingBrowser(QtWidgets.QTextBrowser):
+    def loadResource(self, resource_type, url):
+        # Previewing a file should not make network requests for embedded images.
+        resolved = self.document().baseUrl().resolved(url)
+        if resource_type == QtGui.QTextDocument.ImageResource and resolved.isLocalFile():
+            return super().loadResource(resource_type, resolved)
+        return None
 
 
 class MarkdownViewerWidget(QtWidgets.QWidget):
-    """Full-featured Markdown preview tab with auto-reload and export."""
     open_editor_requested = QtCore.pyqtSignal(str)
+    open_preview_requested = QtCore.pyqtSignal(str)
 
-    def __init__(self, file_path: str = "", content: str = "", parent=None):
+    def __init__(self, file_path="", content=None, parent=None):
         super().__init__(parent)
         self.file_path = file_path
-        self._raw_content = content
+        self._raw_content = ""
+        self._source = None
+        self._headings = []
+        self._positions = []
+        self._anchors = {}
         self.setObjectName("markdownViewer")
+        self._render_timer = QtCore.QTimer(self, singleShot=True, interval=180)
+        self._render_timer.timeout.connect(self.reload)
         self._build_ui()
-        if file_path and not content:
-            self.load_file(file_path)
-        elif content:
+        if content is None:
+            self.reload()
+        else:
             self.set_markdown(content)
 
     def _build_ui(self):
         root = QtWidgets.QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(6)
+        header = QtWidgets.QHBoxLayout()
+        self.title_label = QtWidgets.QLabel()
+        self.title_label.setTextFormat(QtCore.Qt.PlainText)
+        self.title_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        self.title_label.setObjectName("markdownTitle")
+        header.addWidget(self.title_label, 1)
+        self.progress = QtWidgets.QLabel()
+        header.addWidget(self.progress)
+        root.addLayout(header)
 
-        # Toolbar
-        toolbar = QtWidgets.QFrame()
-        toolbar.setObjectName("markdownToolbar")
-        toolbar.setStyleSheet("""
-            QFrame#markdownToolbar {
-                background: #181818;
-                border-bottom: 1px solid #2B2B2B;
-                min-height: 34px;
-                max-height: 34px;
-            }
-        """)
-        tbl = QtWidgets.QHBoxLayout(toolbar)
-        tbl.setContentsMargins(12, 2, 12, 2)
-        tbl.setSpacing(8)
+        toolbar = QtWidgets.QHBoxLayout()
+        def button(label, icon, tip, slot):
+            control = QtWidgets.QToolButton()
+            control.setText(label)
+            set_line_icon(control, icon)
+            control.setAccessibleName(tip)
+            control.setToolTip(tip)
+            if slot is not None:
+                control.clicked.connect(slot)
+            toolbar.addWidget(control)
+            return control
 
-        self.title_label = QtWidgets.QLabel("Предпросмотр Markdown")
-        self.title_label.setStyleSheet("font-size: 12px; font-weight: 600; color: #D4D4D4;")
-        tbl.addWidget(self.title_label)
+        self.outline_btn = button("Разделы", "outline", "Показать или скрыть оглавление", None)
+        self.outline_btn.setCheckable(True)
+        self.outline_btn.toggled.connect(self._toggle_outline)
+        button("Поиск", "search", "Найти в документе (Ctrl+F)", self._show_search)
+        button("", "minus", "Уменьшить текст", lambda: self.browser.zoomOut())
+        button("", "add", "Увеличить текст", lambda: self.browser.zoomIn())
+        toolbar.addStretch(1)
+        menu_btn = button("", "more", "Действия с документом", None)
+        menu_btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        menu = QtWidgets.QMenu(menu_btn)
+        menu.addAction("Обновить", self.reload)
+        menu.addAction("Копировать исходный Markdown", self._copy_markdown)
+        edit = menu.addAction("Открыть в редакторе", self._request_editor)
+        edit.setEnabled(bool(self.file_path))
+        menu_btn.setMenu(menu)
+        root.addLayout(toolbar)
 
-        self.path_label = QtWidgets.QLabel("")
-        self.path_label.setStyleSheet("font-size: 11px; color: #858585;")
-        tbl.addWidget(self.path_label, 1)
+        self.search = QtWidgets.QLineEdit()
+        self.search.setPlaceholderText("Найти в документе…")
+        self.search.setClearButtonEnabled(True)
+        self.search.returnPressed.connect(self._find_next)
+        self.search.hide()
+        root.addWidget(self.search)
+        self._find_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence.Find, self)
+        self._find_shortcut.setContext(QtCore.Qt.WidgetWithChildrenShortcut)
+        self._find_shortcut.activated.connect(self._show_search)
 
-        self.refresh_btn = QtWidgets.QToolButton()
-        self.refresh_btn.setText("Обновить")
-        self.refresh_btn.setToolTip("Перезагрузить файл с диска")
-        self.refresh_btn.clicked.connect(self.reload)
-        tbl.addWidget(self.refresh_btn)
-
-        self.copy_btn = QtWidgets.QToolButton()
-        self.copy_btn.setText("Копировать текст")
-        self.copy_btn.setToolTip("Скопировать исходный Markdown в буфер обмена")
-        self.copy_btn.clicked.connect(self._copy_markdown)
-        tbl.addWidget(self.copy_btn)
-
-        self.edit_btn = QtWidgets.QToolButton()
-        self.edit_btn.setText("Редактировать")
-        self.edit_btn.setToolTip("Открыть этот файл в текстовом редакторе кода")
-        self.edit_btn.setStyleSheet("background: #0078D4; color: #FFFFFF; font-weight: 500;")
-        self.edit_btn.clicked.connect(self._request_editor)
-        tbl.addWidget(self.edit_btn)
-
-        root.addWidget(toolbar)
-
-        # Viewer browser
-        self.browser = QtWidgets.QTextBrowser()
+        body = QtWidgets.QHBoxLayout()
+        body.setSpacing(8)
+        self.outline = QtWidgets.QTreeWidget()
+        self.outline.setObjectName("markdownOutline")
+        self.outline.setHeaderHidden(True)
+        self.outline.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.outline.setFixedWidth(205)
+        self.outline.setAccessibleName("Оглавление")
+        self.outline.currentItemChanged.connect(self._outline_selected)
+        self.outline.hide()
+        body.addWidget(self.outline)
+        reading = QtWidgets.QHBoxLayout()
+        self.browser = _ReadingBrowser()
         self.browser.setObjectName("markdownBrowser")
-        self.browser.setReadOnly(True)
-        self.browser.setOpenExternalLinks(True)
-        self.browser.setStyleSheet("""
-            QTextBrowser#markdownBrowser {
-                background: #1E1E1E;
-                color: #D4D4D4;
-                border: none;
-                padding: 16px 24px;
-            }
-        """)
-        self.browser.document().setDefaultStyleSheet(MARKDOWN_CSS)
-        root.addWidget(self.browser, 1)
+        self.browser.setFont(QtGui.QFont("Segoe UI", 11))
+        self.browser.setOpenLinks(False)
+        self.browser.anchorClicked.connect(self._open_link)
+        self.browser.setMaximumWidth(850)
+        self.browser.verticalScrollBar().valueChanged.connect(self._update_position)
+        self.browser.verticalScrollBar().rangeChanged.connect(self._update_position)
+        reading.addStretch(1)
+        reading.addWidget(self.browser, 20)
+        reading.addStretch(1)
+        body.addLayout(reading, 1)
+        root.addLayout(body, 1)
 
-    def load_file(self, file_path: str):
-        self.file_path = file_path
-        p = Path(file_path)
-        if not p.exists():
-            self.browser.setPlainText(f"Файл не найден: {file_path}")
+    def bind_source(self, source):
+        if source is self._source:
+            self.reload()
             return
+        if self._source is not None:
+            self._source.textChanged.disconnect(self._schedule_render)
+            self._source.destroyed.disconnect(self._source_closed)
+        self._source = source
+        source.textChanged.connect(self._schedule_render)
+        source.destroyed.connect(self._source_closed)
+        self.reload()
 
-        self.title_label.setText(f"Предпросмотр: {p.name}")
-        self.path_label.setText(str(p))
+    def _schedule_render(self):
+        self._render_timer.start()
 
+    def _source_closed(self):
+        self._source = None
+        self._render_timer.stop()
+
+    def load_file(self, file_path):
+        self.file_path = file_path
         try:
-            content = p.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            try:
-                content = p.read_text(encoding="utf-8", errors="replace")
-            except Exception as e:
-                self.browser.setPlainText(f"Ошибка чтения: {e}")
-                return
-
+            content = Path(file_path).read_text(encoding="utf-8-sig", errors="replace")
+        except OSError as error:
+            self.set_markdown("")
+            self.browser.setPlainText(f"Не удалось прочитать файл: {error}")
+            return
         self.set_markdown(content)
 
-    def set_markdown(self, markdown_text: str):
+    @staticmethod
+    def _mix(start, end, fraction):
+        return QtGui.QColor(*(round(a + (b - a) * fraction)
+                             for a, b in zip(start.getRgb()[:3], end.getRgb()[:3])))
+
+    def _style_tables(self, frame, paper, text):
+        for child in frame.childFrames():
+            if isinstance(child, QtGui.QTextTable):
+                fmt = child.format()
+                fmt.setBorder(0)
+                fmt.setCellSpacing(0)
+                fmt.setCellPadding(0)
+                fmt.setTopMargin(10)
+                fmt.setBottomMargin(16)
+                child.setFormat(fmt)
+                header = self._mix(paper, text, 0.13)
+                stripe = self._mix(paper, text, 0.045)
+                rule = self._mix(paper, text, 0.19)
+                for row in range(child.rows()):
+                    for column in range(child.columns()):
+                        cell = child.cellAt(row, column)
+                        style = cell.format().toTableCellFormat()
+                        style.setBackground(header if row == 0 else stripe if row % 2 else paper)
+                        style.setLeftPadding(11)
+                        style.setRightPadding(11)
+                        style.setTopPadding(7)
+                        style.setBottomPadding(7)
+                        style.setBottomBorder(1)
+                        style.setBottomBorderBrush(rule)
+                        style.setBottomBorderStyle(QtGui.QTextFrameFormat.BorderStyle_Solid)
+                        cell.setFormat(style)
+            self._style_tables(child, paper, text)
+
+    def _style_links(self, block, color):
+        segments = []
+        iterator = block.begin()
+        while not iterator.atEnd():
+            fragment = iterator.fragment()
+            if fragment.isValid() and fragment.charFormat().anchorHref():
+                segments.append((fragment.position(), fragment.length()))
+            iterator += 1
+        if segments:
+            style = QtGui.QTextCharFormat()
+            style.setForeground(color)
+            style.setFontUnderline(True)
+            cursor = QtGui.QTextCursor(block)
+            for position, length in segments:
+                cursor.setPosition(position)
+                cursor.setPosition(position + length, QtGui.QTextCursor.KeepAnchor)
+                cursor.mergeCharFormat(style)
+
+    def set_markdown(self, markdown_text):
+        bar = self.browser.verticalScrollBar()
+        fraction = bar.value() / max(1, bar.maximum())
+        saved_position = self.browser.textCursor().position()
         self._raw_content = markdown_text
-        self.browser.setMarkdown(markdown_text)
+        name = Path(self.file_path).name if self.file_path else "Markdown"
+        self.title_label.setText(name)
+        self.title_label.setToolTip(self.file_path or name)
+        doc = self.browser.document()
+        doc.setBaseUrl(QtCore.QUrl.fromLocalFile(str(Path(self.file_path).resolve())) if self.file_path else QtCore.QUrl())
+        doc.setDocumentMargin(22)
+        features = QtGui.QTextDocument.MarkdownFeatures(
+            QtGui.QTextDocument.MarkdownDialectGitHub | QtGui.QTextDocument.MarkdownNoHTML)
+        doc.setMarkdown(markdown_text, features)
+        self._headings.clear()
+        self._positions.clear()
+        self._anchors.clear()
+        self.outline.blockSignals(True)
+        self.outline.clear()
+        palette = self.browser.palette()
+        paper = palette.base().color()
+        text = palette.text().color()
+        cool = QtGui.QColor("#83a8bb" if paper.lightness() < 128 else "#426478")
+        link = self._mix(text, cool, 0.55)
+        self._style_tables(doc.rootFrame(), paper, text)
+        parents = []
+        block = doc.begin()
+        while block.isValid():
+            fmt = block.blockFormat()
+            level = fmt.headingLevel()
+            fmt.setTopMargin(18 if level else 0)
+            fmt.setBottomMargin(10 if level else 7)
+            fmt.setLineHeight(124, QtGui.QTextBlockFormat.ProportionalHeight)
+            if fmt.hasProperty(QtGui.QTextFormat.BlockCodeFence):
+                fmt.setBackground(palette.alternateBase())
+                fmt.setLeftMargin(8)
+                fmt.setBottomMargin(0)
+            if fmt.intProperty(QtGui.QTextFormat.BlockQuoteLevel):
+                fmt.setLeftMargin(18)
+                fmt.setBackground(palette.alternateBase())
+            cursor = QtGui.QTextCursor(block)
+            cursor.setBlockFormat(fmt)
+            self._style_links(block, link)
+            if level:
+                title = block.text()
+                item = QtWidgets.QTreeWidgetItem([title])
+                item.setToolTip(0, title)
+                while parents and parents[-1][0] >= level:
+                    parents.pop()
+                if parents:
+                    parents[-1][1].addChild(item)
+                else:
+                    self.outline.addTopLevelItem(item)
+                parents.append((level, item))
+                position = block.position()
+                item.setData(0, QtCore.Qt.UserRole, position)
+                self._headings.append(item)
+                self._positions.append(position)
+                slug = re.sub(r"[^\w\- ]", "", unicodedata.normalize("NFC", title).lower()).replace(" ", "-")
+                anchor = slug
+                index = 1
+                while anchor in self._anchors:
+                    anchor = f"{slug}-{index}"
+                    index += 1
+                self._anchors[anchor] = position
+            block = block.next()
+        self.outline.expandAll()
+        self.outline.blockSignals(False)
+        self.outline_btn.setEnabled(bool(self._headings))
+        self._toggle_outline(self.outline_btn.isChecked())
+        words = len(doc.toPlainText().split())
+        self._reading_minutes = max(1, (words + 219) // 220) if words else 0
+        cursor = QtGui.QTextCursor(doc)
+        cursor.setPosition(min(saved_position, doc.characterCount() - 1))
+        self.browser.setTextCursor(cursor)
+        bar.setValue(round(fraction * bar.maximum()))
+        self._update_position()
 
     def reload(self):
-        if self.file_path:
+        if self._source is not None:
+            self.set_markdown(self._source.toPlainText())
+        elif self.file_path:
             self.load_file(self.file_path)
+        else:
+            self.set_markdown(self._raw_content)
+
+    def _toggle_outline(self, checked):
+        self.outline.setVisible(checked and bool(self._headings))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.outline.setFixedWidth(min(205, max(110, event.size().width() // 3)))
+
+    def _show_search(self):
+        self.search.setVisible(True)
+        self.search.setFocus()
+        self.search.selectAll()
+
+    def _find_next(self):
+        phrase = self.search.text()
+        if not phrase:
+            return
+        if not self.browser.find(phrase):
+            previous = self.browser.textCursor()
+            self.browser.moveCursor(QtGui.QTextCursor.Start)
+            if not self.browser.find(phrase):
+                self.browser.setTextCursor(previous)
+                QtWidgets.QToolTip.showText(self.search.mapToGlobal(self.search.rect().bottomLeft()), "Совпадений нет")
+
+    def _jump(self, position):
+        cursor = QtGui.QTextCursor(self.browser.document())
+        cursor.setPosition(position)
+        self.browser.setTextCursor(cursor)
+        bar = self.browser.verticalScrollBar()
+        bar.setValue(bar.value() + self.browser.cursorRect(cursor).top() - 10)
+
+    def _outline_selected(self, item, _previous):
+        if item is not None:
+            self._jump(item.data(0, QtCore.Qt.UserRole))
+
+    def _update_position(self, *_args):
+        if not hasattr(self, "_reading_minutes"):
+            return
+        bar = self.browser.verticalScrollBar()
+        percent = round(100 * bar.value() / bar.maximum()) if bar.maximum() else 100
+        self.progress.setText(f"{self._reading_minutes} мин · {percent}%")
+        position = self.browser.cursorForPosition(QtCore.QPoint(8, 12)).position()
+        index = bisect_right(self._positions, position) - 1
+        self.progress.setToolTip(self._headings[index].text(0) if index >= 0 else "")
+        with QtCore.QSignalBlocker(self.outline):
+            self.outline.setCurrentItem(self._headings[index] if index >= 0 else None)
+
+    def _open_link(self, url):
+        if url.hasFragment() and not url.path() and not url.scheme():
+            position = self._anchors.get(url.fragment())
+            if position is not None:
+                self._jump(position)
+        elif url.scheme().lower() in {"https", "http", "mailto"}:
+            QtGui.QDesktopServices.openUrl(url)
+        else:
+            target = self.browser.document().baseUrl().resolved(url)
+            if target.isLocalFile():
+                path = Path(target.toLocalFile())
+                if path.suffix.lower() in {".md", ".markdown"} and path.is_file():
+                    self.open_preview_requested.emit(str(path))
 
     def _copy_markdown(self):
-        if self._raw_content:
-            QtGui.QGuiApplication.clipboard().setText(self._raw_content)
-            QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), "Markdown скопирован в буфер обмена")
+        QtGui.QGuiApplication.clipboard().setText(self._raw_content)
 
     def _request_editor(self):
         if self.file_path:

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from enum import Enum
 
+from design.icons import line_icon, set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt, QRegExp, pyqtSlot, pyqtSignal, QStringListModel, QPoint, QTimer, QPropertyAnimation, QEasingCurve, QRect, QSize, QEvent, QVariantAnimation
 from PyQt5.QtGui import QColor, QSyntaxHighlighter, QFont, QTextCursor, QKeySequence, QTextCharFormat, QPainter, QPen, QLinearGradient, QTextBlock, QMouseEvent, QKeyEvent, QWheelEvent, QTextDocument, QPaintEvent
@@ -978,7 +979,7 @@ class CodeEditor(EnhancedTextEdit):
 
         # 1. Run snippet option if code is selected
         if has_selection:
-            act_run = menu.addAction("▶ Запустить выделенный фрагмент кода")
+            act_run = menu.addAction(line_icon("play"), "Запустить выделенный фрагмент кода")
             act_run.setShortcut(QKeySequence("Ctrl+Enter"))
             act_run.triggered.connect(self.run_selected_code)
             menu.addSeparator()
@@ -1015,9 +1016,9 @@ class CodeEditor(EnhancedTextEdit):
 
         menu.addSeparator()
         ai_menu = menu.addMenu("⚡ Code Intelligence")
-        act_explain = ai_menu.addAction("🔍 Интеллектуальный разбор кода")
+        act_explain = ai_menu.addAction(line_icon("search"), "Интеллектуальный разбор кода")
         act_explain.triggered.connect(self._explain_code_intelligence)
-        act_prep = ai_menu.addAction("❓ Архитектурный анализ и вопросы для Code Review")
+        act_prep = ai_menu.addAction(line_icon("info"), "Архитектурный анализ и вопросы для Code Review")
         act_prep.triggered.connect(self._explain_code_intelligence)
 
         menu.exec_(event.globalPos())
@@ -1635,9 +1636,9 @@ class CodeEditor(EnhancedTextEdit):
         alt = bool(event.modifiers() & Qt.AltModifier)
 
         # 0. Масштабирование шрифта редактора (Ctrl++, Ctrl+=, Ctrl+-, Ctrl+_, Ctrl+0, Numpad)
-        is_zoom_in = ctrl and event.key() in (Qt.Key_Equal, Qt.Key_Plus)
-        is_zoom_out = ctrl and event.key() in (Qt.Key_Minus, Qt.Key_Underscore)
-        is_zoom_reset = ctrl and event.key() == Qt.Key_0
+        is_zoom_in = ctrl and not alt and event.key() in (Qt.Key_Equal, Qt.Key_Plus)
+        is_zoom_out = ctrl and not alt and event.key() in (Qt.Key_Minus, Qt.Key_Underscore)
+        is_zoom_reset = ctrl and not alt and event.key() == Qt.Key_0
 
         if is_zoom_in:
             self._zoom_in()
@@ -1990,7 +1991,8 @@ class ModernCodeEditor(QWidget):
         # 1. Action: Clean Code Menu
         self.clean_code_btn = QtWidgets.QToolButton()
         self.clean_code_btn.setProperty("class", "statusActionBtn")
-        self.clean_code_btn.setText("Форматирование ▾")
+        self.clean_code_btn.setText("Форматирование")
+        set_line_icon(self.clean_code_btn, "code")
         self.clean_code_btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
         self.clean_code_btn.setToolTip("Форматирование по принципам Clean Code и PEP-8")
         clean_menu = QtWidgets.QMenu(self.clean_code_btn)
@@ -2008,7 +2010,8 @@ class ModernCodeEditor(QWidget):
         # 2. Action: Documentation Menu
         self.docstring_btn = QtWidgets.QToolButton()
         self.docstring_btn.setProperty("class", "statusActionBtn")
-        self.docstring_btn.setText("Автодокументирование ▾")
+        self.docstring_btn.setText("Автодокументирование")
+        set_line_icon(self.docstring_btn, "document")
         self.docstring_btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
         self.docstring_btn.setToolTip("Генерация структурированных описаний и комментариев для функций, классов и всего файла")
         doc_menu = QtWidgets.QMenu(self.docstring_btn)
@@ -2091,7 +2094,6 @@ class ModernCodeEditor(QWidget):
             "Alt+X": self._cut_rectangle,
             "Alt+V": self._paste_rectangle,
             "Alt+Delete": self._delete_rectangle,
-            "Ctrl+Alt+E": self.editor._student_explain_code,
         }
         
         self._shortcuts = []

@@ -1,5 +1,6 @@
 """PyScribe widgets/FindReplaceBar.py: in-editor find and replace overlay."""
 import re
+from design.icons import set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt, pyqtSignal, QRegExp
 from PyQt5.QtGui import QTextCursor, QTextCharFormat, QColor, QTextDocument
@@ -65,26 +66,26 @@ class FindReplaceBar(QFrame):
         row_find.addWidget(self.word_btn)
 
         self.prev_btn = QToolButton()
-        self.prev_btn.setText("▲")
+        set_line_icon(self.prev_btn, "up")
         self.prev_btn.setToolTip("Предыдущее совпадение (Shift+Enter)")
         self.prev_btn.clicked.connect(self.find_prev)
         row_find.addWidget(self.prev_btn)
 
         self.next_btn = QToolButton()
-        self.next_btn.setText("▼")
+        set_line_icon(self.next_btn, "down")
         self.next_btn.setToolTip("Следующее совпадение (Enter)")
         self.next_btn.clicked.connect(self.find_next)
         row_find.addWidget(self.next_btn)
 
         self.toggle_replace_btn = QToolButton()
-        self.toggle_replace_btn.setText("⇄")
+        set_line_icon(self.toggle_replace_btn, "replace")
         self.toggle_replace_btn.setCheckable(True)
         self.toggle_replace_btn.setToolTip("Показать/скрыть панель замены (Ctrl+H)")
         self.toggle_replace_btn.toggled.connect(self._toggle_replace_row)
         row_find.addWidget(self.toggle_replace_btn)
 
         self.close_btn = QToolButton()
-        self.close_btn.setText("✕")
+        set_line_icon(self.close_btn, "close")
         self.close_btn.setToolTip("Закрыть (Escape)")
         self.close_btn.clicked.connect(self.hide_bar)
         row_find.addWidget(self.close_btn)

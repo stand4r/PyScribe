@@ -4,6 +4,7 @@ Provides file system navigation and operations
 """
 
 import os
+from design.icons import set_line_icon
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QIcon, QDesktopServices
 from PyQt5.QtCore import Qt, QFileInfo
@@ -47,10 +48,7 @@ class Explorer(QtWidgets.QTreeView):
     """Project tree with a compact, task-focused context menu."""
     root_changed = QtCore.pyqtSignal(str)
     open_file_requested = QtCore.pyqtSignal(str)
-    open_table_requested = QtCore.pyqtSignal(str)
-    open_hex_requested = QtCore.pyqtSignal(str)
     open_text_requested = QtCore.pyqtSignal(str)
-    open_pdf_requested = QtCore.pyqtSignal(str)
     preview_markdown_requested = QtCore.pyqtSignal(str)
     run_requested = QtCore.pyqtSignal(str, bool)
 
@@ -157,20 +155,12 @@ class Explorer(QtWidgets.QTreeView):
                 open_action = menu.addAction("Открыть")
                 open_action.triggered.connect(self.open_item)
                 suffix = Path(path).suffix.lower()
-                if suffix in {".csv", ".tsv", ".tab", ".xlsx", ".xlsm"}:
-                    table_action = menu.addAction("Просмотр таблицы")
-                    table_action.triggered.connect(lambda checked=False, p=path: self.open_table_requested.emit(p))
-                    if suffix in {".csv", ".tsv", ".tab"}:
-                        text_action = menu.addAction("Открыть в редакторе (как текст)")
-                        text_action.triggered.connect(lambda checked=False, p=path: self.open_text_requested.emit(p))
-                elif suffix == ".pdf":
-                    pdf_action = menu.addAction("Просмотр PDF")
-                    pdf_action.triggered.connect(lambda checked=False, p=path: self.open_pdf_requested.emit(p))
+                if suffix in {".csv", ".tsv", ".tab"}:
+                    text_action = menu.addAction("Открыть в редакторе (как текст)")
+                    text_action.triggered.connect(lambda checked=False, p=path: self.open_text_requested.emit(p))
                 elif suffix in {".md", ".markdown"}:
                     preview_action = menu.addAction("Предпросмотр Markdown")
                     preview_action.triggered.connect(lambda checked=False, p=path: self.preview_markdown_requested.emit(p))
-                hex_action = menu.addAction("Открыть в HEX-просмотрщике")
-                hex_action.triggered.connect(lambda checked=False, p=path: self.open_hex_requested.emit(p))
                 if Path(path).suffix.lower() in {".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".java", ".cs", ".go", ".rs", ".php", ".rb", ".kt", ".swift", ".sh", ".lua", ".pl"}:
                     menu.addSeparator()
                     run_action = menu.addAction("Запуск")
@@ -486,13 +476,15 @@ class YouTubeStyleToolBar(QtWidgets.QWidget):
         self.up_btn.clicked.connect(self.explorer.go_up)
         
         # Refresh button
-        self.refresh_btn = QtWidgets.QPushButton("🔄 Refresh")
+        self.refresh_btn = QtWidgets.QPushButton("Refresh")
+        set_line_icon(self.refresh_btn, "reload")
         self.refresh_btn.setStyleSheet(button_style)
         self.refresh_btn.setCursor(Qt.PointingHandCursor)
         self.refresh_btn.clicked.connect(self.explorer.refresh_model)
         
         # Home button
-        self.home_btn = QtWidgets.QPushButton("🏠 Home")
+        self.home_btn = QtWidgets.QPushButton("Home")
+        set_line_icon(self.home_btn, "home")
         self.home_btn.setStyleSheet(button_style)
         self.home_btn.setCursor(Qt.PointingHandCursor)
         self.home_btn.clicked.connect(self.go_home)

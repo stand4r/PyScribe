@@ -1,6 +1,7 @@
 """PyScribe widgets/SearchPanel.py: application module and reusable component."""
 from pathlib import Path
 import re
+from design.icons import set_line_icon
 from PyQt5 import QtCore, QtWidgets, QtGui
 
 
@@ -67,7 +68,8 @@ class SearchPanel(QtWidgets.QWidget):
             options.addWidget(button)
         options.addStretch()
         self.search_button = QtWidgets.QToolButton()
-        self.search_button.setText('⌕ Искать')
+        self.search_button.setText('Искать')
+        set_line_icon(self.search_button, 'search')
         self.search_button.setToolTip('Искать по проекту')
         self.search_button.setMinimumHeight(30)
         self.search_button.setMinimumWidth(72)

@@ -87,6 +87,7 @@ class ActivityBar(QtWidgets.QFrame):
 
     activity_changed = QtCore.pyqtSignal(str)
     terminal_requested = QtCore.pyqtSignal()
+    browser_requested = QtCore.pyqtSignal()
 
     ITEMS = [
         ("explorer", "files", "Проводник (Ctrl+Shift+E)"),
@@ -119,6 +120,10 @@ class ActivityBar(QtWidgets.QFrame):
             layout.addWidget(button, 0, QtCore.Qt.AlignHCenter)
             self.buttons[key] = button
 
+        self.browser_button = self._button("browser-globe", "Браузер")
+        self.browser_button.clicked.connect(self.browser_requested)
+        layout.addWidget(self.browser_button, 0, QtCore.Qt.AlignHCenter)
+
         layout.addStretch(1)
 
         self.terminal_button = self._button("terminal", "Терминал (Ctrl+`)")
@@ -135,11 +140,7 @@ class ActivityBar(QtWidgets.QFrame):
 
     def _button(self, icon_name, tooltip):
         button = QtWidgets.QToolButton(self)
-        if icon_name == "ai-agent":
-            # Dedicated vector glyph for the assistant (drawn, not a font icon).
-            button.setIcon(codicons.ai_icon(ICON_SIZE, "#868686"))
-        else:
-            button.setIcon(codicons.codicon_icon(icon_name, ICON_SIZE, "#868686"))
+        button.setIcon(self._icon_for(icon_name, "#868686"))
         button.setIconSize(QtCore.QSize(ICON_SIZE, ICON_SIZE))
         button.setToolTip(tooltip)
         button.setFixedSize(ITEM_SIZE, ITEM_SIZE)
@@ -171,6 +172,20 @@ class ActivityBar(QtWidgets.QFrame):
         size = size or ICON_SIZE
         if name == "ai-agent":
             return codicons.ai_icon(size, color)
+        if name == "browser-globe":
+            pixmap = QtGui.QPixmap(size * 2, size * 2)
+            pixmap.setDevicePixelRatio(2)
+            pixmap.fill(QtCore.Qt.transparent)
+            painter = QtGui.QPainter(pixmap)
+            painter.setRenderHint(QtGui.QPainter.Antialiasing)
+            painter.setPen(QtGui.QPen(QtGui.QColor(color), 1.35))
+            inset = size * 0.16
+            circle = QtCore.QRectF(inset, inset, size - 2 * inset, size - 2 * inset)
+            painter.drawEllipse(circle)
+            painter.drawEllipse(QtCore.QRectF(size * 0.36, inset, size * 0.28, circle.height()))
+            painter.drawLine(QtCore.QLineF(circle.left(), size / 2, circle.right(), size / 2))
+            painter.end()
+            return QtGui.QIcon(pixmap)
         return codicons.codicon_icon(name, size, color)
 
     def _set_hover(self, button, hovering: bool):
@@ -267,9 +282,11 @@ class ActivityBar(QtWidgets.QFrame):
         else:
             self.set_sidebar_active(key)
 
-    def sync_special_state(self, terminal_visible=False, settings_open=False):
+    def sync_special_state(self, terminal_visible=False, settings_open=False, browser_open=None):
         self.set_terminal_active(terminal_visible)
         self.set_settings_active(settings_open)
+        if browser_open is not None:
+            self._update_button_visual(self.browser_button, browser_open)
 
     def set_activity(self, key):
         if key == "settings":
@@ -291,7 +308,7 @@ class ActivityBar(QtWidgets.QFrame):
         self.setFixedWidth(max(36, int(round(ACTIVITY_BAR_WIDTH * factor))))
         item = max(32, int(round(ITEM_SIZE_DEFAULT * factor)))
         icon = max(16, int(round(ICON_SIZE_DEFAULT * factor)))
-        for button in list(self.buttons.values()) + [self.terminal_button, self.settings_button]:
+        for button in list(self.buttons.values()) + [self.browser_button, self.terminal_button, self.settings_button]:
             button.setFixedSize(item, item)
             button.setIconSize(QtCore.QSize(icon, icon))
             name = button.property("iconName")

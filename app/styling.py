@@ -159,6 +159,8 @@ def _load_design_qss(base_path: Path) -> str:
             "@glass_hover@": tint(0.14),
             "@glass_menu@": tint(0.025),
             "@glass_text@": foreground.name(),
+            "@markdown_paper@": tint(0.075),
+            "@markdown_text@": tint(0.83),
             "@glass_focus@": colors.get("accent_color", "#0078D4"),
         }
         for token, value in glass_tokens.items():

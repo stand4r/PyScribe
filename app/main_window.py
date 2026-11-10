@@ -868,19 +868,14 @@ class ModernMainWindow(QMainWindow):
         self.file_explorer.open_file_requested.connect(self.file_manager.open_file)
         if hasattr(self.file_explorer, 'preview_markdown_requested'):
             self.file_explorer.preview_markdown_requested.connect(self.file_manager.open_markdown_file)
-        if hasattr(self.file_explorer, 'open_table_requested'):
-            self.file_explorer.open_table_requested.connect(self.file_manager.open_table_file)
-        if hasattr(self.file_explorer, 'open_hex_requested'):
-            self.file_explorer.open_hex_requested.connect(self.file_manager.open_binary_file)
         if hasattr(self.file_explorer, 'open_text_requested'):
             self.file_explorer.open_text_requested.connect(self.file_manager.open_text_editor)
-        if hasattr(self.file_explorer, 'open_pdf_requested'):
-            self.file_explorer.open_pdf_requested.connect(self.file_manager.open_pdf_file)
         # Explorer header buttons are connected exactly once in UIManager
         # (_setup_explorer_panel); connecting them here again opened two dialogs.
 
         self.activity_bar.activity_changed.connect(self._handle_activity)
         self.activity_bar.terminal_requested.connect(self.toggle_terminal)
+        self.activity_bar.browser_requested.connect(self.action_open_browser)
 
         self.auto_save_timer = QTimer()
         self.auto_save_timer.timeout.connect(self.auto_save)
@@ -892,9 +887,8 @@ class ModernMainWindow(QMainWindow):
     def _install_global_shortcuts(self):
         """Install robust application-level keyboard shortcuts across the workbench.
 
-        Important: every key sequence must be unique here. Qt only dispatches to
-        the *last* shortcut registered for a duplicate sequence, so duplicates
-        silently kill functionality (previously F1 was bound twice).
+        Keep editor and viewer shortcuts in their own widgets. Qt treats
+        overlapping shortcuts as ambiguous even when their contexts differ.
         """
         shortcuts = [
             ("Ctrl+N", self.action_new_file),
@@ -915,21 +909,12 @@ class ModernMainWindow(QMainWindow):
             ("Ctrl+Z", self.action_undo),
             ("Ctrl+Y", self.action_redo),
             ("Ctrl+Shift+Z", self.action_redo),
-            ("Ctrl+F", self._trigger_find),
-            ("Ctrl+H", self._trigger_replace),
             ("Ctrl+Shift+F", self._focus_search),
             ("Ctrl+A", self.action_select_all),
             ("Ctrl+X", self.action_cut),
             ("Ctrl+C", self.action_copy),
             ("Ctrl+V", self.action_paste),
             ("F2", self.action_rename_symbol),
-            ("Ctrl+=", self.action_zoom_in),
-            ("Ctrl++", self.action_zoom_in),
-            ("Ctrl+-", self.action_zoom_out),
-            ("Ctrl+_", self.action_zoom_out),
-            ("Ctrl+0", self.action_reset_zoom),
-            ("Ctrl+Shift+K", self.action_delete_line),
-            ("Alt+Z", self.action_toggle_word_wrap),
             # Accessibility: whole-workbench scaling.
             ("Ctrl+Alt+=", self.action_zoom_interface_in),
             ("Ctrl+Alt++", self.action_zoom_interface_in),
@@ -1867,6 +1852,27 @@ class ModernMainWindow(QMainWindow):
             args_window = ArgsWindow(Path(file_path).name, str(file_path), language)
             args_window.show()
 
+    def action_open_browser(self):
+        existing = self._find_special_tab("browser")
+        if existing:
+            group, index = existing
+            self._set_active_group(group)
+            group.setCurrentIndex(index)
+            group.widget(index).focus_entry()
+            self._sync_special_activity()
+            return
+        try:
+            from widgets.WebBrowserWidget import WebBrowserWidget
+            browser = WebBrowserWidget(self)
+        except ImportError:
+            CustomDialog("Для встроенного браузера установите PyQtWebEngine.").exec_()
+            return
+        group = self.active_tab_widget
+        index = group.addTab(browser, "Браузер")
+        group.setCurrentIndex(index)
+        browser.focus_entry()
+        self._sync_special_activity()
+
     def _find_special_tab(self, kind: str):
         """Выполняет поиск и возвращает special tab.
 
@@ -1943,15 +1949,10 @@ class ModernMainWindow(QMainWindow):
         settings_window = SettingsWidget(
             self.app_manager.settings, str(self.app_manager.base_path), self
         )
-        scroll = QtWidgets.QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
-        scroll.setObjectName("settingsScroll")
-        scroll.setWidget(settings_window)
-        scroll.setProperty("pyscribeSpecial", "settings")
-        index = self.active_tab_widget.addTab(scroll, "Параметры")
+        settings_window.setProperty("pyscribeSpecial", "settings")
+        index = self.active_tab_widget.addTab(settings_window, "Настройки")
         self.active_tab_widget.setCurrentIndex(index)
-        self._settings_tab = scroll
+        self._settings_tab = settings_window
         self._sync_special_activity()
 
     def action_open_documentation(self):
@@ -2075,7 +2076,10 @@ class ModernMainWindow(QMainWindow):
         if editor:
             file_path = getattr(editor, 'file_path', None)
             if file_path and Path(file_path).suffix.lower() in {'.md', '.markdown'}:
-                self.file_manager.open_markdown_file(str(file_path))
+                source = getattr(editor, "editor", editor)
+                if not isinstance(source, (QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit)):
+                    source = None
+                self.file_manager.open_markdown_file(str(file_path), source=source)
                 return
             content = ""
             if hasattr(editor, "get_code"):
@@ -2087,6 +2091,9 @@ class ModernMainWindow(QMainWindow):
             if content:
                 from widgets.MarkdownViewerWidget import MarkdownViewerWidget
                 viewer = MarkdownViewerWidget(content=content, parent=self)
+                source = getattr(editor, "editor", editor)
+                if isinstance(source, (QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit)):
+                    viewer.bind_source(source)
                 index = self.active_tab_widget.addTab(viewer, "Предпросмотр Markdown")
                 self.active_tab_widget.setCurrentIndex(index)
                 return
@@ -2443,6 +2450,8 @@ class ModernMainWindow(QMainWindow):
             self._extensions_tab = None
 
         self.active_tab_widget.removeTab(index)
+        if isinstance(editor, DocumentViewerWidget) or editor.property("pyscribeSpecial") == "browser":
+            editor.deleteLater()
         self.recalculate_unsaved_count()
         self.save_current_session()
         self._sync_special_activity()
@@ -2858,7 +2867,10 @@ class ModernMainWindow(QMainWindow):
         if hasattr(self, "activity_bar"):
             self.activity_bar.sync_special_state(
                 terminal_visible=self.terminal_visible,
-                settings_open=settings_open
+                settings_open=settings_open,
+                browser_open=any(group.currentWidget() is not None and
+                                 group.currentWidget().property("pyscribeSpecial") == "browser"
+                                 for group in self.editor_groups()),
             )
 
     def _remove_special_tab_from_group(self, group, kind: str):
@@ -2920,10 +2932,10 @@ class ModernMainWindow(QMainWindow):
         if widget is None:
             return True
         prop = getattr(widget, "property", None)
-        if prop and prop("pyscribeSpecial") in {"welcome", "settings", "extensions"}:
+        if prop and prop("pyscribeSpecial") in {"welcome", "settings", "extensions", "browser"}:
             return True
         cname = widget.__class__.__name__
-        if cname in {"Ui_Welcome", "SettingsWidget", "DocumentViewerWidget", "HexViewer", "MarkdownViewerWidget", "PDFViewerWidget", "TableViewerWidget"}:
+        if cname in {"Ui_Welcome", "SettingsWidget", "DocumentViewerWidget", "HexViewer", "MarkdownViewerWidget", "DiagramViewerWidget", "PDFViewerWidget", "TableViewerWidget"}:
             return True
         fp = getattr(widget, "file_path", None)
         if not fp:

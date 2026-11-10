@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import fitz
+from design.icons import set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 __all__ = ["PDFViewerWidget"]
@@ -357,17 +358,17 @@ class PDFViewerWidget(QtWidgets.QWidget):
         row.setSpacing(3)
 
         # TOC Toggle button
-        self.toc_btn = self._tool_button("☰", "Оглавление документа")
+        self.toc_btn = self._tool_button("outline", "Оглавление документа")
         self.toc_btn.setCheckable(True)
         self.toc_btn.toggled.connect(self._toggle_outline)
         row.addWidget(self.toc_btn)
 
         row.addWidget(self._separator())
 
-        self.first_btn = self._tool_button("«", "Первая страница (Home)")
+        self.first_btn = self._tool_button("first", "Первая страница (Home)")
         self.first_btn.clicked.connect(self.first_page)
         row.addWidget(self.first_btn)
-        self.prev_btn = self._tool_button("◀", "Предыдущая страница (Page Up)")
+        self.prev_btn = self._tool_button("back", "Предыдущая страница (Page Up)")
         self.prev_btn.clicked.connect(self.previous_page)
         row.addWidget(self.prev_btn)
 
@@ -384,16 +385,16 @@ class PDFViewerWidget(QtWidgets.QWidget):
         self.total_label.setObjectName("pdfTotal")
         row.addWidget(self.total_label)
 
-        self.next_btn = self._tool_button("▶", "Следующая страница (Page Down)")
+        self.next_btn = self._tool_button("forward", "Следующая страница (Page Down)")
         self.next_btn.clicked.connect(self.next_page)
         row.addWidget(self.next_btn)
-        self.last_btn = self._tool_button("»", "Последняя страница (End)")
+        self.last_btn = self._tool_button("last", "Последняя страница (End)")
         self.last_btn.clicked.connect(self.last_page)
         row.addWidget(self.last_btn)
 
         row.addWidget(self._separator())
 
-        self.zoom_out_btn = self._tool_button("−", "Уменьшить (Ctrl+−)")
+        self.zoom_out_btn = self._tool_button("minus", "Уменьшить (Ctrl+−)")
         self.zoom_out_btn.clicked.connect(self.zoom_out)
         row.addWidget(self.zoom_out_btn)
 
@@ -407,30 +408,30 @@ class PDFViewerWidget(QtWidgets.QWidget):
         self.zoom_combo.currentIndexChanged.connect(self._zoom_combo_changed)
         row.addWidget(self.zoom_combo)
 
-        self.zoom_in_btn = self._tool_button("+", "Увеличить (Ctrl+=)")
+        self.zoom_in_btn = self._tool_button("add", "Увеличить (Ctrl+=)")
         self.zoom_in_btn.clicked.connect(self.zoom_in)
         row.addWidget(self.zoom_in_btn)
 
-        self.fit_width_btn = self._tool_button("↔", "По ширине окна (Ctrl+1)")
+        self.fit_width_btn = self._tool_button("fit-width", "По ширине окна (Ctrl+1)")
         self.fit_width_btn.clicked.connect(lambda: self.set_fit("width"))
         row.addWidget(self.fit_width_btn)
 
-        self.fit_page_btn = self._tool_button("⤢", "Вся страница (Ctrl+0)")
+        self.fit_page_btn = self._tool_button("fit-page", "Вся страница (Ctrl+0)")
         self.fit_page_btn.clicked.connect(lambda: self.set_fit("page"))
         row.addWidget(self.fit_page_btn)
 
-        self.rotate_btn = self._tool_button("⟳", "Повернуть на 90° (Ctrl+R)")
+        self.rotate_btn = self._tool_button("rotate", "Повернуть на 90° (Ctrl+R)")
         self.rotate_btn.clicked.connect(self.rotate_page)
         row.addWidget(self.rotate_btn)
 
         # Invert colors (night mode)
-        self.invert_btn = self._tool_button("🌓", "Инвертировать цвета (ночной режим)")
+        self.invert_btn = self._tool_button("moon", "Инвертировать цвета (ночной режим)")
         self.invert_btn.setCheckable(True)
         self.invert_btn.toggled.connect(self._toggle_invert)
         row.addWidget(self.invert_btn)
 
         # Text extraction
-        self.text_btn = self._tool_button("📄", "Текст страницы (просмотр и копирование)")
+        self.text_btn = self._tool_button("document", "Текст страницы (просмотр и копирование)")
         self.text_btn.clicked.connect(self.show_page_text_dialog)
         row.addWidget(self.text_btn)
 
@@ -445,12 +446,12 @@ class PDFViewerWidget(QtWidgets.QWidget):
         self.search_edit.textChanged.connect(self._on_search_text)
         row.addWidget(self.search_edit)
 
-        self.search_next_btn = self._tool_button("▾", "Следующее совпадение")
+        self.search_next_btn = self._tool_button("down", "Следующее совпадение")
         self.search_next_btn.clicked.connect(self.next_match)
         self.search_next_btn.setVisible(False)
         row.addWidget(self.search_next_btn)
 
-        self.search_prev_btn = self._tool_button("▴", "Предыдущее совпадение")
+        self.search_prev_btn = self._tool_button("up", "Предыдущее совпадение")
         self.search_prev_btn.clicked.connect(self.previous_match)
         self.search_prev_btn.setVisible(False)
         row.addWidget(self.search_prev_btn)
@@ -458,10 +459,11 @@ class PDFViewerWidget(QtWidgets.QWidget):
         return bar
 
     @staticmethod
-    def _tool_button(text: str, tooltip: str) -> QtWidgets.QToolButton:
+    def _tool_button(icon: str, tooltip: str) -> QtWidgets.QToolButton:
         button = QtWidgets.QToolButton()
         button.setObjectName("pdfTool")
-        button.setText(text)
+        set_line_icon(button, icon)
+        button.setAccessibleName(tooltip)
         button.setToolTip(tooltip)
         button.setCursor(QtCore.Qt.PointingHandCursor)
         button.setFocusPolicy(QtCore.Qt.NoFocus)

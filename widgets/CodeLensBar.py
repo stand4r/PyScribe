@@ -16,6 +16,7 @@ import os
 import re
 from typing import List, Tuple, Optional, Dict, Any
 
+from design.icons import line_icon, set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint
 from PyQt5.QtWidgets import (
@@ -574,7 +575,8 @@ class CodeLensBar(QFrame):
         # 1. Breadcrumbs: File
         self.file_btn = QToolButton()
         self.file_btn.setProperty("class", "lensCrumbBtn")
-        self.file_btn.setText("📄 Файл")
+        self.file_btn.setText("Файл")
+        set_line_icon(self.file_btn, "document", 14)
         self.file_btn.setToolTip("Текущий файл. Нажмите для структуры символов (Outline).")
         self.file_btn.clicked.connect(self._show_outline_menu)
         layout.addWidget(self.file_btn)
@@ -621,11 +623,11 @@ class CodeLensBar(QFrame):
         layout.addWidget(self.preview_btn)
 
         # 3. Syntax Status Chip
-        self.syntax_badge = QLabel("✓ Синтаксис ОК")
-        self.syntax_badge.setObjectName("syntaxStatusGood")
+        self.syntax_badge = QToolButton()
+        self._set_syntax_badge("Синтаксис ОК")
         self.syntax_badge.setCursor(Qt.PointingHandCursor)
         self.syntax_badge.setToolTip("Статус синтаксиса Python. Нажмите, чтобы открыть компактную структуру (Outline) или перейти к ошибке.")
-        self.syntax_badge.mousePressEvent = self._on_syntax_badge_clicked
+        self.syntax_badge.clicked.connect(self._on_syntax_badge_clicked)
         layout.addWidget(self.syntax_badge)
 
         layout.addSpacing(6)
@@ -689,19 +691,8 @@ class CodeLensBar(QFrame):
         self.docstring_btn.hide()
 
     def _split_icon(self, orientation):
-        pixmap = QtGui.QPixmap(32, 32)
-        pixmap.setDevicePixelRatio(2)
-        pixmap.fill(Qt.transparent)
-        painter = QtGui.QPainter(pixmap)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        painter.setPen(QtGui.QPen(self.palette().color(QtGui.QPalette.WindowText), 1))
-        painter.drawRoundedRect(QtCore.QRectF(1.5, 2.5, 13, 11), 1, 1)
-        if orientation == Qt.Horizontal:
-            painter.drawLine(8, 3, 8, 13)
-        elif orientation == Qt.Vertical:
-            painter.drawLine(2, 8, 14, 8)
-        painter.end()
-        return QtGui.QIcon(pixmap)
+        name = "split-right" if orientation == Qt.Horizontal else "split-down" if orientation == Qt.Vertical else "unsplit"
+        return line_icon(name)
 
     def _on_split_clicked(self, orientation):
         window = getattr(self.modern_editor, 'main_window', None) or self.window()
@@ -840,9 +831,9 @@ class CodeLensBar(QFrame):
         if pattern_key != 'py':
             if open_braces > 0 and brace_stack:
                 unclosed_line = brace_stack[-1][0]
-                syntax_error = {'line': unclosed_line, 'text': f"⚠ Незакрытая скобка {{ (стр. {unclosed_line})"}
+                syntax_error = {'line': unclosed_line, 'text': f"Незакрытая скобка {{ (стр. {unclosed_line})"}
             elif open_braces < 0:
-                syntax_error = {'line': first_unmatched_close or 1, 'text': f"⚠ Лишняя скобка }} (стр. {first_unmatched_close or 1})"}
+                syntax_error = {'line': first_unmatched_close or 1, 'text': f"Лишняя скобка }} (стр. {first_unmatched_close or 1})"}
 
         return symbols, syntax_error
 
@@ -854,7 +845,7 @@ class CodeLensBar(QFrame):
         # 1. Update file label
         filepath = getattr(self.modern_editor, 'file_path', None)
         filename = os.path.basename(filepath) if filepath else "Без имени"
-        self.file_btn.setText(f"📄 {filename}  ")
+        self.file_btn.setText(filename)
 
         # 1b. Markdown gets a preview action in the lens row; hidden otherwise.
         lang = self._detect_language()
@@ -920,9 +911,7 @@ class CodeLensBar(QFrame):
         self._syntax_error_line = None
 
         if not code.strip():
-            self.syntax_badge.setText("✓ Синтаксис")
-            self.syntax_badge.setObjectName("syntaxStatusGood")
-            self.syntax_badge.setStyleSheet("")
+            self._set_syntax_badge("Синтаксис")
             return
 
         lang = self._detect_language()
@@ -931,9 +920,7 @@ class CodeLensBar(QFrame):
         if is_python:
             try:
                 tree = ast.parse(code)
-                self.syntax_badge.setText("✓ Python ОК")
-                self.syntax_badge.setObjectName("syntaxStatusGood")
-                self.syntax_badge.setStyleSheet("")
+                self._set_syntax_badge("Python ОК")
 
                 for node in ast.walk(tree):
                     if isinstance(node, ast.ClassDef):
@@ -950,9 +937,7 @@ class CodeLensBar(QFrame):
 
             except SyntaxError as exc:
                 self._syntax_error_line = exc.lineno or 1
-                self.syntax_badge.setText(f"⚠ Синтаксис: строка {self._syntax_error_line}")
-                self.syntax_badge.setObjectName("syntaxStatusErr")
-                self.syntax_badge.setStyleSheet("")
+                self._set_syntax_badge(f"Синтаксис: строка {self._syntax_error_line}", error=True)
                 # Generic fallback so outline and navigation work even during syntax errors
                 generic_syms, _ = self._parse_generic_symbols_with_status(code, 'py')
                 self._symbols = generic_syms
@@ -963,19 +948,21 @@ class CodeLensBar(QFrame):
             self._symbols, syntax_err = self._parse_generic_symbols_with_status(code, lang)
             if syntax_err:
                 self._syntax_error_line = syntax_err.get('line', 1)
-                self.syntax_badge.setText(syntax_err.get('text', f"⚠ Скобки: строка {self._syntax_error_line}"))
-                self.syntax_badge.setObjectName("syntaxStatusErr")
-                self.syntax_badge.setStyleSheet("")
+                self._set_syntax_badge(syntax_err["text"], error=True)
                 self.syntax_badge.setToolTip("Обнаружен дисбаланс фигурных скобок.")
             else:
                 # Only Python gets a real parser; other languages are checked
                 # for balanced braces, so do not claim full validation.
-                self.syntax_badge.setText(f"{lang.upper()} · скобки OK")
-                self.syntax_badge.setObjectName("syntaxStatusGood")
-                self.syntax_badge.setStyleSheet("")
+                self._set_syntax_badge(f"{lang.upper()} · скобки OK")
                 self.syntax_badge.setToolTip("Проверен баланс фигурных скобок (полный разбор доступен для Python).")
 
-    def _on_syntax_badge_clicked(self, event):
+    def _set_syntax_badge(self, text, *, error=False):
+        self.syntax_badge.setText(text)
+        self.syntax_badge.setObjectName("syntaxStatusErr" if error else "syntaxStatusGood")
+        self.syntax_badge.setStyleSheet("")
+        set_line_icon(self.syntax_badge, "warning" if error else "check", size=12)
+
+    def _on_syntax_badge_clicked(self):
         if self._syntax_error_line:
             self._jump_to_line(self._syntax_error_line)
         else:

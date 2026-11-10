@@ -1,5 +1,6 @@
 """PyScribe widgets/RunDebugPanel.py: application module and reusable component."""
 from pathlib import Path
+from design.icons import set_line_icon
 from PyQt5 import QtCore, QtWidgets
 
 
@@ -53,7 +54,7 @@ class RunDebugPanel(QtWidgets.QWidget):
         title_row.addWidget(title)
         title_row.addStretch()
         self.refresh_button = QtWidgets.QToolButton()
-        self.refresh_button.setText("↻")
+        set_line_icon(self.refresh_button, "reload")
         self.refresh_button.setToolTip("Обновить цели запуска")
         self.refresh_button.clicked.connect(self.refresh)
         title_row.addWidget(self.refresh_button)

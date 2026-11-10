@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 DEFAULT_SETTINGS = {
+    "browser_search_engine": "duckduckgo",
+    "browser_default_profile": "standard",
     "theme": "midnight",
     "accent_color": "#5EA6FF",
     "app_background": "#0F141A",

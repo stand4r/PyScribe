@@ -173,6 +173,7 @@ def open_external_target(window, argument) -> str:
 def main():
     """PyScribe main entry function."""
     _set_windows_app_identity()
+    QApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
 
     if getattr(sys, "frozen", False):

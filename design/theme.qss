@@ -88,7 +88,7 @@ QToolButton:checked { background: #37373D; color: #FFFFFF; }
 QToolButton:disabled { color: #5A5A5A; }
 
 /* Top bar menu buttons: exactly as VS Code (30px strip, 24px hits). */
-QFrame#workbenchTopBar QToolButton {
+QToolButton#workbenchMenuButton {
     min-height: 24px;
     max-height: 24px;
     padding: 0 8px;
@@ -100,8 +100,6 @@ QFrame#workbenchTopBar QToolButton {
 /* Native window controls (min / max / close) */
 QToolButton#windowControl,
 QToolButton#windowClose {
-    min-width: 46px; max-width: 46px;
-    min-height: 30px; max-height: 30px;
     padding: 0; margin: 0;
     background: transparent;
     border: 0;
@@ -386,7 +384,7 @@ QLabel[class="lensDivider"] {
     background: transparent;
 }
 QLabel#editorCenterStatus { color: #9D9D9D; font-size: 12px; }
-QLabel#syntaxStatusGood {
+QToolButton#syntaxStatusGood {
     color: #4EC9B0;
     font-size: 12px;
     padding: 0 6px;
@@ -396,7 +394,7 @@ QLabel#syntaxStatusGood {
     min-height: 18px;
     max-height: 18px;
 }
-QLabel#syntaxStatusErr {
+QToolButton#syntaxStatusErr {
     color: #F14C4C;
     font-size: 12px;
     padding: 0 6px;
@@ -1516,4 +1514,223 @@ QLabel#pdfStatus {
     padding: 3px 10px;
     border-top: 1px solid @glass_border@;
     background: @glass_menu@;
+}
+
+QLabel#markdownTitle {
+    font-size: 15px;
+    font-weight: 600;
+    color: @glass_text@;
+}
+QWidget#markdownViewer QToolButton {
+    background: @glass_surface@;
+    border: 1px solid @glass_border@;
+    border-radius: 8px;
+    padding: 3px 8px;
+    color: @glass_text@;
+}
+QWidget#markdownViewer QToolButton:hover,
+QWidget#markdownViewer QToolButton:checked {
+    background: @glass_hover@;
+}
+QTextBrowser#markdownBrowser,
+QTreeWidget#markdownOutline {
+    background: @glass_surface@;
+    color: @glass_text@;
+    border: 1px solid @glass_border@;
+    border-radius: 10px;
+}
+QTextBrowser#markdownBrowser {
+    background: @markdown_paper@;
+    color: @markdown_text@;
+}
+QTreeWidget#markdownOutline::item {
+    min-height: 25px;
+    padding: 0 4px;
+}
+QTreeWidget#markdownOutline::item:selected {
+    background: @glass_hover@;
+    color: @glass_text@;
+}
+
+
+QScrollArea#browserHomeScroll {
+    border: none;
+}
+QLineEdit#browserHomeSearch {
+    background: #f4f6f7;
+    color: #263741;
+    border: 2px solid #d8e2e5;
+    border-radius: 25px;
+    min-height: 38px;
+    max-height: 38px;
+    padding: 5px 14px;
+    font-size: 16px;
+}
+QLineEdit#browserHomeSearch:focus { border-color: #85b3c6; }
+QToolButton#browserShortcutTile {
+    background: transparent;
+    color: #edf4f7;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 4px;
+}
+QToolButton#browserShortcutTile:hover,
+QToolButton#browserShortcutTile:focus {
+    background: rgba(25, 49, 61, 135);
+    border-color: rgba(212, 231, 238, 90);
+}
+QTabBar#browserTabs::tab {
+    background: @glass_surface@;
+    color: @glass_text@;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    margin: 0 3px 0 0;
+    padding: 0 10px;
+    min-width: 74px;
+    max-width: 175px;
+    min-height: 28px;
+    max-height: 28px;
+}
+QTabBar#browserTabs::tab:selected {
+    background: @glass_hover@;
+    border-color: @glass_border@;
+}
+QLineEdit#browserAddress {
+    background: #242424;
+    color: @glass_text@;
+    border: 1px solid @glass_border@;
+    border-radius: 10px;
+    padding: 5px 10px;
+}
+QLineEdit#browserAddress:focus { border-color: @glass_focus@; }
+QToolButton#browserAction {
+    background: @glass_surface@;
+    color: @glass_text@;
+    border: 1px solid @glass_border@;
+    border-radius: 8px;
+    min-height: 26px;
+    min-width: 24px;
+    padding: 2px 6px;
+}
+QToolButton#browserAction:hover { background: @glass_hover@; }
+
+QToolButton#browserNav {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    min-width: 28px;
+    min-height: 27px;
+    padding: 2px;
+}
+QToolButton#browserNav:hover {
+    background: @glass_hover@;
+    border-color: @glass_border@;
+}
+
+QToolButton#browserProfile {
+    background: @glass_surface@;
+    color: @glass_text@;
+    border: 1px solid @glass_border@;
+    border-radius: 14px;
+    min-height: 27px;
+    padding: 2px 10px 2px 7px;
+}
+QToolButton#browserProfile:hover, QToolButton#browserProfile:open {
+    background: @glass_hover@;
+    border-color: @glass_focus@;
+}
+QToolButton#browserProfile::menu-indicator { width: 9px; subcontrol-position: right center; }
+QMenu#browserProfileMenu { min-width: 178px; }
+
+/* Settings workbench: navigation and actions frame the scrolling section. */
+QWidget#settingsWorkbench {
+    background: #181818;
+}
+QLabel#settingsTitle {
+    font-size: 23px;
+    font-weight: 600;
+    color: @glass_text@;
+    padding: 3px 0;
+}
+QListWidget#settingsNavigation,
+QStackedWidget#settingsPages,
+QFrame#settingsFooter {
+    background: @glass_surface@;
+    border: 1px solid @glass_border@;
+    border-radius: 10px;
+}
+QListWidget#settingsNavigation {
+    color: @glass_text@;
+    padding: 5px;
+    outline: 0;
+}
+QListWidget#settingsNavigation::item {
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 7px;
+}
+QListWidget#settingsNavigation::item:disabled {
+    color: #A8A8A8;
+    font-size: 10px;
+    padding-top: 9px;
+}
+QListWidget#settingsNavigation::item:selected,
+QListWidget#settingsNavigation::item:hover:enabled {
+    background: @glass_hover@;
+    color: @glass_text@;
+}
+QScrollArea#settingsPageScroll,
+QWidget#settingsPageContent {
+    background: @glass_surface@;
+    border: none;
+}
+QLabel#settingsPageTitle {
+    color: @glass_text@;
+    font-weight: 600;
+    font-size: 19px;
+}
+QLabel#settingsSectionTitle {
+    color: @glass_text@;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 1px solid @glass_border@;
+    padding: 8px 0 4px;
+}
+QWidget#settingsWorkbench QLabel#settingsHint {
+    color: #A8A8A8;
+    font-size: 12px;
+}
+QFrame#settingsFooter QPushButton {
+    min-height: 30px;
+    padding: 2px 16px;
+}
+
+QWidget#workbenchMenuStrip { background: transparent; }
+QToolButton#workbenchMenuButton {
+    background: transparent;
+    color: @glass_text@;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 0 6px;
+}
+QToolButton#workbenchMenuButton:hover,
+QToolButton#workbenchMenuButton:open {
+    background: @glass_hover@;
+    border-color: @glass_border@;
+}
+QToolButton#workbenchMenuButton::menu-indicator { image: none; width: 0; }
+QFrame#omniSearchPill {
+    background: @glass_surface@;
+    border: 1px solid @glass_border@;
+    border-radius: 8px;
+}
+QFrame#omniSearchPill:hover { background: @glass_hover@; }
+QLabel#omniSearchPrompt { background: transparent; color: #A8A8A8; }
+QMenu#workbenchPopup::item { padding: 5px 16px; }
+QLabel#workbenchMenuSection {
+    background: transparent;
+    color: #A8A8A8;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 16px 2px;
 }

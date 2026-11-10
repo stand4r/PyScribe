@@ -20,6 +20,7 @@ import struct
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
+from design.icons import set_line_icon
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
@@ -385,13 +386,13 @@ class HexViewer(QtWidgets.QWidget):
 
         # Search buttons
         self.prev_btn = QtWidgets.QToolButton()
-        self.prev_btn.setText("▴")
+        set_line_icon(self.prev_btn, "up")
         self.prev_btn.setToolTip("Предыдущее совпадение")
         self.prev_btn.clicked.connect(self._find_prev)
         t_layout.addWidget(self.prev_btn)
 
         self.next_btn = QtWidgets.QToolButton()
-        self.next_btn.setText("▾")
+        set_line_icon(self.next_btn, "down")
         self.next_btn.setToolTip("Следующее совпадение")
         self.next_btn.clicked.connect(self._find_next)
         t_layout.addWidget(self.next_btn)
@@ -411,7 +412,8 @@ class HexViewer(QtWidgets.QWidget):
 
         # Copy format menu
         self.copy_btn = QtWidgets.QToolButton()
-        self.copy_btn.setText("Копировать ▾")
+        self.copy_btn.setText("Копировать")
+        set_line_icon(self.copy_btn, "copy")
         self.copy_btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
         copy_menu = QtWidgets.QMenu(self.copy_btn)
         act_hex = copy_menu.addAction("Копировать HEX (4D 5A…)")
@@ -427,13 +429,13 @@ class HexViewer(QtWidgets.QWidget):
 
         # Font zoom
         self.zoom_in_btn = QtWidgets.QToolButton()
-        self.zoom_in_btn.setText("+")
+        set_line_icon(self.zoom_in_btn, "add")
         self.zoom_in_btn.setToolTip("Увеличить шрифт (Ctrl+=)")
         self.zoom_in_btn.clicked.connect(self.add_font_size)
         t_layout.addWidget(self.zoom_in_btn)
 
         self.zoom_out_btn = QtWidgets.QToolButton()
-        self.zoom_out_btn.setText("−")
+        set_line_icon(self.zoom_out_btn, "minus")
         self.zoom_out_btn.setToolTip("Уменьшить шрифт (Ctrl+−)")
         self.zoom_out_btn.clicked.connect(self.pop_font_size)
         t_layout.addWidget(self.zoom_out_btn)

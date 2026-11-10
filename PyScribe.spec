@@ -20,6 +20,7 @@ hiddenimports = [
     "PyQt5.QtGui",
     "PyQt5.QtWidgets",
     "PyQt5.QtPrintSupport",
+    "PyQt5.QtWebEngineWidgets",
     "PyQt5.sip",
     # System and Process inspection
     "psutil",
