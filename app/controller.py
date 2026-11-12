@@ -50,8 +50,3 @@ class WorkbenchController:
 
     def run_tests(self):
         self.window.run_tests()
-
-    def project_opened(self, project):
-        if project:
-            self.announce(f"Проект открыт: {project.name}")
-            self.announce(f"Рабочая область: {project.root_path}")

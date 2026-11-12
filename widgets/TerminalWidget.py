@@ -180,11 +180,11 @@ class InteractiveTerminalEdit(QtWidgets.QTextEdit):
         self._history_restore_cursor = False
         self.setUndoRedoEnabled(False)
         self.setAcceptRichText(True)
-        self.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
+        self.setLineWrapMode(QtWidgets.QTextEdit.WidgetWidth)
         self.setObjectName("terminalScreen")
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setWordWrapMode(QtGui.QTextOption.NoWrap)
+        self.setWordWrapMode(QtGui.QTextOption.WrapAtWordBoundaryOrAnywhere)
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._context_menu)
 
@@ -729,7 +729,10 @@ class TerminalTab(QtWidgets.QWidget):
         self._reprompt_retries = 0
         self.shared_history = shared_history if shared_history is not None else []
         self._build()
-        QtCore.QTimer.singleShot(0, self.start_shell)
+        self._start_timer = QtCore.QTimer(self)
+        self._start_timer.setSingleShot(True)
+        self._start_timer.timeout.connect(self.start_shell)
+        self._start_timer.start(0)
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -768,6 +771,9 @@ class TerminalTab(QtWidgets.QWidget):
         layout.setSpacing(0)
         self.screen = InteractiveTerminalEdit(self)
         layout.addWidget(self.screen)
+        from widgets.terminal_output import TerminalOutputControls
+        self.output_controls = TerminalOutputControls(self.screen, self)
+        layout.addWidget(self.output_controls)
 
     def available_commands(self) -> List[str]:
         """Command names available for first-word completion."""
@@ -801,6 +807,15 @@ class TerminalTab(QtWidgets.QWidget):
         cursor.insertText("$ ", self._fmt(color="#D4D4D4"))
 
     def print_prompt(self, initial_text: str = ""):
+        if getattr(self, "_run_process", None) is not None:
+            return
+        with self.output_controls.append():
+            self._render_prompt(initial_text)
+        if self._shell_running() and hasattr(self, "_restored_scroll"):
+            self.screen.verticalScrollBar().setValue(self._restored_scroll)
+            del self._restored_scroll
+
+    def _render_prompt(self, initial_text: str = ""):
         """Render the prompt at the end of the buffer exactly once.
 
         Nothing is drawn until the shell process is actually running, otherwise
@@ -819,6 +834,9 @@ class TerminalTab(QtWidgets.QWidget):
         if self._stdin_is_interpret():
             return
 
+        if hasattr(self, "_restored_draft"):
+            initial_text = self._restored_draft
+            del self._restored_draft
         user, host = self.get_linux_user_host()
         path = self.format_linux_path(self.working_dir)
         prompt_plain = f"{user}@{host}:{path}$ "
@@ -849,11 +867,12 @@ class TerminalTab(QtWidgets.QWidget):
 
         cursor.movePosition(QtGui.QTextCursor.End)
         self._insert_prompt_segments(cursor, user, host, path)
+        prompt_position = cursor.position()
         if initial_text:
             cursor.insertText(initial_text, self.screen.get_input_format())
         self.screen.setTextCursor(cursor)
         self.screen.setCurrentCharFormat(self.screen.get_input_format())
-        self.screen.prompt_pos = self.screen.textCursor().position()
+        self.screen.prompt_pos = prompt_position
         self.screen.ensureCursorVisible()
 
     def _last_line_is_empty_prompt(self, full_text: str, prompt_plain: str) -> bool:
@@ -926,6 +945,7 @@ class TerminalTab(QtWidgets.QWidget):
                     "export PYTHONIOENCODING=utf-8")
         if IS_WINDOWS and self._stdin_is_powershell():
             return (
+                "[Console]::InputEncoding=[System.Text.Encoding]::UTF8;"
                 "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;"
                 "$OutputEncoding=[System.Text.Encoding]::UTF8;"
                 "$global:LASTEXITCODE=0;"
@@ -1069,15 +1089,11 @@ class TerminalTab(QtWidgets.QWidget):
         self._schedule_prompt(220)
 
     def _suppress_echo(self, script: str):
-        """Remember the init line so it is not rendered as user-typed text.
-
-        The filter is *count based* (`_init_echo_pending` completed lines), not
-        content based: matching on content also matched the user's own command
-        echo (``[Console]::OutputEncoding=...``) and swallowed real output.
-        """
+        """Remember the exact startup command echoed by some shells."""
         if not script.strip():
             return
         self._init_echo_pending = 1
+        self._init_echo_text = script.strip()
         self._init_echo_deadline = time.monotonic() + 6.0
         timer = getattr(self, "_init_echo_timer", None)
         if timer is not None:
@@ -1151,10 +1167,7 @@ class TerminalTab(QtWidgets.QWidget):
     def _drop_init_echo(self, text: str) -> str:
         """Remove the echo of the shell init line and internal ``cd`` lines.
 
-        Echo detection is deterministic: the first *complete* line the shell
-        prints after start is its echo of the init line (Windows PowerShell
-        echoes everything it reads from a piped stdin). No content matching and
-        no tail buffering is involved, so user output can never be lost.
+        Only remove a complete line matching the command sent during startup.
         """
         pending = getattr(self, "_init_echo_pending", 0) or 0
         internal = getattr(self, "_internal_sync_lines", 0) or 0
@@ -1168,11 +1181,9 @@ class TerminalTab(QtWidgets.QWidget):
             if pending > 0 and not line.strip():
                 # Blank line produced by the echo itself: harmless, drop it.
                 continue
-            if pending > 0:
-                pending -= 1
-                self._init_echo_pending = pending
-                if pending <= 0:
-                    self._clear_init_echo()
+            if pending > 0 and self._strip_shell_prompt(line).strip() == self._init_echo_text:
+                pending = 0
+                self._clear_init_echo()
                 continue
             if internal > 0 and self._is_internal_sync_line(line):
                 internal -= 1
@@ -1256,6 +1267,14 @@ class TerminalTab(QtWidgets.QWidget):
         return "output"
 
     def _append_colored(self, text, role="output"):
+        start = self.screen.document().lastBlock().position()
+        error = sum(role == "error" or self._role_for_line(line) == "error"
+                    for line in strip_ansi(text).splitlines())
+        with self.output_controls.append(text, error):
+            self._render_colored(text, role)
+            self.output_controls.fold_output(start)
+
+    def _render_colored(self, text, role="output"):
         """Append shell output with per-line semantic colouring (ANSI aware)."""
         if not text:
             return
@@ -1326,6 +1345,10 @@ class TerminalTab(QtWidgets.QWidget):
         return [c for c in out if not (isinstance(c, str) and not c)]
 
     def append_system_line(self, text):
+        with self.output_controls.append(text):
+            self._render_system_line(text)
+
+    def _render_system_line(self, text):
         """Show an IDE-owned terminal line without sending it to the shell."""
         if not text:
             return
@@ -1552,9 +1575,25 @@ class TerminalTab(QtWidgets.QWidget):
         """Start *command* as a dedicated child process and stream its output."""
         self._last_command = command
         self._stop_run_process(kill=True)
-        self.append_system_line(f"▶ {command}")
-
         proc = QtCore.QProcess(self)
+        self._run_process = proc
+        with self.output_controls.append(command + "\n"):
+            cursor = QtGui.QTextCursor(self.screen.document())
+            cursor.movePosition(QtGui.QTextCursor.End)
+            user, host = self.get_linux_user_host()
+            path = self.format_linux_path(self.working_dir)
+            last_line = cursor.block().text()
+            if (cursor.position() == self.screen.prompt_pos
+                    and last_line.startswith(f"{user}@{host}:") and last_line.endswith("$ ")):
+                cursor.movePosition(QtGui.QTextCursor.StartOfBlock, QtGui.QTextCursor.KeepAnchor)
+                cursor.removeSelectedText()
+            elif last_line:
+                cursor.insertBlock()
+            self._insert_prompt_segments(cursor, user, host, path)
+            cursor.insertText(command + "\n", self.screen.get_input_format())
+            self.screen.prompt_pos = cursor.position()
+            self.screen.setTextCursor(cursor)
+            self.screen.ensureCursorVisible()
         proc.setWorkingDirectory(
             str(self.working_dir) if os.path.isdir(str(self.working_dir)) else os.getcwd()
         )
@@ -1584,15 +1623,32 @@ class TerminalTab(QtWidgets.QWidget):
         proc.setInputChannelMode(QtCore.QProcess.ManagedInputChannel)
 
         program, args = self._split_command(command)
-        self._run_process = proc
         self._run_started_at = time.monotonic()
         self._command_running = True
         self._set_busy(True)
-        if program:
+        outside_quotes = re.sub(r'"[^"]*"', "", command)
+        needs_shell = "&&" in outside_quotes or (program and program.lower().endswith((".cmd", ".bat")))
+        if program and needs_shell and IS_WINDOWS:
+            script = QtCore.QTemporaryFile(QtCore.QDir.tempPath() + "/pyscribe-run-XXXXXX.cmd", proc)
+            if not script.open():
+                self.append_system_line("Не удалось создать файл команды запуска.")
+                self._stop_run_process(kill=False)
+                self.mark_command_finished(1)
+                self.print_prompt()
+                return
+            script.write(("@echo off\r\nchcp 65001>nul\r\n" + command + "\r\n").encode("utf-8"))
+            script.close()
+            proc._launch_script = script
+            proc.start(os.environ.get("COMSPEC", "cmd.exe"), ["/d", "/c", script.fileName()])
+        elif program and needs_shell:
+            proc.start("/bin/sh", ["-c", command])
+        elif program:
             proc.start(program, args)
         else:
             self.append_system_line("Не удалось разобрать команду запуска.")
+            self._stop_run_process(kill=False)
             self.mark_command_finished(1)
+            self.print_prompt()
 
     @staticmethod
     def _split_command(command: str):
@@ -1662,7 +1718,9 @@ class TerminalTab(QtWidgets.QWidget):
             return
         if err == QtCore.QProcess.FailedToStart:
             self.append_system_line("Ошибка запуска: программа не найдена или недоступна.")
+            self._stop_run_process(kill=False)
             self.mark_command_finished(1)
+            self.print_prompt()
 
     def _on_run_finished(self, proc, exit_code, exit_status):
         if proc is not self._run_process:
@@ -1731,6 +1789,7 @@ class TerminalTab(QtWidgets.QWidget):
             pass
 
     def clear(self):
+        self.output_controls.reset()
         self.screen.clear()
         self.screen.prompt_pos = 0
 
@@ -1756,6 +1815,7 @@ class TerminalTab(QtWidgets.QWidget):
         self._set_busy(False)
 
     def stop_process(self):
+        self._start_timer.stop()
         self._stop_run_process(kill=True)
         process = self.process
         if process is None:
@@ -1800,7 +1860,95 @@ class TerminalWidget(QtWidgets.QWidget):
         self.current_tab = None
         self._history: List[str] = []
         self._build()
-        self.create_new_tab()
+        self._session_key = None
+        self.restore_session()
+        self._session_timer = QtCore.QTimer(self)
+        self._session_timer.setInterval(10000)
+        self._session_timer.timeout.connect(self.save_session)
+        self._session_timer.start()
+
+    def _session_path(self):
+        from utils.programs import _project_session_file, _state_file
+        path = (_project_session_file(self._session_key) if self._session_key
+                else _state_file("session_standalone.json"))
+        return path.with_name(path.stem + "_terminals.json")
+
+    def save_session(self):
+        import json
+        records = []
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            text = tab.screen.toPlainText()
+            boundary = min(tab.screen.prompt_pos, len(text))
+            records.append({
+                "title": self.tab_widget.tabText(index),
+                "directory": tab.working_dir,
+                "output": text[:boundary][-500000:],
+                "draft": text[boundary:] if not tab._busy else "",
+                "last_command": tab._last_command,
+                "running": tab._busy,
+                "scroll": tab.screen.verticalScrollBar().value(),
+                "shell": tab.shell_program,
+                "shell_args": tab.shell_args,
+            })
+        payload = {"tabs": records, "active": self.tab_widget.currentIndex(),
+                   "history": self._history[-500:]}
+        target = QtCore.QSaveFile(str(self._session_path()))
+        if target.open(QtCore.QIODevice.WriteOnly):
+            target.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+            target.commit()
+
+    def restore_session(self):
+        import json
+        try:
+            payload = json.loads(self._session_path().read_text(encoding="utf-8"))
+            records = payload.get("tabs", [])
+            if not isinstance(records, list):
+                records = []
+            self._history[:] = [x for x in payload.get("history", []) if isinstance(x, str)][-500:]
+        except (OSError, ValueError, AttributeError, TypeError):
+            payload, records = {}, []
+        for record in records[:20]:
+            if not isinstance(record, dict):
+                continue
+            directory = record.get("directory")
+            self.create_new_tab(directory if isinstance(directory, str) and os.path.isdir(directory)
+                                else self._session_key or os.getcwd())
+            tab = self._current()
+            tab.screen.setPlainText(str(record.get("output", ""))[-500000:])
+            tab.screen.prompt_pos = tab.screen.document().characterCount() - 1
+            tab.screen.history = self._history
+            tab._restored_draft = str(record.get("draft", ""))
+            scroll = record.get("scroll", 0)
+            tab._restored_scroll = scroll if isinstance(scroll, int) else 0
+            program, args = record.get("shell"), record.get("shell_args")
+            if isinstance(program, str) and isinstance(args, list) and all(isinstance(x, str) for x in args):
+                tab.shell_program, tab.shell_args = program, args
+            tab._last_command = str(record.get("last_command", ""))
+            self.tab_widget.setTabText(self.tab_widget.currentIndex(), str(record.get("title", tab.title)))
+            if record.get("running"):
+                tab.append_system_line("Предыдущий запуск прерван: " + tab._last_command)
+            tab.append_system_line("\n\n──────── Новая сессия · "
+                                   + time.strftime("%d.%m.%Y %H:%M") + " ────────\n")
+        if not self.tabs:
+            self.create_new_tab(self._session_key)
+        active = payload.get("active", 0)
+        if isinstance(active, int):
+            self.tab_widget.setCurrentIndex(max(0, min(active, self.tab_widget.count() - 1)))
+
+    def switch_session(self, project_path=None):
+        key = os.path.normcase(os.path.abspath(str(project_path))) if project_path else None
+        if key == self._session_key:
+            return
+        self.save_session()
+        for tab in list(self.tabs.values()):
+            tab.stop_process()
+            tab.deleteLater()
+        self.tab_widget.clear()
+        self.tabs.clear()
+        self._history.clear()
+        self._session_key = key
+        self.restore_session()
 
     def show_startup_banner(self):
         """Retained for API compatibility — intentionally does nothing.
@@ -1975,8 +2123,8 @@ class TerminalWidget(QtWidgets.QWidget):
 
         custom_toolchains = {}
         try:
-            from utils.settings_manager import settings_manager
-            custom_toolchains = settings_manager.get_setting("toolchains", {}) or {}
+            from utils.settings_manager import get_settings_manager
+            custom_toolchains = get_settings_manager().get_setting("toolchains", {}) or {}
         except Exception:
             pass
 
@@ -2057,6 +2205,9 @@ class TerminalWidget(QtWidgets.QWidget):
                 tab.screen.apply_terminal_settings()
 
     def shutdown(self):
+        if self.tabs:
+            self.save_session()
+        self._session_timer.stop()
         for tab in list(self.tabs.values()):
             try:
                 tab.stop_process()

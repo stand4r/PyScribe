@@ -80,6 +80,9 @@ CODICONS: Dict[str, int] = {
     "stop": 0xEB47,
     "warning": 0xEA6C,        # triangle with !
     "check": 0xEAB2,          # check mark
+    "checklist": 0xEB79,      # checklist / tasks
+    "tasklist": 0xEB79,
+    "tag": 0xEA85,
     "lightbulb": 0xEA61,
     "sparkle": 0xEBF0,
 }
@@ -247,6 +250,7 @@ _LINE_PATHS = {
     "minus": "M4.5 10h11",
     "close": "M5 5l10 10 M15 5 5 15",
     "reload": "M15.5 8a6 6 0 1 0 .4 4 M15.5 4v4h-4",
+    "refresh": "M15.5 8a6 6 0 1 0 .4 4 M15.5 4v4h-4",
     "home": "M3 9l7-5.5L17 9 M5 8v8h3.5v-4h3v4H15V8",
     "bookmark": "M5.5 3.5h9V16L10 13l-4.5 3z",
     "external": "M9 5H4v11h11v-5 M11 3.5h5.5V9 M9 11l7.5-7.5",
@@ -273,6 +277,14 @@ _LINE_PATHS = {
     "info": "M3 10a7 7 0 1 0 14 0 7 7 0 0 0-14 0 M10 9v5 M10 6h.1",
     "warning": "M10 3l7 13H3z M10 8v3.5 M10 14h.1",
     "check": "M4 10l4 4 8-8",
+    "checklist": "M3 4h3v3H3z M8 5.5h9 M3 9h3v3H3z M8 10.5h9 M3 14h3v3H3z M8 15.5h9",
+    "tasklist": "M3 4h3v3H3z M8 5.5h9 M3 9h3v3H3z M8 10.5h9 M3 14h3v3H3z M8 15.5h9",
+    "tag": "M3 10l7-7h7v7l-7 7z M14 6h.1",
+    "star": "M10 2.5l2.4 5.3 5.8.6-4.3 3.9 1.2 5.7L10 15l-5.1 3 1.2-5.7-4.3-3.9 5.8-.6z",
+    "circle": "M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z",
+    "chevron-right": "M8 5l5 5-5 5",
+    "chevron-down": "M5 8l5 5 5-5",
+    "chevron-up": "M5 12l5-5 5 5",
     "split-right": "M3 4h14v12H3z M10 4v12",
     "split-down": "M3 4h14v12H3z M3 10h14",
     "unsplit": "M3 4h14v12H3z",
@@ -282,7 +294,12 @@ _LINE_PATHS = {
 
 @lru_cache(maxsize=96)
 def _line_renderer(name, color):
-    path = _LINE_PATHS[name]
+    path = _LINE_PATHS.get(name)
+    if not path:
+        if name in ("refresh", "reload"):
+            path = _LINE_PATHS.get("reload") or _LINE_PATHS.get("refresh")
+        else:
+            path = _LINE_PATHS.get("info", "M5 5l10 10 M15 5 5 15")
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
         f'<path d="{path}" fill="none" stroke="{color}" stroke-width="1.55" '

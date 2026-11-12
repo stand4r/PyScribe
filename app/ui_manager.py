@@ -88,6 +88,12 @@ class UIManager:
         self.main_window.git_panel.hide()
         side_layout.addWidget(self.main_window.git_panel)
 
+        from widgets.TodoPanel import TodoPanel
+        self.main_window.todo_panel = TodoPanel(self.main_window, self.main_window.side_panel)
+        self.main_window.todo_panel.hide()
+        self.main_window.todo_panel.open_location_requested.connect(self.main_window.open_analysis_location)
+        side_layout.addWidget(self.main_window.todo_panel)
+
         self.main_window.intelligence_panel = ProjectIntelligenceDashboard(self.main_window)
         self.main_window.intelligence_panel.open_file_requested.connect(self.main_window.open_analysis_location)
         self.main_window.intelligence_panel.analysis_ready.connect(self.main_window.on_project_analysis_ready)

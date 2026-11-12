@@ -9,8 +9,32 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+_detected = None
+_detection_lock = threading.Lock()
+
+
+def cached_toolchains():
+    global _detected
+    with _detection_lock:
+        if _detected is None:
+            _detected = detect_all_toolchains()
+        return _detected
+
+
+def start_toolchain_detection():
+    threading.Thread(target=cached_toolchains, name="toolchain-discovery", daemon=True).start()
+
+
+def resolve_toolchain(key, fallback, configured=None):
+    entry = (configured or {}).get(key)
+    command = entry.get("command") if isinstance(entry, dict) else entry
+    if command and str(command).strip():
+        return str(command).strip().strip('"')
+    return cached_toolchains().get(key, {}).get("path") or fallback
 
 
 def _first_existing(candidates: list[str]) -> Optional[str]:
@@ -25,6 +49,19 @@ def _first_existing(candidates: list[str]) -> Optional[str]:
         if which_path:
             return str(Path(which_path).resolve())
     return None
+
+
+def python_interpreter(configured=None) -> str:
+    executable = str(configured or (sys.executable if not getattr(sys, "frozen", False)
+                                   else _first_existing(["python", "python3", "py"])) or "").strip().strip('"')
+    if not executable:
+        raise RuntimeError("Python не найден. Укажите интерпретатор в настройках инструментов.")
+    path = Path(executable)
+    if path.name.lower() == "pythonw.exe":
+        console = path.with_name("python.exe")
+        if console.is_file():
+            return str(console)
+    return executable
 
 
 def detect_all_toolchains() -> Dict[str, Dict[str, Any]]:
@@ -49,7 +86,9 @@ def detect_all_toolchains() -> Dict[str, Dict[str, Any]]:
             "name": "Python",
             "kind": "interpreter",
             "candidates": [
-                sys.executable,
+                sys.executable if not getattr(sys, "frozen", False) else "",
+                *[str(p) for p in sorted((Path(local_app_data) / "Python").glob("pythoncore-*/python.exe"), reverse=True)],
+                *[str(p) for p in sorted((Path(local_app_data) / "Programs" / "Python").glob("Python*/python.exe"), reverse=True)],
                 "python",
                 "python3",
                 "py",
@@ -247,13 +286,13 @@ def build_run_command_for_file(
         configured = (toolchains.get(key) or {}).get("command") if isinstance(toolchains.get(key), dict) else toolchains.get(key)
         if configured and str(configured).strip():
             return str(configured).strip()
-        detected = detect_all_toolchains().get(key)
+        detected = cached_toolchains().get(key)
         if detected and detected.get("found") and detected.get("path"):
             return detected["path"]
         return None
 
     if lang_key == "python":
-        py_cmd = get_cmd("python") or sys.executable
+        py_cmd = python_interpreter(get_cmd("python"))
         return f'"{py_cmd}" {quoted_path}{args_str}'.strip(), None
 
     if lang_key == "javascript":
@@ -269,7 +308,7 @@ def build_run_command_for_file(
             return f'ts-node {quoted_path}{args_str}'.strip(), None
         if shutil.which("npx"):
             return f'npx ts-node {quoted_path}{args_str}'.strip(), None
-        return f'tsc {quoted_path} && node {os.path.splitext(quoted_path)[0]}.js{args_str}'.strip(), None
+        return f'"{ts_cmd or "tsc"}" {quoted_path} && "{get_cmd("javascript") or "node"}" "{Path(abs_path).with_suffix(".js")}"{args_str}'.strip(), None
 
     if lang_key == "go":
         go_cmd = get_cmd("go") or "go"
@@ -279,13 +318,17 @@ def build_run_command_for_file(
         c_cmd = get_cmd("c") or "gcc"
         exe_path = str(Path(abs_path).with_suffix(".exe" if os.name == "nt" else ""))
         quoted_exe = f'"{exe_path}"' if os.name == "nt" else f"'{exe_path}'"
+        if Path(c_cmd).stem.lower() == "cl":
+            return f'"{c_cmd}" /nologo {quoted_path} /Fe:{quoted_exe} && {quoted_exe}{args_str}', None
         return f'"{c_cmd}" {quoted_path} -o {quoted_exe} && {quoted_exe}{args_str}'.strip(), None
 
     if lang_key == "cpp":
         cpp_cmd = get_cmd("cpp") or "g++"
         exe_path = str(Path(abs_path).with_suffix(".exe" if os.name == "nt" else ""))
         quoted_exe = f'"{exe_path}"' if os.name == "nt" else f"'{exe_path}'"
-        return f'"{cpp_cmd}" {quoted_path} -o {quoted_exe} && {quoted_exe}{args_str}'.strip(), None
+        if Path(cpp_cmd).stem.lower() == "cl":
+            return f'"{cpp_cmd}" /nologo /EHsc /std:c++17 {quoted_path} /Fe:{quoted_exe} && {quoted_exe}{args_str}', None
+        return f'"{cpp_cmd}" -std=c++17 {quoted_path} -o {quoted_exe} && {quoted_exe}{args_str}'.strip(), None
 
     if lang_key == "csharp":
         cs_cmd = get_cmd("csharp")
@@ -307,6 +350,9 @@ def build_run_command_for_file(
 
     if lang_key == "java":
         java_cmd = get_cmd("java") or "java"
+        if Path(java_cmd).stem.lower() == "javac":
+            runtime = str(Path(java_cmd).with_name("java.exe" if os.name == "nt" else "java"))
+            return f'"{java_cmd}" {quoted_path} && "{runtime}" -cp "{Path(abs_path).parent}" "{Path(abs_path).stem}"{args_str}', None
         # Java 11+ directly runs single-source-file programs with `java Source.java`
         return f'"{java_cmd}" {quoted_path}{args_str}'.strip(), None
 

@@ -940,6 +940,7 @@ class ModernMainWindow(QMainWindow):
             ("Ctrl+Shift+I", self.show_ai_agent),
             ("Ctrl+Alt+E", self.action_ai_explain_selection),
             ("Ctrl+Alt+Shift+I", self.action_ai_apply_code),
+            ("Ctrl+Shift+T", lambda: self.activity_bar.set_activity("todo")),
         ]
         self._global_shortcuts = []
         for key_seq, handler in shortcuts:
@@ -1051,6 +1052,7 @@ class ModernMainWindow(QMainWindow):
             "run": self.run_panel,
             "extensions": self.extensions_panel,
             "git": self.git_panel,
+            "todo": getattr(self, "todo_panel", None),
             "intelligence": self.intelligence_panel,
             "ai": getattr(self, "ai_panel", None),
         }
@@ -1077,6 +1079,7 @@ class ModernMainWindow(QMainWindow):
                 "run": "ЗАПУСК",
                 "extensions": "РАСШИРЕНИЯ",
                 "git": "УПРАВЛЕНИЕ ВЕРСИЯМИ",
+                "todo": "ЗАДАЧИ И TO DO",
                 "intelligence": "АНАЛИЗ ПРОЕКТА",
                 "ai": "ИИ-АГЕНТ",
             }.get(key, "ПРОВОДНИК"))
@@ -1086,6 +1089,8 @@ class ModernMainWindow(QMainWindow):
             self._fade_in_panel(panel)
             if key == "intelligence":
                 self._ensure_intelligence_panel_project()
+            if key == "todo" and hasattr(panel, "refresh_tasks"):
+                panel.refresh_tasks()
             if key == "ai" and hasattr(panel, "refresh_status"):
                 panel.refresh_status()
                 QtCore.QTimer.singleShot(0, self._watch_ai_view_width)
@@ -1177,6 +1182,7 @@ class ModernMainWindow(QMainWindow):
             "quick_open": self.action_quick_open, "goto_line": self.action_goto_line,
             "rename": self.action_rename_symbol,
             "intelligence": lambda: self.activity_bar.set_activity("intelligence"),
+            "todo": lambda: self.activity_bar.set_activity("todo"),
             "impact": self.action_analyze_current_impact,
             "adversary": self.action_adversary_test,
             "capsule": self.action_change_capsule,
@@ -1368,16 +1374,18 @@ class ModernMainWindow(QMainWindow):
     def _activate_first_visible_panel(self):
         """Выполняет операцию  activate first visible panel.
         """
-        panels = (
+        panels = [
             ("explorer", self.explorer_panel),
             ("search", self.search_panel),
             ("run", self.run_panel),
             ("extensions", self.extensions_panel),
             ("git", self.git_panel),
-            ("intelligence", self.intelligence_panel)
-        )
+            ("intelligence", self.intelligence_panel),
+        ]
+        if hasattr(self, "todo_panel") and self.todo_panel:
+            panels.append(("todo", self.todo_panel))
         for key, p in panels:
-            if p.isVisible():
+            if p and p.isVisible():
                 self.activity_bar.set_active_visual(key)
                 return
         self.explorer_panel.show()
@@ -2194,47 +2202,62 @@ class ModernMainWindow(QMainWindow):
         def q(value):
             return '"' + str(value).replace('"', '') + '"'
 
+        from utils.toolchain_detector import resolve_toolchain
+        toolchains = get_settings_manager().get_setting("toolchains", {}) or {}
+
+        def tool(key, fallback):
+            return q(resolve_toolchain(key, fallback, toolchains))
+
         args = (args or "").strip()
         stem = path.stem
         command = None
-        self.workbench.announce(f"Запуск: {path.name} · cwd={cwd}")
 
         # Build a single command string; the terminal runs it as its own
         # process (compile-then-run chains are still executed by the shell).
         if lang in {'py', 'pyw'}:
-            command = f'{q(sys.executable)}{" -m pdb" if debug else ""} {q(path)} {args}'.strip()
+            from utils.toolchain_detector import python_interpreter
+            tools = get_settings_manager().get_setting("toolchains", {}) or {}
+            configured = tools.get("python")
+            if isinstance(configured, dict):
+                configured = configured.get("command")
+            try:
+                executable = python_interpreter(resolve_toolchain("python", None, tools))
+            except RuntimeError as exc:
+                CustomDialog(str(exc)).exec_()
+                return
+            command = f'{q(executable)}{" -m pdb" if debug else ""} {q(path)} {args}'.strip()
         elif lang in {'js', 'mjs', 'cjs'}:
-            command = f'node {"--inspect-brk " if debug else ""}{q(path)} {args}'.strip()
+            command = f'{tool("javascript", "node")} {"--inspect-brk " if debug else ""}{q(path)} {args}'.strip()
         elif lang == 'ts':
-            command = f'ts-node {q(path)} {args}'.strip()
+            command = f'{tool("typescript", "ts-node")} {q(path)} {args}'.strip()
         elif lang in {'sh', 'bash', 'zsh'}:
-            command = f'bash {q(path)} {args}'.strip()
+            command = f'{tool("shell", "bash")} {q(path)} {args}'.strip()
         elif lang == 'go':
-            command = f'go run {q(path)} {args}'.strip()
+            command = f'{tool("go", "go")} run {q(path)} {args}'.strip()
         elif lang == 'rs':
-            command = f'rustc {q(path)} -o {q(path.with_suffix(""))} && {q(path.with_suffix(""))} {args}'.strip()
+            command = f'{tool("rust", "rustc")} {q(path)} -o {q(path.with_suffix(""))} && {q(path.with_suffix(""))} {args}'.strip()
         elif lang in {'c', 'h'}:
             out = path.with_suffix('.pyscribe_run.exe' if os.name == 'nt' else '.pyscribe_run')
-            command = f'gcc {q(path)} -o {q(out)} && {q(out)} {args}'.strip()
+            command = f'{tool("c", "gcc")} {q(path)} -o {q(out)} && {q(out)} {args}'.strip()
         elif lang in {'cpp', 'cc', 'cxx', 'hpp'}:
             out = path.with_suffix('.pyscribe_run.exe' if os.name == 'nt' else '.pyscribe_run')
-            command = f'g++ {q(path)} -std=c++17 -o {q(out)} && {q(out)} {args}'.strip()
+            command = f'{tool("cpp", "g++")} {q(path)} -std=c++17 -o {q(out)} && {q(out)} {args}'.strip()
         elif lang == 'java':
-            command = f'javac {q(path)} && java -cp {q(path.parent)} {stem} {args}'.strip()
+            command = f'{tool("java", "java")} {q(path)} {args}'.strip()
         elif lang == 'cs':
             proj_file = next(iter(Path(cwd).glob('*.csproj')), None)
-            command = f'dotnet run --project {q(proj_file or path)}'.strip()
+            command = f'{tool("csharp", "dotnet")} run --project {q(proj_file or path)}'.strip()
         elif lang == 'php':
-            command = f'php {q(path)} {args}'.strip()
+            command = f'{tool("php", "php")} {q(path)} {args}'.strip()
         elif lang == 'rb':
-            command = f'ruby {q(path)} {args}'.strip()
+            command = f'{tool("ruby", "ruby")} {q(path)} {args}'.strip()
         elif lang == 'kt':
             command = (f'kotlinc {q(path)} -include-runtime -d {q(path.with_suffix(".jar"))} '
                        f'&& java -jar {q(path.with_suffix(".jar"))}').strip()
         elif lang == 'swift':
             command = f'swift {q(path)} {args}'.strip()
         elif lang == 'lua':
-            command = f'lua {q(path)} {args}'.strip()
+            command = f'{tool("lua", "lua")} {q(path)} {args}'.strip()
         else:
             # Unknown type: open it with the OS default handler.
             try:
@@ -2244,7 +2267,16 @@ class ModernMainWindow(QMainWindow):
             self.status_bar.showMessage(f"Файл открыт системным приложением: {path.name}")
             return
 
-        self.run_in_terminal_command(command, cwd)
+        if lang in {'ts', 'c', 'cpp', 'cc', 'cxx', 'cs', 'rs', 'java'}:
+            from utils.toolchain_detector import build_run_command_for_file
+            command, _ = build_run_command_for_file(str(path), args, toolchains)
+        if lang in {'py', 'pyw', 'js', 'mjs', 'cjs', 'go', 'java', 'php', 'rb', 'lua', 'sh', 'bash', 'zsh', 'ts', 'c', 'cpp', 'cc', 'cxx', 'cs', 'rs'}:
+            if not self.terminal_visible:
+                self.toggle_terminal()
+            self.console_widget.set_current_tab("Terminal")
+            self.console_widget.get_terminal().run_file(command, cwd)
+        else:
+            self.run_in_terminal_command(command, cwd)
         self.status_bar.showMessage(("Отладка " if debug else "Запуск ") + path.name)
 
     _ENTRY_CANDIDATES = (
@@ -2355,9 +2387,17 @@ class ModernMainWindow(QMainWindow):
             self.save_current_session()
             self.close_all_editor_tabs()
             self.current_project = None
+            self.console_widget.get_terminal().switch_session(None)
             self.workspace_index.set_root(None)
             self.intelligence_panel.set_project(None)
+            if hasattr(self, "todo_panel") and self.todo_panel:
+                self.todo_panel.set_project(None)
             self.extension_manager.set_project_root(None)
+            try:
+                from core.code_analysis.service import UnifiedCodeAnalysisService
+                UnifiedCodeAnalysisService.get_instance().set_project_root(None)
+            except Exception:
+                pass
             self.refresh_extensions_panel()
             self.git_panel.set_root(None)
             self.top_bar.set_project("")
@@ -3034,8 +3074,17 @@ class ModernMainWindow(QMainWindow):
 
     def _on_typing_settled(self):
         """Typing stopped: refresh the completion index and the diagnostics."""
-        self._update_editor_index(self.get_current_editor())
+        editor = self.get_current_editor()
+        self._update_editor_index(editor)
         self.update_analysis_panels()
+        if editor and hasattr(editor, "get_code"):
+            fp = getattr(editor, "file_path", None)
+            if fp:
+                try:
+                    from core.code_analysis.service import UnifiedCodeAnalysisService
+                    UnifiedCodeAnalysisService.get_instance().on_document_changed(str(fp), editor.get_code())
+                except Exception:
+                    pass
 
     def _count_group_unsaved(self, group) -> int:
         """Подсчитывает количество group unsaved.

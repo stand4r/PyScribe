@@ -93,6 +93,7 @@ class ActivityBar(QtWidgets.QFrame):
         ("explorer", "files", "Проводник (Ctrl+Shift+E)"),
         ("search", "search", "Поиск (Ctrl+Shift+F)"),
         ("git", "source-control", "Управление версиями"),
+        ("todo", "checklist", "Задачи проекта (Ctrl+Shift+T)"),
         ("run", "run", "Запуск и отладка"),
         ("intelligence", "intelligence", "Анализ проекта"),
         ("ai", "ai-agent", "ИИ-агент (Ctrl+Shift+I)"),
@@ -251,6 +252,34 @@ class ActivityBar(QtWidgets.QFrame):
             self._move_indicator(self.buttons[self.active_sidebar_key])
         else:
             self._indicator.hide_indicator()
+
+    def set_badge(self, key: str, count: int, color: str = "#0078D4"):
+        """Show or hide a badge counter on an activity bar button."""
+        button = self.buttons.get(key)
+        if not button:
+            return
+        badge = getattr(button, "_badge_label", None)
+        if count <= 0:
+            if badge:
+                badge.hide()
+            return
+
+        if not badge:
+            badge = QtWidgets.QLabel(button)
+            badge.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+            badge.setAlignment(QtCore.Qt.AlignCenter)
+            button._badge_label = badge
+
+        text = str(count) if count <= 99 else "99+"
+        badge.setText(text)
+        badge.setStyleSheet(
+            f"background-color: {color}; color: #FFFFFF; font-size: 9px; font-weight: bold; "
+            f"border-radius: 7px; min-width: 14px; max-height: 14px; padding: 0 3px;"
+        )
+        badge.adjustSize()
+        w = max(14, badge.width())
+        badge.setGeometry(button.width() - w - 2, 2, w, 14)
+        badge.show()
 
     @property
     def active_key(self):

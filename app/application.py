@@ -215,6 +215,8 @@ def main():
     browser_error = _initialize_browser(base_path)
     app = QApplication(sys.argv)
     app._pyscribe_browser_error = browser_error
+    from utils.toolchain_detector import start_toolchain_detection
+    start_toolchain_detection()
 
     instance = SingleInstance("PyScribe")
     if not instance.acquire(sys.argv[1:]):

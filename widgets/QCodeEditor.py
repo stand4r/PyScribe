@@ -973,6 +973,23 @@ class CodeEditor(EnhancedTextEdit):
         menu = self.createStandardContextMenu()
         menu.addSeparator()
 
+        # Code Navigation & Cross-Language Analysis
+        act_goto_def = menu.addAction(line_icon("code"), "Перейти к определению")
+        act_goto_def.setShortcut(QKeySequence("F12"))
+        act_goto_def.triggered.connect(self.action_goto_definition)
+
+        act_find_ref = menu.addAction(line_icon("search"), "Найти ссылки")
+        act_find_ref.setShortcut(QKeySequence("Shift+F12"))
+        act_find_ref.triggered.connect(self.action_find_references)
+
+        act_openapi = menu.addAction("Перейти по контракту OpenAPI")
+        act_openapi.triggered.connect(self.action_goto_openapi)
+
+        act_call_hierarchy = menu.addAction("Иерархия вызовов")
+        act_call_hierarchy.triggered.connect(self.action_show_call_hierarchy)
+
+        menu.addSeparator()
+
         cursor = self.textCursor()
         selected_text = cursor.selectedText().replace('\u2029', '\n').strip()
         has_selection = bool(selected_text)
@@ -1022,6 +1039,203 @@ class CodeEditor(EnhancedTextEdit):
         act_prep.triggered.connect(self._explain_code_intelligence)
 
         menu.exec_(event.globalPos())
+
+    def get_file_path(self) -> Optional[str]:
+        p = self._get_modern_editor_parent()
+        if p and getattr(p, "file_path", None):
+            return str(p.file_path)
+        return getattr(self, "_file_path", None)
+
+    def _get_symbol_under_cursor(self) -> Tuple[str, int, int]:
+        cursor = self.textCursor()
+        line = cursor.blockNumber() + 1
+        col = cursor.positionInBlock()
+        sel = cursor.selectedText().strip()
+        if sel and "\n" not in sel and len(sel) < 100:
+            return sel, line, col
+        cursor.select(QTextCursor.WordUnderCursor)
+        word = cursor.selectedText().strip()
+        return word, line, col
+
+    def _jump_to_location(self, loc):
+        if not loc or not getattr(loc, "file_path", None):
+            return
+        win = self.window()
+        file_path = str(loc.file_path)
+        line = getattr(loc, "line", 1) or 1
+        col = getattr(loc, "col", 0) or 0
+
+        current_fp = self.get_file_path()
+        if current_fp and Path(current_fp).resolve() == Path(file_path).resolve():
+            cursor = self.textCursor()
+            cursor.movePosition(QTextCursor.Start)
+            for _ in range(max(0, line - 1)):
+                cursor.movePosition(QTextCursor.Down)
+            if col > 0:
+                cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, col)
+            self.setTextCursor(cursor)
+            self.centerCursor()
+            self.setFocus()
+            return
+
+        if hasattr(win, "open_analysis_location"):
+            win.open_analysis_location(file_path, line)
+        elif hasattr(win, "file_manager") and hasattr(win.file_manager, "open_file"):
+            win.file_manager.open_file(file_path)
+            ed = win.get_current_editor() if hasattr(win, "get_current_editor") else None
+            if ed and hasattr(ed, "editor"):
+                c = ed.editor.textCursor()
+                c.movePosition(QTextCursor.Start)
+                for _ in range(max(0, line - 1)):
+                    c.movePosition(QTextCursor.Down)
+                if col > 0:
+                    c.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, col)
+                ed.editor.setTextCursor(c)
+                ed.editor.centerCursor()
+                ed.editor.setFocus()
+
+    def action_goto_definition(self):
+        word, line, col = self._get_symbol_under_cursor()
+        file_path = self.get_file_path()
+        if not file_path:
+            file_path = "untitled.py" if self.language in ("py", "python") else f"untitled.{self.language or 'txt'}"
+
+        from core.code_analysis.service import UnifiedCodeAnalysisService
+        service = UnifiedCodeAnalysisService.get_instance()
+        service.on_document_changed(file_path, self.toPlainText())
+
+        locations = service.goto_definition(
+            file_path, line, col,
+            current_line_text=self.textCursor().block().text(),
+            symbol_name=word
+        )
+        if not locations:
+            win = self.window()
+            if hasattr(win, "status_bar"):
+                win.status_bar.showMessage(f"Определение для '{word}' не найдено", 3000)
+            return
+
+        if len(locations) == 1:
+            self._jump_to_location(locations[0])
+        else:
+            from widgets.SymbolNavigationDialog import show_symbol_dialog
+            show_symbol_dialog(
+                self,
+                f"Определения для '{word}' ({len(locations)})",
+                locations,
+                on_select=self._jump_to_location
+            )
+
+    def action_find_references(self):
+        word, line, col = self._get_symbol_under_cursor()
+        file_path = self.get_file_path()
+        if not file_path:
+            file_path = "untitled.py" if self.language in ("py", "python") else f"untitled.{self.language or 'txt'}"
+
+        from core.code_analysis.service import UnifiedCodeAnalysisService
+        service = UnifiedCodeAnalysisService.get_instance()
+        service.on_document_changed(file_path, self.toPlainText())
+
+        locations = service.find_references(
+            file_path, line, col,
+            symbol_name=word,
+            include_declaration=True
+        )
+        if not locations:
+            win = self.window()
+            if hasattr(win, "status_bar"):
+                win.status_bar.showMessage(f"Ссылки для '{word}' не найдены", 3000)
+            return
+
+        from widgets.SymbolNavigationDialog import show_symbol_dialog
+        show_symbol_dialog(
+            self,
+            f"Ссылки на '{word}' ({len(locations)})",
+            locations,
+            on_select=self._jump_to_location
+        )
+
+    def action_goto_openapi(self):
+        word, line, col = self._get_symbol_under_cursor()
+        file_path = self.get_file_path()
+        if not file_path:
+            return
+        from core.code_analysis.service import UnifiedCodeAnalysisService
+        service = UnifiedCodeAnalysisService.get_instance()
+        service.on_document_changed(file_path, self.toPlainText())
+
+        locations = service.resolve_openapi(file_path, line, col, current_line_text=self.textCursor().block().text())
+        if not locations:
+            win = self.window()
+            if hasattr(win, "status_bar"):
+                win.status_bar.showMessage("Связанный контракт OpenAPI не найден", 3000)
+            return
+
+        if len(locations) == 1:
+            self._jump_to_location(locations[0])
+        else:
+            from widgets.SymbolNavigationDialog import show_symbol_dialog
+            show_symbol_dialog(
+                self,
+                f"Связи OpenAPI для '{word or 'маршрута'}' ({len(locations)})",
+                locations,
+                on_select=self._jump_to_location
+            )
+
+    def action_show_call_hierarchy(self):
+        word, line, col = self._get_symbol_under_cursor()
+        file_path = self.get_file_path()
+        if not file_path:
+            return
+        from core.code_analysis.service import UnifiedCodeAnalysisService
+        from core.code_analysis.lsp_client import LspLocation
+        service = UnifiedCodeAnalysisService.get_instance()
+        service.on_document_changed(file_path, self.toPlainText())
+
+        incoming, outgoing = service.get_call_hierarchy(file_path, line, col)
+        locs: List[LspLocation] = []
+        for it in incoming:
+            locs.append(LspLocation(
+                file_path=it.file_path,
+                line=it.line,
+                col=it.col,
+                preview=f"Входящий вызов из {it.name}",
+                kind="semantic",
+                badge=f"[Вызов: {it.name}]",
+            ))
+        for it in outgoing:
+            locs.append(LspLocation(
+                file_path=it.file_path,
+                line=it.line,
+                col=it.col,
+                preview=f"Исходящий вызов к {it.name}",
+                kind="semantic",
+                badge=f"[Вызов: {it.name}]",
+            ))
+
+        if not locs:
+            win = self.window()
+            if hasattr(win, "status_bar"):
+                win.status_bar.showMessage(f"Иерархия вызовов для '{word}' не найдена (требуется LSP)", 3000)
+            return
+
+        from widgets.SymbolNavigationDialog import show_symbol_dialog
+        show_symbol_dialog(
+            self,
+            f"Иерархия вызовов '{word}' ({len(locs)})",
+            locs,
+            on_select=self._jump_to_location
+        )
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        """Обработка отпускания мыши (включая Ctrl+Click для перехода к определению)."""
+        if event.button() == Qt.LeftButton and (event.modifiers() & Qt.ControlModifier):
+            cursor = self.cursorForPosition(event.pos())
+            self.setTextCursor(cursor)
+            self.action_goto_definition()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def _format_selection_clean_code(self):
         p = self._get_modern_editor_parent()
@@ -1635,6 +1849,15 @@ class CodeEditor(EnhancedTextEdit):
         shift = bool(event.modifiers() & Qt.ShiftModifier)
         alt = bool(event.modifiers() & Qt.AltModifier)
 
+        # F12: перейти к определению (Go to Definition), Shift+F12: найти ссылки (Find References)
+        if event.key() == Qt.Key_F12:
+            if shift:
+                self.action_find_references()
+            else:
+                self.action_goto_definition()
+            event.accept()
+            return
+
         # 0. Масштабирование шрифта редактора (Ctrl++, Ctrl+=, Ctrl+-, Ctrl+_, Ctrl+0, Numpad)
         is_zoom_in = ctrl and not alt and event.key() in (Qt.Key_Equal, Qt.Key_Plus)
         is_zoom_out = ctrl and not alt and event.key() in (Qt.Key_Minus, Qt.Key_Underscore)
@@ -2185,6 +2408,18 @@ class ModernCodeEditor(QWidget):
         if hasattr(self, 'code_lens') and self.code_lens:
             self.code_lens.format_selection()
 
+    def action_goto_definition(self):
+        return self.editor.action_goto_definition()
+
+    def action_find_references(self):
+        return self.editor.action_find_references()
+
+    def action_goto_openapi(self):
+        return self.editor.action_goto_openapi()
+
+    def action_show_call_hierarchy(self):
+        return self.editor.action_show_call_hierarchy()
+
     def generate_docstring_current(self):
         if hasattr(self, 'code_lens') and self.code_lens:
             self.code_lens.generate_docstring_current()
@@ -2358,6 +2593,12 @@ class ModernCodeEditor(QWidget):
             
         if file_extension and file_extension != self.language:
             self.set_language_by_extension(file_extension)
+
+        try:
+            from core.code_analysis.service import UnifiedCodeAnalysisService
+            UnifiedCodeAnalysisService.get_instance().on_document_opened(str(self.file_path), self.get_code())
+        except Exception:
+            pass
     
     def set_language_by_extension(self, extension: str):
         """Установка языка по расширению файла"""
@@ -2388,6 +2629,11 @@ class ModernCodeEditor(QWidget):
             self.file_path.write_text(self.get_code(), encoding="utf-8", newline="")
             if hasattr(self.editor, "document") and self.editor.document():
                 self.editor.document().setModified(False)
+            try:
+                from core.code_analysis.service import UnifiedCodeAnalysisService
+                UnifiedCodeAnalysisService.get_instance().on_document_saved(str(self.file_path))
+            except Exception:
+                pass
             return True
         except Exception as e:
             logger.exception("Save error")

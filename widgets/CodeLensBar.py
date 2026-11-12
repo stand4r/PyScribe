@@ -1,4 +1,4 @@
-﻿"""PyScribe widgets/CodeLensBar.py: Intelligent Code Navigation, Clean Code & Quick Actions Hub.
+"""PyScribe widgets/CodeLensBar.py: Intelligent Code Navigation, Clean Code & Quick Actions Hub.
 
 Combines real-time telemetry from radar with modern IDE productivity tools:
 - Breadcrumbs (File › Class › Method) with 1-click symbol picker outline
@@ -469,12 +469,14 @@ class CompactOutlinePopup(QDialog):
             display_name = f"{sym.parent_name}.{sym.name}" if sym.parent_name else sym.name
             if query and query not in display_name.lower():
                 continue
-            icon = "⚙️" if sym.kind in ('class', 'struct', 'interface', 'trait') else "🔹"
+            icon = "⚙️" if sym.kind in ('class', 'struct', 'interface', 'trait', 'enum', 'type') else "🔹"
             kind_label = (
                 "Класс" if sym.kind == 'class'
                 else "Структура" if sym.kind == 'struct'
                 else "Интерфейс" if sym.kind == 'interface'
                 else "Трейт" if sym.kind == 'trait'
+                else "Перечисление" if sym.kind == 'enum'
+                else "Тип" if sym.kind == 'type'
                 else "Метод" if sym.kind == 'method'
                 else "Функция"
             )
@@ -915,6 +917,40 @@ class CodeLensBar(QFrame):
             return
 
         lang = self._detect_language()
+
+        # 1. First attempt: Unified Code Analysis Service (Tree-sitter AST & LSP integration)
+        filepath = getattr(self.modern_editor, 'file_path', None)
+        filepath_str = str(filepath) if filepath else f"buffer.{lang}"
+        try:
+            from core.code_analysis.service import UnifiedCodeAnalysisService
+            service = UnifiedCodeAnalysisService.get_instance()
+            status = service.get_language_status(filepath_str)
+            syntax_res = service.get_syntax_result(filepath_str, text=code)
+
+            if syntax_res and (syntax_res.symbols or syntax_res.is_tree_sitter):
+                self._symbols = syntax_res.symbols
+                has_err = bool(syntax_res.syntax_errors)
+                if has_err:
+                    err_line, err_msg = syntax_res.syntax_errors[0]
+                    self._syntax_error_line = err_line
+                    self._set_syntax_badge(f"Синтаксис: строка {err_line}", error=True)
+                    self.syntax_badge.setToolTip(f"{status['display_name']}: {err_msg}")
+                else:
+                    self._set_syntax_badge(status["badge"], error=False)
+                    if status["lsp_active"]:
+                        tip = f"Семантический анализ LSP активен ({status['server_name'] or 'LSP'})"
+                    elif status["server_found"]:
+                        tip = f"Синтаксический анализ Tree-sitter ОК. Сервер {status['server_name']} готов к запуску."
+                    elif status["install_hint"]:
+                        tip = f"Синтаксический анализ Tree-sitter ОК.\n{status['install_hint']}"
+                    else:
+                        tip = f"Синтаксический анализ Tree-sitter ({status['display_name']}) ОК"
+                    self.syntax_badge.setToolTip(tip)
+                return
+        except Exception:
+            pass
+
+        # 2. Fallback: Python AST and Regex-based parser
         is_python = lang in ('py', 'python')
 
         if is_python:

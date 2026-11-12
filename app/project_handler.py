@@ -103,6 +103,16 @@ class ProjectHandler:
         except Exception:
             logger.exception("PyScribe operation failed")
         self.main_window.extension_manager.set_project_root(norm_root)
+        try:
+            from core.code_analysis.service import UnifiedCodeAnalysisService
+            UnifiedCodeAnalysisService.get_instance().set_project_root(norm_root)
+        except Exception:
+            pass
+        try:
+            if hasattr(self.main_window, "todo_panel") and self.main_window.todo_panel:
+                self.main_window.todo_panel.set_project(norm_root)
+        except Exception:
+            pass
         self.main_window.refresh_extensions_panel()
         self.main_window.search_panel.set_root(norm_root)
         self.main_window.git_panel.set_root(norm_root)
@@ -125,8 +135,6 @@ class ProjectHandler:
         self.main_window.run_panel.refresh()
         self.main_window.status_bar.showMessage(f'Проект открыт: {name} · рабочая область')
         self.main_window.update_analysis_panels()
-        if hasattr(self.main_window, 'workbench'):
-            self.main_window.workbench.project_opened(project_config)
         self._sync_ai_context()
 
     def _sync_ai_context(self):
@@ -144,7 +152,7 @@ class ProjectHandler:
             return
         terminal = self.main_window.console_widget.get_terminal()
         if terminal:
-            terminal.set_working_directory(root_str)
+            terminal.switch_session(root_str)
 
     def _update_file_explorer_root(self, norm_root: str):
         fe = getattr(self.main_window, 'file_explorer', None)

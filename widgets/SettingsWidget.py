@@ -21,8 +21,7 @@ MCP_EXAMPLE = (
 class SettingsWidget(QtWidgets.QWidget):
     """Full PyScribe workbench settings editor.
 
-    Settings are stored in the existing JSON manager and applied immediately
-    when the parent window exposes ``apply_application_theme``.
+    Settings are saved and applied from the footer.
     """
     def __init__(self, settings=None, pathSettings=None, parent=None):
         super().__init__(parent)
@@ -223,12 +222,9 @@ class SettingsWidget(QtWidgets.QWidget):
         if not preset:
             return
         for name, value in preset.items():
-            self.settings_manager.settings[name] = value
             control = self.controls.get(name)
             if isinstance(control, QtWidgets.QLineEdit):
                 control.setText(value)
-        if not getattr(self, "_building", False):
-            self.apply_settings(save_file=True)
 
     def _appearance_page(self):
         page, l = self._page()
@@ -271,7 +267,7 @@ class SettingsWidget(QtWidgets.QWidget):
         return page
 
     def _scale_row(self):
-        """Preview interface scaling while the slider moves."""
+        """Edit the pending interface scale."""
         from app.ui_scale import normalize_scale
         row = QtWidgets.QWidget()
         lay = QtWidgets.QVBoxLayout(row)
@@ -295,48 +291,16 @@ class SettingsWidget(QtWidgets.QWidget):
         lay.addLayout(line)
 
         hint = QtWidgets.QLabel(
-            '100% — базовый масштаб для текущего монитора. Ползунок меняет размер всего интерфейса. '
+            '100% — базовый масштаб для текущего монитора. Новый масштаб применяется после сохранения. '
             'Горячие клавиши: Ctrl+Alt+= / Ctrl+Alt+− / Ctrl+Alt+0.'
         )
         hint.setWordWrap(True)
         hint.setObjectName('settingsHint')
         lay.addWidget(hint)
 
-        def _changed(v):
-            label.setText(f'{normalize_scale(v)}%')
-            self.settings_manager.settings['ui_scale_percent'] = normalize_scale(v)
-            self._apply_scale_now(normalize_scale(v), persist=False)
-
-        slider.valueChanged.connect(_changed)
+        slider.valueChanged.connect(lambda value: label.setText(f'{value}%'))
         self.controls['ui_scale_percent'] = slider
-        self._scale_slider = slider
-        self._scale_label = label
         return row
-
-    def _apply_scale_now(self, percent, persist=True):
-        from app.ui_scale import normalize_scale
-        percent = normalize_scale(percent)
-        slider = getattr(self, '_scale_slider', None)
-        if slider is not None and slider.value() != percent:
-            slider.blockSignals(True)
-            slider.setValue(percent)
-            slider.blockSignals(False)
-        if getattr(self, '_scale_label', None) is not None:
-            self._scale_label.setText(f'{percent}%')
-        self.settings_manager.settings['ui_scale_percent'] = percent
-        if persist:
-            self.settings_manager.save_settings()
-        window = self.main_window
-        if window is None:
-            return
-        try:
-            window.app_manager.settings = self.settings_manager.get_all_settings()
-            if hasattr(window, '_set_interface_scale'):
-                window._set_interface_scale(percent)
-            elif hasattr(window, 'apply_application_theme'):
-                window.apply_application_theme()
-        except Exception:
-            pass
 
     def _editor_page(self):
         page, l = self._page()
@@ -1075,7 +1039,9 @@ class SettingsWidget(QtWidgets.QWidget):
 
     def apply_settings(self, save_file=True):
         toolchains = dict(self.settings_manager.get_setting('toolchains', {}) or {})
-        ai_values = None
+        theme = self.controls.get('theme')
+        if theme is not None and theme.currentData() != self.settings_manager.get_setting('theme'):
+            self.settings_manager.settings.update(THEMES.get(theme.currentData(), {}))
         for key, widget in self.controls.items():
             if key.startswith('_ai_temperature'):
                 continue
@@ -1131,7 +1097,7 @@ class SettingsWidget(QtWidgets.QWidget):
                 self.main_window.auto_save_timer.start(interval) if interval else self.main_window.auto_save_timer.stop()
             if hasattr(self.main_window, 'apply_application_theme'):
                 self.main_window.apply_application_theme()
-            if hasattr(self.main_window, 'apply_interface_settings'):
+            elif hasattr(self.main_window, 'apply_interface_settings'):
                 self.main_window.apply_interface_settings()
             self.main_window.status_bar.showMessage('Настройки применены')
 

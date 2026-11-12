@@ -17,7 +17,15 @@ class ConsoleWidget(QtWidgets.QWidget):
         # to stall every running animation, so results are reused until the
         # content (or the file on disk) actually changes.
         self._analysis_cache = {}
+        self._lsp_diagnostics = {}
         self._build()
+        try:
+            from core.code_analysis.service import UnifiedCodeAnalysisService
+            svc = UnifiedCodeAnalysisService.get_instance()
+            svc.diagnostics_updated.connect(self._on_lsp_diagnostics)
+            svc.diagnostics_cleared.connect(self._on_lsp_diagnostics_cleared)
+        except Exception:
+            pass
 
     def _build(self):
         layout = QtWidgets.QVBoxLayout(self)
@@ -33,6 +41,9 @@ class ConsoleWidget(QtWidgets.QWidget):
         self.tab_widget.addTab(self.problems_widget, "Проблемы")
         self.output_widget = self._create_output()
         self.tab_widget.addTab(self.output_widget, "Вывод")
+        from .ProjectTaskManager import ProjectTaskManager
+        self.task_manager = ProjectTaskManager(self.terminal_widget, self)
+        self.tab_widget.addTab(self.task_manager, "Диспетчер задач")
 
         # Right side of the panel strip: terminal actions + problem counter,
         # mirroring VS Code's panel title bar tool set.
@@ -327,12 +338,48 @@ class ConsoleWidget(QtWidgets.QWidget):
         if path and self.parent() and hasattr(self.parent(), "open_analysis_location"):
             self.parent().open_analysis_location(path, int(line))
 
-    def add_problem(self, problem_type, file_path, line, description):
+    def add_problem(self, problem_type, file_path, line, description, is_lsp=False):
         type_str = {"error": "ОШИБКА", "warning": "ПРЕДУПРЕЖДЕНИЕ", "info": "ИНФОРМАЦИЯ"}.get(problem_type, str(problem_type).upper())
         item = QtWidgets.QListWidgetItem(f"{type_str}  {description}  ·  строка {line}")
         item.setData(QtCore.Qt.UserRole, str(file_path)); item.setData(QtCore.Qt.UserRole + 1, int(line or 1))
+        if is_lsp:
+            item.setData(QtCore.Qt.UserRole + 2, "lsp")
         color = {"error":"#F14C4C", "warning":"#CCA700", "info":"#A8A8A8"}.get(problem_type, "#D4D4D4")
         item.setForeground(QtGui.QColor(color)); self.problems_list.addItem(item)
+        self._update_problem_badge()
+
+    def _on_lsp_diagnostics(self, file_path: str, diagnostics: list):
+        norm = str(Path(file_path).resolve())
+        if not hasattr(self, "_lsp_diagnostics"):
+            self._lsp_diagnostics = {}
+        self._lsp_diagnostics[norm] = diagnostics
+
+        if self._current_file and str(Path(self._current_file).resolve()) == norm:
+            self._sync_lsp_problems(norm)
+
+    def _on_lsp_diagnostics_cleared(self, file_path: str):
+        norm = str(Path(file_path).resolve())
+        if hasattr(self, "_lsp_diagnostics"):
+            self._lsp_diagnostics.pop(norm, None)
+        if self._current_file and str(Path(self._current_file).resolve()) == norm:
+            self._sync_lsp_problems(norm)
+
+    def _sync_lsp_problems(self, norm_path: str):
+        # Remove existing LSP items for this file
+        for i in reversed(range(self.problems_list.count())):
+            it = self.problems_list.item(i)
+            if it.data(QtCore.Qt.UserRole + 2) == "lsp":
+                self.problems_list.takeItem(i)
+
+        diags = getattr(self, "_lsp_diagnostics", {}).get(norm_path, [])
+        for d in diags:
+            self.add_problem(
+                problem_type=d.severity,
+                file_path=norm_path,
+                line=d.line,
+                description=f"[{d.source or 'LSP'}] {d.message}",
+                is_lsp=True
+            )
         self._update_problem_badge()
 
     def append_output(self, text, is_error=False):
@@ -400,8 +447,14 @@ class ConsoleWidget(QtWidgets.QWidget):
                     if len(self._analysis_cache) > 64:
                         # Keep the cache bounded; the active files are few.
                         self._analysis_cache.pop(next(iter(self._analysis_cache)))
+        # Always sync LSP diagnostics for active file
+        self._sync_lsp_problems(str(Path(file_path).resolve()))
+
         if info is None:
-            self.output_text.setPlainText("Для этого файла нет активного анализатора.")
+            if not self.problems_list.count():
+                self.output_text.setPlainText("Для этого файла нет активного анализатора.")
+            else:
+                self.output_text.setPlainText("Диагностика предоставлена языковым сервером LSP.")
             return
         for issue in getattr(info, "issues", []):
             self.add_problem(issue.severity, issue.file, issue.line, f"{issue.code}: {issue.message}")

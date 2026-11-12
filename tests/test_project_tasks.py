@@ -99,7 +99,7 @@ def test_unknown_values_are_normalized():
         folder = Path(td) / ".pyscribe"
         folder.mkdir()
         (folder / "tasks.json").write_text(
-            '{"tasks": [{"title": "x", "status": "bogus", "priority": "urgent"}]}',
+            '{"tasks": [{"title": "x", "status": "bogus", "priority": "nonexistent_priority"}]}',
             encoding="utf-8")
         store = TaskStore(td)
         task = store.tasks[0]

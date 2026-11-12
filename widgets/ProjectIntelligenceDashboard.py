@@ -45,6 +45,7 @@ class Palette:
 
     # Surfaces (same family as the rest of the app)
     SURFACE = "#1F1F1F"          # cards / panels
+    BG_CARD = SURFACE
     SURFACE_ALT = "#252526"      # inputs, chips
     TRACK = "#2D2D30"            # gauge track, progress backgrounds
     BORDER = "#2B2B2B"           # hairline borders
@@ -53,6 +54,7 @@ class Palette:
     # Text
     TEXT = "#D4D4D4"
     TEXT_STRONG = "#EDEDED"
+    TEXT_PRIMARY = TEXT_STRONG
     TEXT_MUTED = "#8B949E"
 
     # The only accent: VS Code blue
@@ -915,12 +917,8 @@ class ProjectIntelligenceDashboard(QtWidgets.QWidget):
         self.adversary_scroll = self._wrap_in_scroll(self.adversary_page)
         self.tabs.addTab(self.adversary_scroll, 'Тесты')
 
-        # Tab 6: project task board
-        from core.project_tasks import TaskStore as ProjectTaskStore
-        self._task_store = ProjectTaskStore(None)
-        self.tasks_page = QtWidgets.QWidget()
-        self._build_tasks_tab()
-        self.tabs.addTab(self._wrap_in_scroll(self.tasks_page), 'Задачи')
+        self.tasks_page = None
+        self._task_store = None
         self.tabs.tabBar().hide()
         self.navigation = AnalysisNavigation(self.tabs, self)
         root.insertWidget(root.indexOf(self.tabs), self.navigation)
@@ -1325,147 +1323,6 @@ class ProjectIntelligenceDashboard(QtWidgets.QWidget):
         for child in self.findChildren(QtWidgets.QWidget):
             child.setFont(font)
 
-    def _build_tasks_tab(self):
-        """Project task board: analyse once, then work through the list."""
-        layout = QtWidgets.QVBoxLayout(self.tasks_page)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
-
-        hint = QtWidgets.QLabel(
-            'Задачи проекта: добавляйте вручную или из рекомендаций анализатора. '
-            'Список хранится в .pyscribe/tasks.json и сохраняется вместе с проектом.')
-        hint.setWordWrap(True)
-        hint.setStyleSheet(f'color: {Palette.TEXT_MUTED}; font-size: 11px;')
-        layout.addWidget(hint)
-
-        row = QtWidgets.QHBoxLayout()
-        row.setSpacing(4)
-        self.task_add_btn = QtWidgets.QPushButton('Новая')
-        self.task_add_btn.setStyleSheet(primary_button_qss("4px 10px", 6))
-        self.task_add_btn.setToolTip('Добавить задачу')
-        self.task_add_btn.clicked.connect(self._add_task_dialog)
-        row.addWidget(self.task_add_btn)
-
-        self.task_from_tip_btn = QtWidgets.QPushButton('Из рекомендации')
-        self.task_from_tip_btn.setStyleSheet(secondary_button_qss("4px 8px", 6))
-        self.task_from_tip_btn.setToolTip(
-            'Создать задачу из выбранной рекомендации на вкладке «Советы»')
-        self.task_from_tip_btn.clicked.connect(self._task_from_recommendation)
-        row.addWidget(self.task_from_tip_btn)
-        row.addStretch(1)
-        layout.addLayout(row)
-
-        filter_row = QtWidgets.QVBoxLayout()
-        filter_row.setSpacing(6)
-        self.task_filter = QtWidgets.QComboBox()
-        for key, label in (("", "Все задачи"), ("todo", "К выполнению"),
-                           ("doing", "В работе"), ("done", "Готово")):
-            self.task_filter.addItem(label, key)
-        self.task_filter.currentIndexChanged.connect(lambda _i: self._refresh_tasks())
-        filter_row.addWidget(self.task_filter)
-        self.task_summary = QtWidgets.QLabel('Задач пока нет')
-        self.task_summary.setStyleSheet(f'color: {Palette.TEXT_MUTED}; font-size: 11px;')
-        filter_row.addWidget(self.task_summary)
-        layout.addLayout(filter_row)
-
-        self.task_tree = QtWidgets.QTreeWidget()
-        self.task_tree.setHeaderLabels(['Задача', 'Статус', 'Приоритет', 'Файл'])
-        self.task_tree.setColumnWidth(0, 190)
-        self.task_tree.setColumnWidth(1, 90)
-        self.task_tree.setColumnWidth(2, 75)
-        self.task_tree.header().setStretchLastSection(True)
-        self.task_tree.itemDoubleClicked.connect(self._open_task_item)
-        self.task_tree.itemChanged.connect(self._on_task_item_changed)
-        layout.addWidget(self.task_tree, 1)
-
-        actions = QtWidgets.QGridLayout()
-        actions.setSpacing(4)
-        for index, (text, tip, slot) in enumerate((
-            ('Готово', 'Переключить выбранную задачу', self._toggle_task_done),
-            ('В работу', 'Взять задачу в работу', lambda: self._set_task_status('doing')),
-            ('Удалить', 'Удалить выбранную задачу', self._remove_task),
-            ('Очистить готовые', 'Удалить все выполненные задачи', self._clear_done_tasks),
-        )):
-            button = QtWidgets.QPushButton(text)
-            button.setStyleSheet(secondary_button_qss("4px 8px", 6))
-            button.setToolTip(tip)
-            button.clicked.connect(slot)
-            actions.addWidget(button, index // 2, index % 2)
-        layout.addLayout(actions)
-
-        self._loading_tasks = False
-
-    # -- task board ----------------------------------------------------
-    def _selected_task(self):
-        item = self.task_tree.currentItem() if hasattr(self, "task_tree") else None
-        if item is None:
-            return None
-        task_id = item.data(0, QtCore.Qt.UserRole)
-        return self._task_store.find(task_id) if task_id else None
-
-    def _refresh_tasks(self):
-        if not hasattr(self, "task_tree"):
-            return
-        self._loading_tasks = True
-        try:
-            self.task_tree.clear()
-            status = self.task_filter.currentData() if hasattr(self, "task_filter") else ""
-            tasks = self._task_store.filtered(status or None)
-            colours = {"high": Palette.DANGER, "medium": Palette.WARNING,
-                       "low": Palette.TEXT_MUTED}
-            for task in tasks:
-                item = QtWidgets.QTreeWidgetItem([
-                    task.title,
-                    "Готово" if task.is_done else "К выполнению",
-                    {"high": "Высокий", "medium": "Средний", "low": "Низкий"}.get(task.priority, "Средний"),
-                    Path(task.file).name if task.file else "—",
-                ])
-                item.setData(0, QtCore.Qt.UserRole, task.id)
-                item.setData(2, QtCore.Qt.UserRole, task.priority)
-                item.setToolTip(0, task.details or task.title)
-                item.setForeground(2, QtGui.QBrush(QtGui.QColor(
-                    colours.get(task.priority, Palette.TEXT_MUTED))))
-                if task.is_done:
-                    font = item.font(0)
-                    font.setStrikeOut(True)
-                    item.setFont(0, font)
-                    item.setForeground(0, QtGui.QBrush(QtGui.QColor(Palette.TEXT_MUTED)))
-                item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
-                self.task_tree.addTopLevelItem(item)
-        finally:
-            self._loading_tasks = False
-        stats = self._task_store.stats()
-        self.task_summary.setText(
-            f'всего {stats["total"]} · в работе {stats["doing"]} · '
-            f'готово {stats["done"]}')
-        if self._task_store.error:
-            self.task_summary.setText(self._task_store.error)
-
-    def _on_task_item_changed(self, item, column):
-        """Rename a task by editing its title in place."""
-        if getattr(self, "_loading_tasks", False) or column != 0 or item is None:
-            return
-        task_id = item.data(0, QtCore.Qt.UserRole)
-        task = self._task_store.find(task_id) if task_id else None
-        if task is None:
-            return
-        title = item.text(0).strip()
-        if title and title != task.title:
-            self._task_store.update(task_id, title=title)
-            self._refresh_tasks()
-
-    def _add_task_dialog(self):
-        from widgets.Dialog import CustomDialog
-        try:
-            from PyQt5.QtWidgets import QInputDialog
-            title, ok = QInputDialog.getText(self, 'Новая задача', 'Что нужно сделать?')
-            if not ok or not title.strip():
-                return
-            self._task_store.add(title.strip())
-            self._refresh_tasks()
-        except Exception:
-            CustomDialog("Не удалось добавить задачу.").exec_()
-
     def _task_from_recommendation(self):
         item = getattr(self, "tips_tree", None) and self.tips_tree.currentItem()
         if item is None:
@@ -1476,42 +1333,14 @@ class ProjectIntelligenceDashboard(QtWidgets.QWidget):
         file_path = item.data(0, QtCore.Qt.UserRole) or ""
         line = item.data(1, QtCore.Qt.UserRole) or 0
         details = item.toolTip(0) or ""
-        self._task_store.add(title, details=details, file=str(file_path),
-                             line=int(line or 0), source="analysis",
-                             priority="high")
-        self._refresh_tasks()
-        self.tabs.setCurrentWidget(self._wrap_find_tasks())
-
-    def _wrap_find_tasks(self):
-        for index in range(self.tabs.count()):
-            if self.tabs.widget(index) is self.tasks_page or self.tabs.widget(index).findChild(
-                    QtWidgets.QTreeWidget) is self.task_tree:
-                return self.tabs.widget(index)
-        return self.tasks_page
-
-    def _toggle_task_done(self):
-        task = self._selected_task()
-        if task is None:
-            return
-        self._task_store.toggle_done(task.id)
-        self._refresh_tasks()
-
-    def _set_task_status(self, status: str):
-        task = self._selected_task()
-        if task is None:
-            return
-        self._task_store.set_status(task.id, status)
-        self._refresh_tasks()
-
-    def _remove_task(self):
-        task = self._selected_task()
-        if task is None:
-            return
-        self._task_store.remove(task.id)
-        self._refresh_tasks()
-
-    def _clear_done_tasks(self):
-        self._task_store.clear_done()
+        if self.main_window and hasattr(self.main_window, "todo_panel") and self.main_window.todo_panel:
+            self.main_window.todo_panel.task_store.add(
+                title, details=details, file=str(file_path),
+                line=int(line or 0), source="analysis", priority="high"
+            )
+            self.main_window.todo_panel.refresh_tasks()
+            if hasattr(self.main_window, "activity_bar"):
+                self.main_window.activity_bar.set_activity("todo")
         self._refresh_tasks()
 
     def _open_task_item(self, item, _column):
@@ -1894,12 +1723,12 @@ class ProjectIntelligenceDashboard(QtWidgets.QWidget):
         self._relative_root = None
         self.engine = ProjectIntelligenceEngine(root, self.enabled_analyzers) if root else None
         self.analysis = None
-        # The task board belongs to the project that is open right now.
-        try:
-            self._task_store.set_root(root)
-            self._refresh_tasks()
-        except Exception:
-            logger.exception("Не удалось загрузить задачи проекта")
+        if self._task_store:
+            try:
+                self._task_store.set_root(root)
+                self._refresh_tasks()
+            except Exception:
+                logger.exception("Не удалось загрузить задачи проекта")
         self._clear_views()
         if not root:
             self.status.setText('Проект не открыт')
