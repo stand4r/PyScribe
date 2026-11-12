@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from utils.programs import saveRecent, backup
+from core.activity_log import record_action
 from widgets.Dialog import CustomDialog
 from widgets.DocumentViewerWidget import DOCUMENT_EXTENSIONS, DocumentViewerWidget
 from widgets.HexViewer import HexViewer
@@ -26,6 +27,7 @@ class FileManager:
 
     def open_file(self, file_path: str):
         """Open a file using the appropriate editor/viewer."""
+        record_action("file_open_requested")
         try:
             file_path_obj = Path(file_path)
             if not file_path_obj.is_file():

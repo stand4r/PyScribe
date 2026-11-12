@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QDialog, QMessageBox
 
+from core.activity_log import record_action
 from core.logging_config import get_logger
 from utils.programs import loadSession
 from widgets.AnalysisProfilesDialog import ProjectAnalyzerDialog
@@ -69,13 +70,16 @@ class ProjectHandler:
         open immediately, without the analysis-profile dialog.
         """
         norm_root = self._normalize_root(project_config)
+        record_action("project_open_requested")
         if not norm_root:
             return
 
         if hasattr(project_config, "root_path"):
             project_config.root_path = norm_root
 
-        analyzers = self._choose_analyzers(project_config) if choose_analyzers else None
+        enabled = getattr(self.main_window, "extension_enabled", lambda key: True)
+        analyze = enabled("intelligence")
+        analyzers = self._choose_analyzers(project_config) if choose_analyzers and analyze else None
         if analyzers is None:
             analyzers = getattr(project_config, 'analyzers', None)
             if analyzers is None and isinstance(project_config, dict):
@@ -96,12 +100,13 @@ class ProjectHandler:
         # used to hold the GUI thread while the project view was appearing.
         QtCore.QTimer.singleShot(30, lambda: self._start_index(norm_root))
         name = getattr(project_config, "name", Path(norm_root).name)
-        self.main_window.start_busy_indicator(f"Открытие и анализ проекта '{name}'...")
         self.main_window._analysis_failed = False
-        try:
-            self.main_window.intelligence_panel.set_project(norm_root, analyzers)
-        except Exception:
-            logger.exception("PyScribe operation failed")
+        if analyze:
+            self.main_window.start_busy_indicator(f"Открытие и анализ проекта '{name}'...")
+            try:
+                self.main_window.intelligence_panel.set_project(norm_root, analyzers)
+            except Exception:
+                logger.exception("PyScribe operation failed")
         self.main_window.extension_manager.set_project_root(norm_root)
         try:
             from core.code_analysis.service import UnifiedCodeAnalysisService
@@ -115,7 +120,7 @@ class ProjectHandler:
             pass
         self.main_window.refresh_extensions_panel()
         self.main_window.search_panel.set_root(norm_root)
-        self.main_window.git_panel.set_root(norm_root)
+        self.main_window.git_panel.set_root(norm_root if enabled("git") else None)
         self.main_window.update_window_title()
 
         self.main_window.project_indicator.setText(name)

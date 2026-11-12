@@ -43,7 +43,11 @@ class _ActivityIndicator(QtWidgets.QWidget):
 
     def animate_to(self, target_rect: QtCore.QRect):
         """Slide the indicator to *target_rect* (bar-local coordinates)."""
+        for motion in self.findChildren(QtCore.QParallelAnimationGroup):
+            motion.stop()
         start = self.geometry()
+        if start == target_rect and self.isVisible():
+            return
         if not self.isVisible() and start.isEmpty():
             self.setGeometry(target_rect.left(), target_rect.top(), 2, target_rect.height())
             self._progress = 1.0
@@ -93,11 +97,10 @@ class ActivityBar(QtWidgets.QFrame):
         ("explorer", "files", "Проводник (Ctrl+Shift+E)"),
         ("search", "search", "Поиск (Ctrl+Shift+F)"),
         ("git", "source-control", "Управление версиями"),
-        ("todo", "checklist", "Задачи проекта (Ctrl+Shift+T)"),
+        ("todo", "circle-check", "Задачи проекта (Ctrl+Shift+T)"),
         ("run", "run", "Запуск и отладка"),
         ("intelligence", "intelligence", "Анализ проекта"),
         ("ai", "ai-agent", "ИИ-агент (Ctrl+Shift+I)"),
-        ("extensions", "extensions", "Расширения"),
     ]
 
     def __init__(self, parent=None):
@@ -173,6 +176,8 @@ class ActivityBar(QtWidgets.QFrame):
         size = size or ICON_SIZE
         if name == "ai-agent":
             return codicons.ai_icon(size, color)
+        if name == "circle-check":
+            return codicons.line_icon(name, color)
         if name == "browser-globe":
             pixmap = QtGui.QPixmap(size * 2, size * 2)
             pixmap.setDevicePixelRatio(2)
@@ -318,6 +323,8 @@ class ActivityBar(QtWidgets.QFrame):
             self._update_button_visual(self.browser_button, browser_open)
 
     def set_activity(self, key):
+        if key in self.buttons and self.buttons[key].isHidden():
+            return
         if key == "settings":
             self._activate_special("settings")
         elif key == "terminal":

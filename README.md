@@ -115,7 +115,7 @@ build_exe.bat
 installer\build_installer.bat
 ```
 *(Требуется установленный Inno Setup 6).*  
-В результате в папке `installer_output\` будет создан установочный файл: `PyScribe-Setup-v1.1.0.exe`.
+Установщик `PyScribe-Setup-v<версия>.exe` появится в папке `installer_output\`. Номер версии берётся из файла `VERSION`.
 
 ---
 

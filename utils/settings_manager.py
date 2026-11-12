@@ -5,7 +5,17 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
+BUILTIN_EXTENSIONS = {
+    "browser": ("Браузер", "Веб-вкладки, профили и поиск."),
+    "todo": ("Задачи", "Список задач проекта и личные задачи."),
+    "ai": ("ИИ-агент", "Чат с моделью и действия в редакторе."),
+    "git": ("Git и GitHub", "Управление версиями и репозиториями."),
+    "intelligence": ("Анализ проекта", "Структура, зависимости и граф проекта."),
+    "task_manager": ("Диспетчер задач", "Процессы проекта, CPU и память."),
+}
+
 DEFAULT_SETTINGS = {
+    **{f"extension_{key}": True for key in BUILTIN_EXTENSIONS},
     "browser_search_engine": "duckduckgo",
     "browser_default_profile": "standard",
     "theme": "midnight",

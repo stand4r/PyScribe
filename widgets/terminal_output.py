@@ -59,6 +59,7 @@ class TerminalOutputControls(QtWidgets.QWidget):
 
     def fold_output(self, start_position):
         document = self.screen.document()
+        before = len(self.groups)
         block = document.findBlock(max(start_position, self.next_block))
         while block.isValid() and block.next().isValid():
             previous = self.last_block
@@ -71,7 +72,7 @@ class TerminalOutputControls(QtWidgets.QWidget):
             self.last_block = block
             self.next_block = block.next().position()
             block = block.next()
-        if self.groups:
+        if len(self.groups) != before:
             self.expand.setText(f"Повторы · {len(self.groups)}")
             self.expand.show()
             document.markContentsDirty(start_position, document.characterCount() - start_position)

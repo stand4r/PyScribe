@@ -1764,6 +1764,9 @@ class ProjectIntelligenceDashboard(QtWidgets.QWidget):
         self.open_graph_button.setEnabled(True)
 
     def refresh(self):
+        window = self.window()
+        if hasattr(window, "extension_enabled") and not window.extension_enabled("intelligence"):
+            return
         if not self.engine or not self.engine.root:
             discovered = self._resolve_root_path()
             if discovered:

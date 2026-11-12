@@ -102,9 +102,7 @@ def test_theme_uses_font_tokens():
 def test_ui_titlebar_facade():
     """Verify ui/titlebar.py re-exports properly."""
     from ui.titlebar import WorkbenchTopBar, ExplorerHeader, TITLE_BAR_HEIGHT
-    # 40 px is the value fixed by the visual system (ARCHITECTURE.md,
-    # "Menu strip (title bar) | 40 px"); the old 48 px strip was replaced when
-    # the chrome was aligned with VS Code metrics.
+    # The compact title bar uses a 40 px baseline.
     assert TITLE_BAR_HEIGHT == 40
 
 

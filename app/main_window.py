@@ -27,7 +27,6 @@ from utils.CSharpCompiler import *
 from widgets.ProjectDialog import ProjectDialog, ProjectConfigDialog
 from widgets.AnalysisProfilesDialog import ProjectAnalyzerDialog
 from widgets.KeyboardShortcutsDialog import KeyboardShortcutsDialog
-from widgets.ExtensionsWidget import ExtensionsWidget
 from widgets.ChangeCapsuleDialog import ChangeCapsuleDialog
 from widgets.Dialog import CustomDialog
 from widgets.QArgsEditor import ArgsWindow
@@ -47,6 +46,7 @@ from widgets.ActivityBar import ActivityBar
 from widgets.SearchPanel import SearchPanel
 from widgets.CommandPalette import CommandPalette
 from widgets.QuickOpenDialog import QuickOpenDialog
+from core.activity_log import record_action
 from core.single_instance import SingleInstance
 from core.logging_config import configure_logging, get_logger
 from widgets.GitPanel import GitPanel
@@ -122,7 +122,6 @@ class ModernMainWindow(QMainWindow):
         self.extension_manager = ExtensionManager(self.app_manager.base_path, self.app_manager.settings)
         self._welcome_tab = None
         self._settings_tab = None
-        self._extensions_tab = None
         self._update_dialog = None
         self.console_widget = None
         self.terminal_window = None
@@ -274,7 +273,7 @@ class ModernMainWindow(QMainWindow):
             start_height = current_sizes[1] if len(current_sizes) > 1 and current_sizes[1] > 0 else target_height
 
             anim = QtCore.QVariantAnimation(self)
-            anim.setDuration(160)
+            anim.setDuration(110)
             anim.setEasingCurve(QtCore.QEasingCurve.OutCubic)
             anim.setStartValue(start_height)
             anim.setEndValue(0)
@@ -291,14 +290,14 @@ class ModernMainWindow(QMainWindow):
             anim.valueChanged.connect(_step)
             anim.finished.connect(self._on_terminal_hide_finished)
             self._terminal_anim = anim
-            anim.start()
+            anim.start(QtCore.QAbstractAnimation.DeleteWhenStopped)
         else:
             self.console_widget.show()
             self.console_widget.raise_()
             self.console_widget.set_current_tab("Терминал")
 
             anim = QtCore.QVariantAnimation(self)
-            anim.setDuration(160)
+            anim.setDuration(110)
             anim.setEasingCurve(QtCore.QEasingCurve.OutCubic)
             anim.setStartValue(0)
             anim.setEndValue(target_height)
@@ -315,13 +314,7 @@ class ModernMainWindow(QMainWindow):
             anim.valueChanged.connect(_step)
             anim.finished.connect(self._on_terminal_show_finished)
             self._terminal_anim = anim
-            anim.start()
-            # Content fades in alongside the height tween for a polished reveal.
-            try:
-                from widgets.animations import fade_in
-                fade_in(self.console_widget, duration=220)
-            except Exception:
-                pass
+            anim.start(QtCore.QAbstractAnimation.DeleteWhenStopped)
 
     def _terminal_min_height(self) -> int:
         """Smallest panel height that keeps the terminal tab bar + prompt visible."""
@@ -426,6 +419,7 @@ class ModernMainWindow(QMainWindow):
             font.setPointSizeF(9 * scale / 100)
             app.setFont(font)
         self.apply_interface_settings()
+        self.apply_builtin_extensions()
         self.apply_accessibility_scale()
 
     def apply_screen_metrics(self, screen):
@@ -523,7 +517,8 @@ class ModernMainWindow(QMainWindow):
             # Another project replaced the index while this slice was parsed.
             return
         try:
-            index.apply_parsed(parsed or [])
+            requests = getattr(self, "_editor_index_requests", {})
+            index.apply_parsed(row for row in (parsed or []) if (generation, row[0]) not in requests)
         except Exception:
             logger.exception("Не удалось применить результаты индексации")
 
@@ -995,6 +990,8 @@ class ModernMainWindow(QMainWindow):
 
     def show_ai_agent(self):
         """Open the AI agent sidebar view (and focus its input)."""
+        if not self.extension_enabled("ai"):
+            return
         try:
             self.activity_bar.set_activity("ai")
         except Exception:
@@ -1007,6 +1004,8 @@ class ModernMainWindow(QMainWindow):
 
     def action_ai_explain_selection(self):
         """Ask the AI agent to explain the current selection/line."""
+        if not self.extension_enabled("ai"):
+            return
         editor = self.get_current_editor()
         if editor is None:
             CustomDialog("Нет активного редактора").exec_()
@@ -1024,6 +1023,8 @@ class ModernMainWindow(QMainWindow):
 
     def action_ai_apply_code(self):
         """Apply the first code block of the AI answer to the editor."""
+        if not self.extension_enabled("ai"):
+            return
         panel = getattr(self, "ai_panel", None)
         applied = bool(panel is not None and panel.apply_last_code())
         if applied:
@@ -1034,6 +1035,8 @@ class ModernMainWindow(QMainWindow):
 
     def action_ai_copy_answer(self):
         """Copy the last AI answer to the clipboard."""
+        if not self.extension_enabled("ai"):
+            return
         panel = getattr(self, "ai_panel", None)
         copied = bool(panel is not None and panel.copy_last_answer())
         if not copied:
@@ -1050,7 +1053,6 @@ class ModernMainWindow(QMainWindow):
             "explorer": self.explorer_panel,
             "search": self.search_panel,
             "run": self.run_panel,
-            "extensions": self.extensions_panel,
             "git": self.git_panel,
             "todo": getattr(self, "todo_panel", None),
             "intelligence": self.intelligence_panel,
@@ -1059,8 +1061,7 @@ class ModernMainWindow(QMainWindow):
         if key == "settings":
             self.action_open_settings()
             return
-        if key == "extensions":
-            self.action_open_extensions()
+        if key in {"ai", "todo", "git", "intelligence"} and not self.extension_enabled(key):
             return
         if key == "toggle_sidebar":
             self.toggle_sidebar()
@@ -1077,7 +1078,6 @@ class ModernMainWindow(QMainWindow):
                 "explorer": "ПРОВОДНИК",
                 "search": "ПОИСК",
                 "run": "ЗАПУСК",
-                "extensions": "РАСШИРЕНИЯ",
                 "git": "УПРАВЛЕНИЕ ВЕРСИЯМИ",
                 "todo": "ЗАДАЧИ И TO DO",
                 "intelligence": "АНАЛИЗ ПРОЕКТА",
@@ -1086,7 +1086,6 @@ class ModernMainWindow(QMainWindow):
         panel = panels.get(key)
         if panel:
             panel.show()
-            self._fade_in_panel(panel)
             if key == "intelligence":
                 self._ensure_intelligence_panel_project()
             if key == "todo" and hasattr(panel, "refresh_tasks"):
@@ -1101,16 +1100,6 @@ class ModernMainWindow(QMainWindow):
             self.side_panel.show()
         if key == "search" and self.search_panel.query.text():
             self.search_panel.search()
-
-    def _fade_in_panel(self, panel):
-        """Cross-fade the side panel content when switching activity views."""
-        if panel is None:
-            return
-        try:
-            from widgets.animations import fade_in
-            fade_in(panel, duration=160)
-        except Exception:
-            pass
 
     def _ensure_intelligence_panel_project(self):
         """Выполняет операцию  ensure intelligence panel project.
@@ -1329,7 +1318,7 @@ class ModernMainWindow(QMainWindow):
             if self.active_tab_widget.count() == 0:
                 self.show_welcome_screen()
 
-        if not restored_project and hasattr(self, 'intelligence_panel'):
+        if not restored_project and self.extension_enabled('intelligence'):
             try:
                 init_root = str(Path.cwd().resolve())
                 self.intelligence_panel.set_project(init_root)
@@ -1412,7 +1401,7 @@ class ModernMainWindow(QMainWindow):
             start_width = current_sizes[0] if current_sizes and current_sizes[0] > 0 else target_width
 
             anim = QtCore.QVariantAnimation(self)
-            anim.setDuration(160)
+            anim.setDuration(110)
             anim.setEasingCurve(QtCore.QEasingCurve.OutCubic)
             anim.setStartValue(start_width)
             anim.setEndValue(0)
@@ -1429,13 +1418,13 @@ class ModernMainWindow(QMainWindow):
             anim.valueChanged.connect(_step_hide)
             anim.finished.connect(self._on_sidebar_hide_finished)
             self._sidebar_anim = anim
-            anim.start()
+            anim.start(QtCore.QAbstractAnimation.DeleteWhenStopped)
         else:
             self.side_panel.show()
             self._activate_first_visible_panel()
 
             anim = QtCore.QVariantAnimation(self)
-            anim.setDuration(160)
+            anim.setDuration(110)
             anim.setEasingCurve(QtCore.QEasingCurve.OutCubic)
             anim.setStartValue(0)
             anim.setEndValue(target_width)
@@ -1452,7 +1441,7 @@ class ModernMainWindow(QMainWindow):
             anim.valueChanged.connect(_step_show)
             anim.finished.connect(self._on_sidebar_show_finished)
             self._sidebar_anim = anim
-            anim.start()
+            anim.start(QtCore.QAbstractAnimation.DeleteWhenStopped)
 
     def _adjust_terminal_size(self):
         """Keep the integrated bottom panel at a sensible height after resize."""
@@ -1877,6 +1866,8 @@ class ModernMainWindow(QMainWindow):
             args_window.show()
 
     def action_open_browser(self):
+        if not self.extension_enabled("browser"):
+            return
         existing = self._find_special_tab("browser")
         if existing:
             group, index = existing
@@ -1968,6 +1959,7 @@ class ModernMainWindow(QMainWindow):
 
     def action_open_settings(self):
         """Open Settings as a unique editor tab."""
+        record_action("settings_opened")
         found = self._find_special_tab("settings")
         if found:
             group, idx = found
@@ -2081,18 +2073,53 @@ class ModernMainWindow(QMainWindow):
         ChangeCapsuleDialog(self, self).exec_()
 
     def action_open_extensions(self):
-        """Open the extension manager as a unique editor tab, like Settings."""
-        found = self._find_special_tab("extensions")
-        if found:
-            group, idx = found
-            self._set_active_group(group)
-            group.setCurrentIndex(idx)
-            return
-        widget = ExtensionsWidget(self.extension_manager, self.app_manager.base_path, self)
-        widget.setProperty("pyscribeSpecial", "extensions")
-        index = self.active_tab_widget.addTab(widget, "Расширения")
-        self.active_tab_widget.setCurrentIndex(index)
-        self._extensions_tab = widget
+        self.action_open_settings()
+        self._settings_tab.open_extensions_page()
+
+    def extension_enabled(self, key):
+        return bool(get_settings_manager().get_setting(f"extension_{key}", True))
+
+    def apply_builtin_extensions(self):
+        activity = self.activity_bar
+        enabled = {key: self.extension_enabled(key) for key in ("todo", "ai", "git", "intelligence")}
+        for key, visible in enabled.items():
+            activity.buttons[key].setVisible(visible)
+        if activity.active_sidebar_key in enabled and not enabled[activity.active_sidebar_key]:
+            activity.set_sidebar_active("explorer")
+            self._handle_activity("explorer")
+
+        browser_enabled = self.extension_enabled("browser")
+        activity.browser_button.setVisible(browser_enabled)
+        if not browser_enabled:
+            self.close_special_tab("browser")
+        if not enabled["ai"]:
+            self.ai_panel.clear_queue()
+            self.ai_panel.stop_request()
+
+        project = self.current_project
+        root = project.root_path if project else None
+        if not enabled["git"]:
+            if self.git_panel.root_path:
+                self.git_panel.set_root(None)
+        elif root and not self.git_panel.root_path:
+            self.git_panel.set_root(root)
+
+        if not enabled["intelligence"]:
+            if self.intelligence_panel.engine is not None:
+                self.intelligence_panel.set_project(None)
+            for group in self.editor_groups():
+                for index in range(group.count() - 1, -1, -1):
+                    widget = group.widget(index)
+                    if isinstance(widget, ProjectGraphEditorWidget):
+                        group.removeTab(index)
+                        widget.deleteLater()
+        elif root and self.intelligence_panel.engine is None:
+            self.intelligence_panel.set_project(root, getattr(project, "analyzers", None))
+
+        if self.console_widget is not None:
+            console = self.console_widget
+            index = console.tab_widget.indexOf(console.task_manager)
+            console.tab_widget.setTabVisible(index, self.extension_enabled("task_manager"))
 
     def action_set_shell(self):
         """Выполняет операцию action set shell.
@@ -2134,6 +2161,12 @@ class ModernMainWindow(QMainWindow):
         QtGui.QDesktopServices.openUrl(
             QtCore.QUrl("https://github.com/stand4r/PyScribe/issues")
         )
+
+    def action_send_log(self):
+        from core.logging_config import log_directory
+        from widgets.LogShareDialog import LogShareDialog
+
+        LogShareDialog(log_directory(self.app_manager.base_path), self).exec_()
 
     def action_exit(self):
         """Выполняет операцию action exit.
@@ -2198,6 +2231,14 @@ class ModernMainWindow(QMainWindow):
         if self.current_project:
             project_root = getattr(self.current_project, 'root_path', None)
         cwd = Path(project_root) if project_root and Path(project_root).is_dir() else path.parent
+
+        from core.assembly import EXTENSIONS as ASSEMBLY_EXTENSIONS
+        if path.suffix.lower() in ASSEMBLY_EXTENSIONS:
+            if debug:
+                self.status_bar.showMessage("Для ассемблера доступна команда «Запустить файл».")
+                return
+            self.run_in_terminal(str(path), args, cwd)
+            return
 
         def q(value):
             return '"' + str(value).replace('"', '') + '"'
@@ -2326,7 +2367,7 @@ class ModernMainWindow(QMainWindow):
     def run_and_analyze(self, file_path):
         """PyScribe-specific workflow: execute a target, then refresh the structural model."""
         self.run_target(file_path, False)
-        if self.current_project:
+        if self.current_project and self.extension_enabled("intelligence"):
             self.activity_bar.set_activity("intelligence")
             QtCore.QTimer.singleShot(1200, self.intelligence_panel.refresh)
 
@@ -2485,6 +2526,7 @@ class ModernMainWindow(QMainWindow):
         Args:
             index (int): Смещение или индекс начального элемента для выборки.
         """
+        record_action("tab_close_requested")
         if index < 0 or index >= self.active_tab_widget.count():
             return
 
@@ -2508,8 +2550,6 @@ class ModernMainWindow(QMainWindow):
             self._settings_tab = None
         if editor is getattr(self, "_welcome_tab", None) or editor.property("pyscribeSpecial") == "welcome":
             self._welcome_tab = None
-        if editor is getattr(self, "_extensions_tab", None) or editor.property("pyscribeSpecial") == "extensions":
-            self._extensions_tab = None
 
         self.active_tab_widget.removeTab(index)
         if isinstance(editor, DocumentViewerWidget) or editor.property("pyscribeSpecial") == "browser":
@@ -2564,7 +2604,7 @@ class ModernMainWindow(QMainWindow):
         engine = getattr(self.intelligence_panel, "engine", None)
         if file_path and engine:
             content = editor.get_code() if hasattr(editor, "get_code") else None
-            self.console_widget.set_file_context(str(file_path), engine=engine, content=content)
+            self.console_widget.set_file_context(str(file_path), engine=engine, content=content, background=True)
         elif file_path:
             self.console_widget.set_file_context(str(file_path))
         else:
@@ -2720,6 +2760,8 @@ class ModernMainWindow(QMainWindow):
 
     def open_graph_editor(self, engine=None, mode='modules'):
         """Open architecture graph in an editor tab (or focus and refresh if already open)."""
+        if not self.extension_enabled("intelligence"):
+            return
         try:
             if engine is None:
                 engine = getattr(self.intelligence_panel, 'engine', None)
@@ -2867,6 +2909,8 @@ class ModernMainWindow(QMainWindow):
     def action_analyze_current_impact(self):
         """Выполняет операцию action analyze current impact.
         """
+        if not self.extension_enabled("intelligence"):
+            return
         if not self.current_project:
             CustomDialog("Сначала откройте проект.").exec_()
             return
@@ -2878,6 +2922,8 @@ class ModernMainWindow(QMainWindow):
 
     def action_adversary_test(self):
         """«Адвокат дьявола»: испытать текущий файл граничными входами."""
+        if not self.extension_enabled("intelligence"):
+            return
         editor = self.get_current_editor()
         path = getattr(editor, "file_path", None) if editor else None
         if not path:
@@ -2946,6 +2992,8 @@ class ModernMainWindow(QMainWindow):
             widget = group.widget(i)
             if widget.property("pyscribeSpecial") == kind:
                 group.removeTab(i)
+                if kind == "browser":
+                    widget.deleteLater()
 
     def close_special_tab(self, kind: str):
         """Закрывает и освобождает системные ресурсы special tab.
@@ -2959,8 +3007,6 @@ class ModernMainWindow(QMainWindow):
             self._welcome_tab = None
         elif kind == "settings":
             self._settings_tab = None
-        elif kind == "extensions":
-            self._extensions_tab = None
         self._sync_special_activity()
 
     def show_welcome_screen(self):
@@ -3054,11 +3100,25 @@ class ModernMainWindow(QMainWindow):
         if not editor or self.is_special_widget(editor) or not self.workspace_index.root:
             return
         fp = getattr(editor, "file_path", None)
-        if fp:
-            try:
-                self.workspace_index.update_file(Path(fp), editor.get_code())
-            except Exception:
-                pass
+        if not fp:
+            return
+        from services.background import run_async
+        index = self.workspace_index
+        generation = index.generation
+        if getattr(self, "_editor_index_generation", None) != generation:
+            self._editor_index_generation = generation
+            self._editor_index_requests = {}
+        path = Path(fp).resolve()
+        content = editor.get_code()
+        key = (generation, str(path))
+        request = object()
+        self._editor_index_requests[key] = request
+
+        def apply(parsed):
+            if index.generation == generation and self._editor_index_requests.get(key) is request:
+                index.apply_parsed(parsed)
+
+        run_async(lambda: index.parse_buffer(path, content), on_done=apply)
 
     def on_text_changed(self):
         """Debounced live index and analysis update for genuine files without modifying tab titles.
@@ -3202,27 +3262,11 @@ class ModernMainWindow(QMainWindow):
         self.active_tab_widget.setTabText(index, title)
 
     def refresh_extensions_panel(self):
-        """Выполняет операцию refresh extensions panel.
-        """
-        if not hasattr(self, "extensions_list"):
-            return
-        self.extensions_list.clear()
-        extensions = self.extension_manager.list_extensions()
-        if not extensions:
-            item = QtWidgets.QListWidgetItem("Нет установленных расширений")
-            item.setFlags(QtCore.Qt.NoItemFlags)
-            self.extensions_list.addItem(item)
-            return
-        for ext in extensions:
-            name = ext.get("name", ext.get("id", "Расширение"))
-            version = ext.get("version", "")
-            item = QtWidgets.QListWidgetItem(f"{name}  {version}".strip())
-            item.setToolTip(ext.get("id", ""))
-            self.extensions_list.addItem(item)
-        for ext_id, error in self.extension_manager.errors.items():
-            item = QtWidgets.QListWidgetItem(f"{ext_id}  • ошибка загрузки")
-            item.setToolTip(error)
-            self.extensions_list.addItem(item)
+        settings = self._settings_tab
+        if settings is not None:
+            manager = getattr(settings, "installed_extensions", None)
+            if manager is not None:
+                manager.refresh()
 
     def update_window_title(self):
         """Обновляет параметры window title.

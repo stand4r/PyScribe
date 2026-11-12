@@ -157,6 +157,7 @@ class LanguageRegistry:
         return list(self._specs.values())
 
     def _register_builtins(self):
+        self.register(LanguageSpec("asm", "Ассемблер", (".asm", ".nasm", ".fasm", ".s"), ""))
         """Register the comprehensive set of supported languages."""
         # 1. Python
         self.register(LanguageSpec(

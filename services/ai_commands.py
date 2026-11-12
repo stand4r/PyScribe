@@ -1,6 +1,6 @@
 """Chat slash-commands and @-mentions for the PyScribe AI agent.
 
-Syntax (opencode / Claude Code style):
+Command syntax:
 
 ``/``    run a built-in command (``/model``, ``/clear``, ``/context``, …)
 ``@``    attach a file or folder from the project as context (``@src/app.py``)

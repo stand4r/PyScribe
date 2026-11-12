@@ -205,15 +205,17 @@ class _OpacityRamp(QtCore.QObject):
         self._duration = max(1, int(duration))
         self._easing = easing
         self._on_finished = on_finished
-        self._elapsed = 0
+        self._clock = QtCore.QElapsedTimer()
         self._done = False
         self._timer = QtCore.QTimer(self)
+        self._timer.setTimerType(QtCore.Qt.PreciseTimer)
         self._timer.setInterval(self.INTERVAL_MS)
         self._timer.timeout.connect(self._tick)
 
     def start(self):
         _ACTIVE_OPACITY_RAMPS.add(self)
         self._apply(self._start)
+        self._clock.start()
         self._timer.start()
 
     def stop(self):
@@ -244,8 +246,7 @@ class _OpacityRamp(QtCore.QObject):
         if not widget_alive(self._widget) or not widget_alive(self._effect):
             self.stop()
             return
-        self._elapsed += self.INTERVAL_MS
-        t = min(1.0, self._elapsed / self._duration)
+        t = min(1.0, self._clock.elapsed() / self._duration)
         self._apply(self._progress(t))
         if t >= 1.0:
             self.stop()

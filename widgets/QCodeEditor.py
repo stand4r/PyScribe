@@ -1,4 +1,5 @@
 """PyScribe widgets/QCodeEditor.py: application module and reusable component."""
+from core.activity_log import record_action
 from core.logging_config import get_logger
 import ast
 import re
@@ -361,6 +362,18 @@ class ModernSyntaxHighlighter(QSyntaxHighlighter):
     def _compile_rules(self) -> List[Tuple[Any, QTextCharFormat]]:
         rules = []
         kw_list = set(self.language_config.keywords)
+        if self.lang_name == "asm":
+            patterns = [
+                (r"^\s*[A-Za-z_.$?@][\w.$?@]*:", "#DCDCAA"),
+                (r"(?i)\b(?:bits|use32|use64|section|segment|format|entry|include|"
+                 r"global|extern|org|equ|align|db|dw|dd|dq|resb|resw|resd|resq|"
+                 + "|".join(sorted(kw_list)) + r")\b", "#569CD6"),
+                (r"(?i)\b(?:[re]?(?:ax|bx|cx|dx|si|di|sp|bp)|[abcd][lh]|"
+                 r"r(?:[89]|1[0-5])[dwb]?|(?:xmm|ymm|zmm)\d+|[re]?ip)\b", "#4EC9B0"),
+                (r"(?i)\b(?:0x[\da-f]+|[\da-f]+h|0b[01]+|\d+)\b", "#B5CEA8"),
+            ]
+            return [(re.compile(pattern), self._get_cached_format(color, QFont.Normal, False))
+                    for pattern, color in patterns]
 
         # 1. Distinct control-flow keywords (VS Code purple #C586C0)
         flow_keywords = {
@@ -418,6 +431,14 @@ class ModernSyntaxHighlighter(QSyntaxHighlighter):
         return rules
 
     def highlightBlock(self, text: str):
+        if self.lang_name == "asm":
+            for pattern, style in self._rules:
+                for match in pattern.finditer(text):
+                    self.setFormat(match.start(), len(match[0]), style)
+            for match in re.finditer(r''' "[^"]*" | '[^']*' | ;.*$ ''', text, re.X):
+                style = self._comment_format if match[0].startswith(";") else self._string_format
+                self.setFormat(match.start(), len(match[0]), style)
+            return
         if not text:
             prev = self.previousBlockState()
             self.setCurrentBlockState(prev if prev > 0 else self.STATE_NORMAL)
@@ -2627,6 +2648,7 @@ class ModernCodeEditor(QWidget):
                           ".elf", ".hex", ".rom", ".img", ".iso", ".dat"}:
                 return False
             self.file_path.write_text(self.get_code(), encoding="utf-8", newline="")
+            record_action("file_saved")
             if hasattr(self.editor, "document") and self.editor.document():
                 self.editor.document().setModified(False)
             try:

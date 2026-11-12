@@ -128,6 +128,13 @@ class TreeSitterEngine:
 
     def parse(self, code: str, lang_id: str, file_path: str = "") -> SyntaxParseResult:
         """Parse source code in memory and extract symbols, imports, and calls."""
+        if lang_id == "asm":
+            from core.assembly import outline
+            labels, imports = outline(code)
+            return SyntaxParseResult(lang_id, [
+                AnalyzedSymbol(name, "label", line, col, line, col + len(name), file_path=file_path)
+                for name, line, col in labels
+            ], imports)
         parser = self._get_parser(lang_id)
         if parser is None:
             return self._fallback_parse(code, lang_id, file_path)

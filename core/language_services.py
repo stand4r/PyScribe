@@ -414,6 +414,12 @@ class GenericLanguageProvider(LanguageProvider):
 
     def get_config(self):
         ext = self.language
+        if ext == "asm":
+            return LanguageConfig(
+                name="ASM", extensions=["asm", "nasm", "fasm", "s"],
+                keywords=self.KEYWORDS["asm"].split(), syntax_rules=[],
+                line_comment=";", block_comment_start="", block_comment_end="",
+            )
         words = self.KEYWORDS.get(ext, "").split()
         comment = "#" if ext in ("sh",) else "//"
         rules = []

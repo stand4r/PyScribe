@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from core.activity_log import record_action
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 from utils.settings_manager import get_settings_manager
@@ -875,12 +876,6 @@ class TerminalTab(QtWidgets.QWidget):
         self.screen.prompt_pos = prompt_position
         self.screen.ensureCursorVisible()
 
-    def _last_line_is_empty_prompt(self, full_text: str, prompt_plain: str) -> bool:
-        """True when the buffer already ends with the *current* prompt line."""
-        last_line_start = full_text.rfind('\n') + 1
-        last_line = full_text[last_line_start:]
-        return bool(last_line) and last_line == prompt_plain
-
     def _replace_stale_prompt(self, full_text: str, prompt_plain: str) -> bool:
         """Replace an empty prompt showing a *different* path (dir changed).
 
@@ -1281,10 +1276,6 @@ class TerminalTab(QtWidgets.QWidget):
         text = text.replace("\r\n", "\n").replace("\r", "")
         cursor = self.screen.textCursor()
         cursor.movePosition(QtGui.QTextCursor.End)
-        # Start on a fresh line: the buffer normally ends with the editable
-        # prompt, and program output must never be glued onto it.
-        if self._last_line_is_empty_prompt(self.screen.toPlainText(), ""):
-            cursor.insertText("\n", self._fmt(color="#D4D4D4"))
         cursor.beginEditBlock()
 
         palette = {
@@ -1297,30 +1288,31 @@ class TerminalTab(QtWidgets.QWidget):
             "output": "#D4D4D4",
         }
 
+        formats = {}
+        def formatting(color):
+            if color not in formats:
+                formats[color] = self._fmt(color=color)
+            return formats[color]
+
         for chunk in self._split_ansi(text):
             if isinstance(chunk, tuple):
                 color, piece = chunk
-                fmt = self._fmt(color=color)
-                cursor.insertText(piece, fmt)
+                cursor.insertText(piece, formatting(color))
                 continue
             # Plain text: colour per line for readability.
             for i, line in enumerate(chunk.split("\n")):
                 if i:
-                    cursor.insertText("\n", self._fmt(color=palette["output"]))
+                    cursor.insertText("\n", formatting(palette["output"]))
                 if not line:
                     continue
                 line_role = role if role != "output" else self._role_for_line(line)
-                cursor.insertText(line, self._fmt(color=palette.get(line_role, palette["output"])))
+                cursor.insertText(line, formatting(palette.get(line_role, palette["output"])))
 
         cursor.endEditBlock()
         self.screen.setTextCursor(cursor)
         self.screen.prompt_pos = self.screen.textCursor().position()
         self.screen.setCurrentCharFormat(self.screen.get_input_format())
         self.screen.ensureCursorVisible()
-        try:
-            self.note_buffer_growth(strip_ansi(text))
-        except Exception:
-            pass
 
     @staticmethod
     def _split_ansi(text: str):
@@ -1571,8 +1563,9 @@ class TerminalTab(QtWidgets.QWidget):
     # ------------------------------------------------------------------
     # IDE run processes (separate channel)
     # ------------------------------------------------------------------
-    def start_run_process(self, command: str):
+    def start_run_process(self, command: str, assembly=None):
         """Start *command* as a dedicated child process and stream its output."""
+        record_action("run_started")
         self._last_command = command
         self._stop_run_process(kill=True)
         proc = QtCore.QProcess(self)
@@ -1626,6 +1619,16 @@ class TerminalTab(QtWidgets.QWidget):
         self._run_started_at = time.monotonic()
         self._command_running = True
         self._set_busy(True)
+        if assembly is not None:
+            proc._assembly_dir, proc._assembly_steps, include, source = assembly
+            proc._assembly_source = str(source)
+            proc._assembly_returns_eax = len(proc._assembly_steps) == 3
+            proc._assembly_stdout = []
+            environment = proc.processEnvironment()
+            environment.insert("INCLUDE", str(source.parent) + ";" + include)
+            proc.setProcessEnvironment(environment)
+            self._start_assembly_step(proc)
+            return
         outside_quotes = re.sub(r'"[^"]*"', "", command)
         needs_shell = "&&" in outside_quotes or (program and program.lower().endswith((".cmd", ".bat")))
         if program and needs_shell and IS_WINDOWS:
@@ -1649,6 +1652,17 @@ class TerminalTab(QtWidgets.QWidget):
             self._stop_run_process(kill=False)
             self.mark_command_finished(1)
             self.print_prompt()
+
+    def _start_assembly_step(self, proc):
+        program, *args = proc._assembly_steps.pop(0)
+        if proc._assembly_steps:
+            proc._assembly_compiling = True
+            proc.setWorkingDirectory(proc._assembly_dir.path())
+        else:
+            proc._assembly_compiling = False
+            proc.setWorkingDirectory(str(self.working_dir))
+            self.append_system_line("Сборка завершена. Запуск программы…")
+        proc.start(program, args)
 
     @staticmethod
     def _split_command(command: str):
@@ -1701,6 +1715,9 @@ class TerminalTab(QtWidgets.QWidget):
         except RuntimeError:
             return
         if text:
+            if getattr(proc, "_assembly_compiling", False):
+                proc._assembly_stdout.append(text)
+                return
             self._append_colored(text.replace("\r\n", "\n").replace("\r", ""), "output")
 
     def _read_run_stderr(self, proc):
@@ -1711,6 +1728,8 @@ class TerminalTab(QtWidgets.QWidget):
         except RuntimeError:
             return
         if text:
+            if getattr(proc, "_assembly_compiling", False):
+                text = text.replace("source.asm", proc._assembly_source)
             self._append_colored(text.replace("\r\n", "\n").replace("\r", ""), "error")
 
     def _on_run_error(self, proc, err):
@@ -1729,10 +1748,29 @@ class TerminalTab(QtWidgets.QWidget):
         # already be gone when this slot runs, so never let it raise).
         self._read_run_stdout(proc)
         self._read_run_stderr(proc)
+        compiling = getattr(proc, "_assembly_compiling", False)
+        if compiling:
+            output = "".join(proc._assembly_stdout)
+            proc._assembly_stdout.clear()
+            if exit_status == QtCore.QProcess.NormalExit and exit_code == 0:
+                output = re.sub(r"(?mi)^flat assembler[ \t]+version[ \t]+[^\r\n]*\r?\n", "", output)
+                output = re.sub(r"(?mi)^\d+ pass(?:es)?, \d+ bytes\.\s*$", "", output)
+            if output.strip():
+                self._append_colored(output.replace("source.asm", proc._assembly_source), "output")
+        if (exit_status == QtCore.QProcess.NormalExit and exit_code == 0
+                and getattr(proc, "_assembly_steps", None)):
+            self._start_assembly_step(proc)
+            return
         elapsed = max(0.0, time.monotonic() - getattr(self, "_run_started_at", time.monotonic()))
         crashed = exit_status != QtCore.QProcess.NormalExit
         code = -1 if crashed else int(exit_code)
-        if code == 0:
+        if compiling:
+            label = f"Ошибка сборки · код {code}"
+        elif getattr(proc, "_assembly_returns_eax", False) and crashed:
+            label = "Программа завершилась аварийно"
+        elif getattr(proc, "_assembly_returns_eax", False) and not crashed:
+            label = f"Результат программы (EAX) = {code & 0xFFFFFFFF}"
+        elif code == 0:
             label = f"Завершено за {elapsed:.1f} с"
         else:
             label = f"Код выхода {code} · {elapsed:.1f} с"
@@ -1878,13 +1916,23 @@ class TerminalWidget(QtWidgets.QWidget):
         records = []
         for index in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(index)
-            text = tab.screen.toPlainText()
-            boundary = min(tab.screen.prompt_pos, len(text))
+            document = tab.screen.document()
+            end = document.characterCount() - 1
+            boundary = max(0, min(tab.screen.prompt_pos, end))
+            cursor = QtGui.QTextCursor(document)
+            cursor.setPosition(max(0, boundary - 500000))
+            cursor.setPosition(boundary, QtGui.QTextCursor.KeepAnchor)
+            output = cursor.selection().toPlainText()
+            draft = ""
+            if not tab._busy and boundary < end:
+                cursor.setPosition(boundary)
+                cursor.movePosition(QtGui.QTextCursor.End, QtGui.QTextCursor.KeepAnchor)
+                draft = cursor.selection().toPlainText()
             records.append({
                 "title": self.tab_widget.tabText(index),
                 "directory": tab.working_dir,
-                "output": text[:boundary][-500000:],
-                "draft": text[boundary:] if not tab._busy else "",
+                "output": output,
+                "draft": draft,
                 "last_command": tab._last_command,
                 "running": tab._busy,
                 "scroll": tab.screen.verticalScrollBar().value(),
@@ -2113,6 +2161,10 @@ class TerminalWidget(QtWidgets.QWidget):
             tab.screen.setFocus()
 
     def run_code(self, file_path, args="", working_dir=None):
+        from core.assembly import EXTENSIONS
+        if Path(file_path).suffix.lower() in EXTENSIONS:
+            self.run_assembly(file_path, args, working_dir)
+            return
         if working_dir:
             self.set_working_directory(working_dir)
         tab = self._current()
@@ -2169,6 +2221,28 @@ class TerminalWidget(QtWidgets.QWidget):
         if tab:
             tab.submit_command(str(command))
             tab.screen.setFocus()
+
+    def run_assembly(self, file_path, args="", working_dir=None):
+        from core.assembly import windows_build
+
+        source = Path(file_path).resolve()
+        self.set_working_directory(working_dir or source.parent)
+        tab = self._current()
+        if tab is None:
+            self.create_new_tab(working_dir or source.parent)
+            tab = self._current()
+        scratch = QtCore.QTemporaryDir(QtCore.QDir.tempPath() + "/pyscribe-asm-XXXXXX")
+        try:
+            if not scratch.isValid():
+                raise OSError("Не удалось создать временную папку сборки.")
+            _, arguments = tab._split_command("program " + args)
+            steps, include = windows_build(source, Path(scratch.path()), arguments)
+        except (OSError, ValueError) as exc:
+            tab.append_system_line(f"Ошибка запуска ассемблера: {exc}")
+            return
+        assembler = "NASM" if len(steps) == 3 else "FASM"
+        tab.start_run_process(f"Сборка {source.name} · {assembler}", (scratch, steps, include, source))
+        tab.screen.setFocus()
 
     def run_file(self, command, working_dir=None):
         """Run *command* as its own process and stream its output."""

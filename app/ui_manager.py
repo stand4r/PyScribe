@@ -82,8 +82,6 @@ class UIManager:
         self.main_window.run_panel.run_analyze_requested.connect(self.main_window.run_and_analyze)
         side_layout.addWidget(self.main_window.run_panel)
 
-        self._setup_extensions_panel(side_layout)
-
         self.main_window.git_panel = GitPanel(self.main_window)
         self.main_window.git_panel.hide()
         side_layout.addWidget(self.main_window.git_panel)
@@ -108,31 +106,6 @@ class UIManager:
         self.main_window.ai_panel = AIAgentPanel(self.main_window, self.main_window.side_panel)
         self.main_window.ai_panel.hide()
         side_layout.addWidget(self.main_window.ai_panel)
-
-    def _setup_extensions_panel(self, side_layout):
-        self.main_window.extensions_panel = QtWidgets.QWidget(self.main_window)
-        self.main_window.extensions_panel.setObjectName("extensionsPanel")
-        ext_layout = QtWidgets.QVBoxLayout(self.main_window.extensions_panel)
-        ext_layout.setContentsMargins(12, 8, 12, 12)
-        ext_layout.setSpacing(8)
-        ext_title_row = QtWidgets.QFrame(self.main_window.extensions_panel)
-        ext_title_row.setObjectName("explorerHeader")
-        ext_title_layout = QtWidgets.QHBoxLayout(ext_title_row)
-        ext_title_layout.setContentsMargins(12, 0, 8, 0)
-        ext_title = QtWidgets.QLabel("РАСШИРЕНИЯ")
-        ext_title.setObjectName("sideTitle")
-        ext_title_layout.addWidget(ext_title)
-        ext_title_layout.addStretch()
-        ext_layout.addWidget(ext_title_row)
-        ext_hint = QtWidgets.QLabel("Установленные")
-        ext_hint.setObjectName("sideHint")
-        ext_layout.addWidget(ext_hint)
-        self.main_window.extensions_list = QtWidgets.QListWidget()
-        self.main_window.extensions_list.setObjectName("extensionsList")
-        self.main_window.extensions_list.setFrameShape(QtWidgets.QFrame.NoFrame)
-        ext_layout.addWidget(self.main_window.extensions_list, 1)
-        self.main_window.extensions_panel.hide()
-        side_layout.addWidget(self.main_window.extensions_panel)
 
     def _setup_splitters(self, root):
         self.main_window.workspace_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)

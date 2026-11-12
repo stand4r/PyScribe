@@ -237,7 +237,7 @@ class WorkbenchTopBar(QtWidgets.QFrame):
         def git(method):
             def invoke():
                 panel = getattr(w, "git_panel", None)
-                if panel is None:
+                if panel is None or not w.extension_enabled("git"):
                     return
                 w.activity_bar.set_activity("git")
                 if method == "commit":
@@ -342,7 +342,6 @@ class WorkbenchTopBar(QtWidgets.QFrame):
                 ("Рабочая среда", (
                     ("Настройки", None, w.action_open_settings),
                     ("Браузер", None, w.action_open_browser),
-                    ("Расширения", None, w.action_open_extensions),
                     ("Интеграция с проводником…", None, w.action_shell_integration),
                 )),
                 ("ИИ-агент", (
@@ -361,6 +360,7 @@ class WorkbenchTopBar(QtWidgets.QFrame):
                     ("О программе", None, w.action_about),
                     ("Проверить обновления…", None, w.action_check_updates),
                     ("Сообщить о проблеме на GitHub", None, w.action_github_issues),
+                    ("Отправить лог…", None, lambda: w.action_send_log()),
                 )),
             ),
         }

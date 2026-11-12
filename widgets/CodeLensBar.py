@@ -927,6 +927,12 @@ class CodeLensBar(QFrame):
             status = service.get_language_status(filepath_str)
             syntax_res = service.get_syntax_result(filepath_str, text=code)
 
+            if syntax_res and syntax_res.lang_id == "asm":
+                self._symbols = syntax_res.symbols
+                self._set_syntax_badge("ASM · Метки")
+                self.syntax_badge.setToolTip("Метки и подключения. Проверка инструкций выполняется при сборке.")
+                return
+
             if syntax_res and (syntax_res.symbols or syntax_res.is_tree_sitter):
                 self._symbols = syntax_res.symbols
                 has_err = bool(syntax_res.syntax_errors)

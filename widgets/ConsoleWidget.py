@@ -17,6 +17,7 @@ class ConsoleWidget(QtWidgets.QWidget):
         # to stall every running animation, so results are reused until the
         # content (or the file on disk) actually changes.
         self._analysis_cache = {}
+        self._analysis_request = 0
         self._lsp_diagnostics = {}
         self._build()
         try:
@@ -84,7 +85,6 @@ class ConsoleWidget(QtWidgets.QWidget):
         self.tab_widget.setCornerWidget(corner, QtCore.Qt.TopRightCorner)
 
         # Problem count badge + busy indicator live in the panel strip.
-        self.tab_widget.currentChanged.connect(self._animate_page_change)
         self.terminal_widget.busy_changed.connect(self._set_terminal_busy)
         self.terminal_widget.tab_count_changed.connect(self._refresh_terminal_tab_label)
 
@@ -127,17 +127,6 @@ class ConsoleWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
     # Panel animations
     # ------------------------------------------------------------------
-    def _animate_page_change(self, index: int):
-        """Soft fade when switching between Терминал / Проблемы / Вывод."""
-        widget = self.tab_widget.widget(index)
-        if widget is None:
-            return
-        try:
-            from widgets.animations import fade_in, DURATION
-            fade_in(widget, duration=DURATION["fast"])
-        except Exception:
-            pass
-
     def _set_terminal_busy(self, busy: bool):
         """Animated '● process running' indicator on the Терминал tab."""
         index = self.tab_widget.indexOf(self.terminal_widget)
@@ -419,8 +408,9 @@ class ConsoleWidget(QtWidgets.QWidget):
                 analyzers = ""
         return (fingerprint, analyzers, str(getattr(engine, "root", "") or ""))
 
-    def set_file_context(self, file_path, file_info=None, engine=None, content=None):
+    def set_file_context(self, file_path, file_info=None, engine=None, content=None, *, background=False):
         """Show only diagnostics/metrics belonging to the active editor file."""
+        self._analysis_request += 1
         self._current_file = str(file_path) if file_path else None
         name = Path(file_path).name if file_path else "Нет открытого файла"
         self.problems_context.setText(name); self.output_context.setText(name)
@@ -438,15 +428,40 @@ class ConsoleWidget(QtWidgets.QWidget):
             cached = self._analysis_cache.get(str(file_path))
             if cached is not None and cached[0] == signature:
                 info = cached[1]
+            elif background:
+                from services.background import run_async
+                request = self._analysis_request
+                self._render_file_context(file_path, None)
+                self.output_text.setPlainText("Анализ файла…")
+
+                def done(info):
+                    if request != self._analysis_request:
+                        return
+                    self._cache_file_analysis(file_path, signature, info)
+                    self.problems_list.clear()
+                    self._update_problem_badge()
+                    self._render_file_context(file_path, info)
+
+                def failed(message):
+                    if request == self._analysis_request:
+                        self.output_text.setPlainText(f"Ошибка анализа файла: {message}")
+
+                run_async(lambda: engine.analyze_file(str(file_path), content),
+                          on_done=done, on_error=failed)
+                return
             else:
                 try: info = engine.analyze_file(str(file_path), content)
                 except Exception as exc:
                     self.output_text.setPlainText(f"Ошибка анализа файла: {exc}"); return
-                if info is not None:
-                    self._analysis_cache[str(file_path)] = (signature, info)
-                    if len(self._analysis_cache) > 64:
-                        # Keep the cache bounded; the active files are few.
-                        self._analysis_cache.pop(next(iter(self._analysis_cache)))
+                self._cache_file_analysis(file_path, signature, info)
+        self._render_file_context(file_path, info)
+
+    def _cache_file_analysis(self, file_path, signature, info):
+        self._analysis_cache[str(file_path)] = (signature, info)
+        if len(self._analysis_cache) > 64:
+            self._analysis_cache.pop(next(iter(self._analysis_cache)))
+
+    def _render_file_context(self, file_path, info):
         # Always sync LSP diagnostics for active file
         self._sync_lsp_problems(str(Path(file_path).resolve()))
 

@@ -37,6 +37,7 @@ config/github_auth.json
 # Agent chat sessions and other per-project PyScribe state.
 .pyscribe/
 logs/*.log
+logs/*.log.*
 !logs/.gitkeep
 scratch/
 

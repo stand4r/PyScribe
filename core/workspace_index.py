@@ -217,6 +217,12 @@ class WorkspaceIndex:
             self.symbols.setdefault(symbol, set()).add(path_key)
 
     # -- parsing on a worker thread ------------------------------------
+    def parse_buffer(self, path: Path, content: str):
+        """Parse an editor snapshot without mutating the index."""
+        path = Path(path).resolve()
+        symbols, members = self._parse_one(path, content)
+        return [(str(path), symbols, members)]
+
     def take_batch_paths(self, limit: int = 40) -> List[Path]:
         """Reserve the next pending paths so they can be parsed elsewhere."""
         if not self._pending:

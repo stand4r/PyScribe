@@ -223,7 +223,11 @@ def main():
         return
     app._pyscribe_instance = instance
 
+    from core.logging_config import install_diagnostics
+    install_diagnostics(base_path)
     app_manager = ApplicationManager(str(base_path))
+    from core.activity_log import install_activity_log
+    install_activity_log(app, base_path)
     setup_application_style(app, base_path)
 
     from app.main_window import ModernMainWindow

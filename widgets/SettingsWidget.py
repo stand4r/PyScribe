@@ -1,4 +1,5 @@
 """PyScribe widgets/SettingsWidget.py: application module and reusable component."""
+from core.activity_log import record_action
 from design.icons import set_line_icon
 from PyQt5 import QtWidgets, QtCore, QtGui
 from utils.settings_manager import get_settings_manager
@@ -85,6 +86,7 @@ class SettingsWidget(QtWidgets.QWidget):
             )),
         )
         self._nav_items = []
+        self._page_builders = {}
         for group, sections in groups:
             heading = QtWidgets.QListWidgetItem(group.upper())
             heading.setFlags(QtCore.Qt.NoItemFlags)
@@ -96,7 +98,8 @@ class SettingsWidget(QtWidgets.QWidget):
                 self._nav_items.append(item)
                 self._navigation.addItem(item)
                 self._compact_navigation.addItem(label, index)
-                self._pages.addWidget(self._scroll_page(label, description, build()))
+                self._page_builders[index] = (label, description, build)
+                self._pages.addWidget(QtWidgets.QWidget())
         self._navigation.currentItemChanged.connect(
             lambda item, _: self._select_page(item.data(QtCore.Qt.UserRole)) if item else None
         )
@@ -146,6 +149,15 @@ class SettingsWidget(QtWidgets.QWidget):
         if index is None or not 0 <= index < self._pages.count():
             return
         with QtCore.QSignalBlocker(self._navigation), QtCore.QSignalBlocker(self._compact_navigation):
+            spec = self._page_builders.get(index)
+            if spec is not None:
+                label, description, build = spec
+                page = self._scroll_page(label, description, build())
+                placeholder = self._pages.widget(index)
+                self._pages.removeWidget(placeholder)
+                placeholder.deleteLater()
+                self._pages.insertWidget(index, page)
+                del self._page_builders[index]
             self._pages.setCurrentIndex(index)
             self._navigation.setCurrentItem(self._nav_items[index])
             self._compact_navigation.setCurrentIndex(index)
@@ -386,21 +398,33 @@ class SettingsWidget(QtWidgets.QWidget):
         return w
 
     def _extensions_page(self):
-        page = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(page)
-        layout.setContentsMargins(12, 12, 12, 12)
-        title = QtWidgets.QLabel('Расширения')
-        title.setObjectName('settingsSectionTitle')
-        layout.addWidget(title)
-        hint = QtWidgets.QLabel('Установку и управление расширениями можно открыть в отдельной вкладке.')
-        hint.setWordWrap(True)
-        hint.setObjectName('settingsHint')
-        layout.addWidget(hint)
-        button = QtWidgets.QPushButton('Открыть менеджер расширений')
-        button.clicked.connect(lambda: self.main_window.action_open_extensions() if self.main_window else None)
-        layout.addWidget(button)
-        layout.addStretch()
+        from utils.settings_manager import BUILTIN_EXTENSIONS
+        from widgets.ExtensionsWidget import ExtensionsWidget
+
+        page, layout = self._page()
+        self._section(layout, "Встроенные расширения")
+        for key, (name, description) in BUILTIN_EXTENSIONS.items():
+            toggle = self._check(f"extension_{key}", name)
+            toggle.setToolTip(description)
+            layout.addRow(toggle)
+            hint = QtWidgets.QLabel(description)
+            hint.setWordWrap(True)
+            hint.setObjectName("settingsHint")
+            layout.addRow(hint)
+
+        if self.main_window is not None and hasattr(self.main_window, "extension_manager"):
+            self._section(layout, "Установленные расширения")
+            manager = ExtensionsWidget(self.main_window.extension_manager, page)
+            self.installed_extensions = manager
+            manager.setMinimumHeight(260)
+            layout.addRow(manager)
         return page
+
+    def open_extensions_page(self):
+        for item in self._nav_items:
+            if item.text() == "Расширения":
+                self._select_page(item.data(QtCore.Qt.UserRole))
+                break
 
     def _system_page(self):
         """Updates from GitHub releases and Windows Explorer integration."""
@@ -1038,6 +1062,7 @@ class SettingsWidget(QtWidgets.QWidget):
             window.show_ai_agent()
 
     def apply_settings(self, save_file=True):
+        record_action("settings_apply_requested")
         toolchains = dict(self.settings_manager.get_setting('toolchains', {}) or {})
         theme = self.controls.get('theme')
         if theme is not None and theme.currentData() != self.settings_manager.get_setting('theme'):

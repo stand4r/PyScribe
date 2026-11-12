@@ -47,8 +47,6 @@ if not exist "dist\PyScribe\PyScribe.exe" (
     goto :fail
 )
 
->"dist\PyScribe\README_RUN.txt" echo PyScribe is self-contained. Python is not required on the target computer.
-
 echo.
 echo ===================================================
 echo BUILD SUCCESSFUL!

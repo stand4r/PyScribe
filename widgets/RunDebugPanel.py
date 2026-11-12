@@ -110,7 +110,7 @@ class RunDebugPanel(QtWidgets.QWidget):
             from core.ignore_rules import walk_files
             entry_extensions = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".cs",
                                 ".go", ".rs", ".php", ".rb", ".kt", ".swift", ".lua",
-                                ".sh", ".pl"}
+                                ".sh", ".pl", ".asm", ".nasm", ".fasm"}
             scan = walk_files(Path(root), extensions=entry_extensions,
                               max_files=300, max_bytes=2 * 1024 * 1024)
             labels = []

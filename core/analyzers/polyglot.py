@@ -17,7 +17,7 @@ LANGUAGE_BY_EXT = {
     ".hpp": "cpp", ".hh": "cpp", ".hxx": "cpp", ".go": "go", ".rs": "rust",
     ".cs": "c_sharp", ".php": "php", ".rb": "ruby", ".swift": "swift", ".kt": "kotlin",
     ".kts": "kotlin", ".scala": "scala", ".dart": "dart", ".lua": "lua", ".sh": "bash",
-    ".bash": "bash", ".zsh": "bash", ".sql": "sql", ".r": "r", ".R": "r", ".fs": "fsharp", ".fsx": "fsharp", ".ex": "elixir", ".exs": "elixir", ".erl": "erlang", ".hrl": "erlang", ".hs": "haskell", ".lhs": "haskell", ".jl": "julia", ".m": "objective-c", ".mm": "objective-cpp", ".zig": "zig", ".v": "verilog", ".sol": "solidity", ".asm": "asm", ".s": "asm",
+    ".bash": "bash", ".zsh": "bash", ".sql": "sql", ".r": "r", ".R": "r", ".fs": "fsharp", ".fsx": "fsharp", ".ex": "elixir", ".exs": "elixir", ".erl": "erlang", ".hrl": "erlang", ".hs": "haskell", ".lhs": "haskell", ".jl": "julia", ".m": "objective-c", ".mm": "objective-cpp", ".zig": "zig", ".v": "verilog", ".sol": "solidity", ".asm": "asm", ".nasm": "asm", ".fasm": "asm", ".s": "asm",
 }
 
 LANGUAGE_NAMES = {
@@ -187,6 +187,15 @@ class PolyglotSourceAnalyzer:
         language = language_for_path(path) or "text"
         if language == "python":
             return self._python(path, text)
+        if language == "asm":
+            from core.assembly import outline
+            labels, imports = outline(text)
+            symbols = [SymbolInfo(name, "label", str(path), line) for name, line, _ in labels]
+            nodes = [StructureNode(f"{path}:label:{line}:{name}", name, "label",
+                                   str(path), line, "", "", "assembly")
+                     for name, line, _ in labels]
+            return GenericResult(language, symbols, imports, [], nodes, [],
+                                 {"parser": "assembly-outline", "complexity": 1})
         if self._pack:
             try:
                 return self._tree_sitter(path, text, language)

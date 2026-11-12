@@ -2763,11 +2763,8 @@ def _stream_format() -> QtGui.QTextCharFormat:
 class _BubbleFrame(QtWidgets.QFrame):
     """Container for one chat message.
 
-    The panel used to paint Telegram-style gradient bubbles with a corner tail,
-    which read as a messenger rather than a developer tool. Modern IDE chats
-    (DeepSeek Harness, Claude, Antigravity) use a flat layout instead: the
-    assistant answers sit directly on the background as readable text, and only
-    the user's message gets a compact pill. Styling lives in ``theme.qss``.
+    Assistant answers sit directly on the background. User messages have a
+    separate surface. Styling lives in ``theme.qss``.
     """
 
     def __init__(self, side: str, grouped: bool, parent=None):

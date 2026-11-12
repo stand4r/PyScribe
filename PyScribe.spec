@@ -8,10 +8,14 @@ ROOT = Path(SPECPATH)
 
 datas = [
     (str(ROOT / "src"), "src"),
-    (str(ROOT / "design"), "design"),
+    (str(ROOT / "design" / "theme.qss"), "design"),
+    (str(ROOT / "design" / "fonts"), "design/fonts"),
+    (str(ROOT / "design" / "icons"), "design/icons"),
     (str(ROOT / "config" / "settings.default.json"), "config"),
     (str(ROOT / "USER_GUIDE.md"), "."),
     (str(ROOT / "VERSION"), "."),
+    (str(ROOT / "third_party" / "assembly" / "nasm"), "third_party/assembly/nasm"),
+    (str(ROOT / "third_party" / "assembly" / "fasm"), "third_party/assembly/fasm"),
 ]
 
 hiddenimports = [

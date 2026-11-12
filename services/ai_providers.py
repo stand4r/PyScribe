@@ -7,7 +7,7 @@ Two wire protocols are supported:
 
 ``openai``
     ``POST {base}/chat/completions`` with SSE ``data: {...}`` chunks. Covers
-    DeepSeek, OpenAI, ChatGPT/Codex API, OpenRouter, Groq, Mistral, Gemini's
+    DeepSeek, OpenAI, OpenRouter, Groq, Mistral, Gemini's
     compatibility endpoint, Ollama, LM Studio and any custom server.
 ``anthropic``
     ``POST {base}/messages`` with the native Claude Messages API
